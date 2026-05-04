@@ -1,0 +1,833 @@
+/* ─── Wireframe aesthetic — Balsamiq-leaning, anchored ────────────────── */
+@import url("https://fonts.googleapis.com/css2?family=Caveat:wght@500;700&family=Kalam:wght@400;700&family=Nunito:wght@400;700;800;900&family=JetBrains+Mono:wght@400;700&display=swap");
+
+/* The wireframe page itself uses a paper-leaning palette so contrast against
+   the gray boxes is high. The DS dark tokens are still imported for accuracy
+   when we sketch overlay components (e.g., HUD anchors). */
+
+:root {
+  --paper: #f4f1ea;
+  --ink: #20221f;
+  --ink-2: #4a4d48;
+  --ink-3: #7a7d76;
+  --line: #20221f;
+  --line-soft: #5a5d57;
+  --line-faint: #b3b2ac;
+  --box: #e3e0d6;
+  --box-2: #d5d2c6;
+  --box-3: #c3bfb2;
+  --box-4: #aaa69a;
+  --flag-red: #b94a3a;
+  --flag-bg: #f1d6cf;
+  --note-bg: #fbf6e6;
+  --note-border: #d8c98a;
+  --hand: "Kalam", "Caveat", "Comic Sans MS", cursive;
+  --hand-display: "Caveat", "Kalam", cursive;
+  --label: "Nunito", "Inter", system-ui, sans-serif;
+}
+
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body {
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--label);
+  /* Subtle paper grain via repeating dots */
+  background-image:
+    radial-gradient(rgba(0,0,0,0.025) 1px, transparent 1px);
+  background-size: 4px 4px;
+}
+
+/* ─── App chrome ──────────────────────────────────────────────────────── */
+.app {
+  max-width: 1480px;
+  margin: 0 auto;
+  padding: 28px 32px 80px;
+}
+.app-header {
+  display: flex; align-items: flex-end; justify-content: space-between;
+  gap: 24px; padding-bottom: 18px; margin-bottom: 22px;
+  border-bottom: 2px dashed var(--line);
+}
+.app-title {
+  font-family: var(--hand-display);
+  font-size: 44px; line-height: 1; margin: 0;
+  letter-spacing: -0.01em;
+}
+.app-title em {
+  font-style: normal;
+  background: var(--ink); color: var(--paper);
+  padding: 2px 8px 4px; border-radius: 2px;
+  transform: rotate(-1deg);
+  display: inline-block;
+  line-height: 1;
+  margin: 4px 0;
+}
+.app-sub {
+  font-family: var(--hand); font-size: 18px;
+  color: var(--ink-2); max-width: 640px;
+  margin: 6px 0 0;
+}
+.app-meta {
+  font-family: var(--hand); font-size: 16px; color: var(--ink-3);
+  text-align: right; line-height: 1.5;
+}
+.app-meta strong { color: var(--ink); font-weight: 700; }
+
+/* ─── Tabs ────────────────────────────────────────────────────────────── */
+.tabs {
+  display: flex; gap: 6px; flex-wrap: wrap;
+  margin-bottom: 24px;
+  border-bottom: 2px solid var(--line);
+}
+.tab {
+  appearance: none; background: transparent; border: 0;
+  font: inherit; color: var(--ink-2);
+  padding: 10px 16px 14px; cursor: pointer;
+  font-family: var(--hand); font-size: 18px;
+  border: 2px solid transparent; border-bottom: 0;
+  border-radius: 8px 8px 0 0;
+  margin-bottom: -2px;
+  position: relative;
+  transform: rotate(-0.4deg);
+}
+.tab:nth-child(2) { transform: rotate(0.3deg); }
+.tab:nth-child(3) { transform: rotate(-0.2deg); }
+.tab:nth-child(4) { transform: rotate(0.5deg); }
+.tab:nth-child(5) { transform: rotate(-0.3deg); }
+.tab:hover { color: var(--ink); background: rgba(0,0,0,0.04); }
+.tab.is-active {
+  color: var(--ink); background: var(--paper);
+  border-color: var(--line); border-bottom-color: var(--paper);
+  font-weight: 700;
+}
+.tab .num {
+  font-family: var(--hand); font-size: 14px;
+  color: var(--ink-3); margin-right: 6px;
+  display: inline-block;
+}
+.tab.is-active .num { color: var(--flag-red); }
+
+.tab-panel { display: none; }
+.tab-panel.is-active { display: block; }
+
+/* ─── Surface section ─────────────────────────────────────────────────── */
+.surface-header {
+  display: grid;
+  grid-template-columns: 1fr 360px;
+  gap: 28px;
+  margin-bottom: 18px;
+}
+.surface-title {
+  font-family: var(--hand-display);
+  font-size: 38px; line-height: 1; margin: 0 0 6px;
+}
+.surface-title small {
+  display: block; font-family: var(--hand);
+  font-size: 16px; color: var(--ink-3);
+  margin-top: 4px;
+}
+.surface-intro {
+  font-family: var(--hand); font-size: 17px;
+  color: var(--ink-2); line-height: 1.5;
+  max-width: 640px;
+  margin: 0;
+}
+.leak-summary {
+  background: var(--flag-bg);
+  border: 2px dashed var(--flag-red);
+  border-radius: 6px;
+  padding: 12px 14px;
+  font-family: var(--hand);
+  font-size: 14px;
+  color: #5a1f15;
+  line-height: 1.45;
+}
+.leak-summary strong {
+  display: block;
+  font-size: 13px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--flag-red);
+  margin-bottom: 4px;
+  font-family: var(--label); font-weight: 800;
+}
+
+/* ─── State row ───────────────────────────────────────────────────────── */
+.state-row { margin-bottom: 36px; }
+.state-row + .state-row {
+  border-top: 1px dashed var(--line-soft);
+  padding-top: 26px;
+}
+.state-head {
+  display: flex; align-items: baseline; gap: 14px;
+  margin-bottom: 12px;
+}
+.state-num {
+  font-family: var(--hand-display);
+  font-size: 28px;
+  background: var(--ink); color: var(--paper);
+  width: 36px; height: 36px;
+  border-radius: 50%;
+  display: inline-grid; place-items: center;
+  transform: rotate(-3deg);
+  flex-shrink: 0;
+}
+.state-name {
+  font-family: var(--hand-display);
+  font-size: 28px; line-height: 1; margin: 0;
+}
+.state-tag {
+  font-family: var(--label); font-weight: 700;
+  font-size: 11px; letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+  border: 1.5px solid var(--ink-3);
+  padding: 2px 8px; border-radius: 999px;
+  margin-left: auto;
+}
+
+.state-grid {
+  display: grid;
+  grid-template-columns: 1280px 360px;
+  gap: 24px;
+  align-items: flex-start;
+}
+@media (max-width: 1720px) {
+  .state-grid { grid-template-columns: minmax(0, 1fr) 320px; }
+}
+@media (max-width: 1100px) {
+  .state-grid { grid-template-columns: minmax(0, 1fr); }
+  .notes { position: static; }
+}
+
+/* ─── The 1280×720 frame (the "screen") ───────────────────────────────── */
+/* Fixed-size canvas with scale-to-fit. The frame is ALWAYS rendered at
+   1280×720; on narrow viewports we shrink it via transform: scale().
+   A wrapper holds the laid-out width so the rest of the page reflows.
+   JS sets the wrap's height directly when scaling. */
+.frame-wrap {
+  width: 100%;
+  max-width: 1280px;
+  height: 720px;
+  position: relative;
+  overflow: hidden;
+}
+.frame {
+  position: absolute;
+  top: 0; left: 0;
+  width: 1280px; height: 720px;
+  background: #fafaf6;
+  border: 2.5px solid var(--line);
+  border-radius: 6px;
+  box-shadow:
+    3px 3px 0 var(--line),
+    0 0 0 1px rgba(0,0,0,0.05) inset;
+  overflow: hidden;
+  transform-origin: top left;
+  /* Scale applied via --frame-scale (default 1 = no-op at full size) */
+  transform: rotate(-0.15deg) scale(var(--frame-scale, 1));
+}
+
+.frame-meta {
+  position: absolute; top: 8px; right: 12px;
+  font-family: var(--hand); font-size: 12px;
+  color: var(--ink-3);
+  pointer-events: none;
+}
+.frame-meta::before {
+  content: "1280 × 720";
+}
+
+/* Safe-zone guide */
+.safe-zone {
+  position: absolute; inset: 24px;
+  border: 1px dashed var(--line-faint);
+  border-radius: 4px;
+  pointer-events: none;
+}
+.safe-zone::before {
+  content: "safe inset 24px";
+  position: absolute; top: -8px; left: 8px;
+  background: #fafaf6;
+  padding: 0 6px;
+  font-family: var(--hand);
+  font-size: 11px;
+  color: var(--line-faint);
+}
+
+/* ─── Box primitives ──────────────────────────────────────────────────── */
+.box {
+  position: absolute;
+  background: var(--box);
+  border: 2px solid var(--line);
+  border-radius: 4px;
+  font-family: var(--hand);
+  color: var(--ink);
+  display: flex; flex-direction: column;
+  box-shadow: 2px 2px 0 var(--line);
+}
+.box.dashed { border-style: dashed; }
+.box.empty { background: #efece2; }
+.box.dim { background: var(--box-2); color: var(--ink-2); }
+.box.dimmer { background: var(--box-3); color: var(--ink-2); }
+.box.dark { background: var(--box-4); color: var(--paper); border-color: var(--ink); }
+.box.ghost { background: transparent; box-shadow: none; }
+
+.box-label {
+  font-family: var(--label);
+  font-weight: 700; font-size: 10px;
+  letter-spacing: 0.12em; text-transform: uppercase;
+  color: var(--ink-3);
+  padding: 4px 8px 0;
+}
+.box-title {
+  font-family: var(--hand-display);
+  font-size: 22px; line-height: 1;
+  padding: 4px 10px 0;
+}
+.box-body {
+  font-family: var(--hand); font-size: 14px;
+  padding: 4px 10px 8px;
+  line-height: 1.35;
+}
+
+/* Image-placeholder X */
+.placeholder-x {
+  position: relative;
+}
+.placeholder-x::before,
+.placeholder-x::after {
+  content: ""; position: absolute; inset: 0;
+  background:
+    linear-gradient(to top right, transparent 49.5%, var(--line-faint) 49.5%, var(--line-faint) 50.5%, transparent 50.5%);
+}
+.placeholder-x::after {
+  background:
+    linear-gradient(to bottom right, transparent 49.5%, var(--line-faint) 49.5%, var(--line-faint) 50.5%, transparent 50.5%);
+}
+
+/* "Hand-drawn" zigzag line */
+.zigzag {
+  --c: var(--line);
+  background-image:
+    linear-gradient(135deg, var(--c) 25%, transparent 25%),
+    linear-gradient(225deg, var(--c) 25%, transparent 25%);
+  background-size: 8px 8px;
+  background-position: 0 0, 4px 0;
+  background-repeat: repeat-x;
+  height: 8px;
+}
+
+/* ─── Common HUD anchors (sketch) ─────────────────────────────────────── */
+.hud-badge {
+  width: 264px; min-height: 64px;
+  background: var(--box);
+  border: 2px solid var(--line);
+  border-radius: 8px;
+  padding: 8px 14px 10px 8px;
+  display: flex; align-items: center; gap: 10px;
+  box-shadow: 2px 2px 0 var(--line);
+  position: relative;
+}
+.hud-badge .puck {
+  width: 44px; height: 44px;
+  border-radius: 6px;
+  background: #fff8be;
+  display: grid; place-items: center;
+  border: 1.5px solid var(--line);
+  flex-shrink: 0;
+}
+.hud-badge.buffalo .puck { background: #d6b89a; }
+.hud-badge.fox .puck { background: #ffce96; }
+.hud-badge .puck img { width: 32px; height: 32px; opacity: 0.85; }
+.hud-badge .col { flex: 1; min-width: 0; }
+.hud-badge .name {
+  font-family: var(--hand-display); font-size: 22px; line-height: 1;
+}
+.hud-badge .hp-row {
+  display: flex; align-items: center; gap: 8px; margin-top: 6px;
+}
+.hud-badge .hp-bar {
+  flex: 1; height: 8px; background: #fff;
+  border: 1.5px solid var(--line); border-radius: 4px;
+  position: relative; overflow: hidden;
+}
+.hud-badge .hp-bar::after {
+  content: ""; position: absolute;
+  top: 0; left: 0; bottom: 0;
+  width: var(--hp, 70%);
+  background: var(--ink-2);
+}
+.hud-badge .hp-num {
+  font-family: var(--label); font-weight: 800;
+  font-variant-numeric: tabular-nums; font-size: 12px;
+  white-space: nowrap; color: var(--ink);
+}
+.hud-badge.locked { opacity: 0.45; filter: grayscale(0.6); }
+
+.hud-badge .you-tick {
+  display: none;
+}
+/* Per the call: NO local-player distinct treatment. Position is the cue. */
+
+.wave-pill {
+  width: 280px; height: 76px;
+  background: var(--box);
+  border: 2px solid var(--line);
+  border-radius: 10px;
+  box-shadow: 2px 2px 0 var(--line);
+  padding: 8px 14px;
+  display: flex; align-items: center; gap: 14px;
+}
+.wave-pill .wp-info { flex: 1; min-width: 0; }
+.wave-pill .wp-eyebrow {
+  font-family: var(--label); font-weight: 800;
+  font-size: 10px; letter-spacing: 0.14em;
+  text-transform: uppercase; color: var(--ink-3);
+}
+.wave-pill .wp-title {
+  font-family: var(--hand-display); font-size: 22px; line-height: 1;
+  margin-top: 4px;
+}
+.wave-pill .wp-timer {
+  font-family: "JetBrains Mono", monospace;
+  font-size: 24px; font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.val-strip {
+  height: 56px; min-width: 240px;
+  background: var(--box);
+  border: 2px solid var(--line);
+  border-radius: 999px;
+  padding: 6px 18px 6px 6px;
+  display: flex; align-items: center; gap: 12px;
+  box-shadow: 2px 2px 0 var(--line);
+}
+.val-strip .puck {
+  width: 44px; height: 44px;
+  border-radius: 50%;
+  background: #eee2c8;
+  display: grid; place-items: center;
+  border: 1.5px solid var(--line);
+}
+.val-strip .puck img { width: 32px; height: 32px; opacity: 0.85; }
+.val-strip .val-name {
+  font-family: var(--hand-display); font-size: 20px; line-height: 1;
+}
+.val-strip .val-status {
+  font-family: var(--hand); font-size: 13px; color: var(--ink-2);
+}
+
+.ability {
+  width: 56px; height: 56px;
+  border-radius: 8px;
+  background: var(--box);
+  border: 2px solid var(--line);
+  box-shadow: 2px 2px 0 var(--line);
+  display: grid; place-items: center;
+  position: relative;
+}
+.ability + .ability { margin-left: 6px; }
+.ability .key {
+  position: absolute; top: -8px; left: -8px;
+  width: 20px; height: 20px; border-radius: 4px;
+  background: var(--paper); border: 1.5px solid var(--line);
+  font-family: "JetBrains Mono", monospace;
+  font-size: 11px; font-weight: 700;
+  display: grid; place-items: center;
+}
+.ability .glyph {
+  width: 24px; height: 24px;
+  border: 1.5px solid var(--ink-2);
+  border-radius: 4px;
+  background:
+    linear-gradient(45deg, transparent 47%, var(--ink-2) 47%, var(--ink-2) 53%, transparent 53%);
+}
+.ability.cd { opacity: 0.6; }
+.ability.cd .glyph { opacity: 0; }
+.ability.cd .cd-num {
+  font-family: "JetBrains Mono", monospace;
+  font-size: 18px; font-weight: 700;
+  color: var(--ink);
+}
+
+/* ─── Annotation pins (numbered lollipops) ───────────────────────────── */
+.pin {
+  position: absolute;
+  width: 24px; height: 24px;
+  background: var(--flag-red);
+  color: white;
+  border-radius: 50%;
+  display: grid; place-items: center;
+  font-family: var(--label); font-weight: 800;
+  font-size: 12px;
+  border: 2px solid var(--paper);
+  box-shadow: 1px 1px 0 var(--line);
+  z-index: 30;
+  cursor: default;
+}
+.pin.note { background: var(--ink); }
+
+/* Leak flag (red dashed callout pinned in-frame) */
+.leak {
+  position: absolute;
+  background: var(--flag-bg);
+  border: 1.5px dashed var(--flag-red);
+  border-radius: 4px;
+  padding: 4px 8px;
+  font-family: var(--hand);
+  font-size: 12px;
+  color: #5a1f15;
+  max-width: 200px;
+  line-height: 1.3;
+  z-index: 25;
+}
+.leak::before {
+  content: "⚑ leak risk";
+  display: block;
+  font-family: var(--label); font-weight: 800;
+  font-size: 9px; letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--flag-red);
+  margin-bottom: 2px;
+}
+
+/* Connector arrow (for callouts in-frame) */
+.callout {
+  position: absolute;
+  font-family: var(--hand);
+  font-size: 13px;
+  color: var(--ink-2);
+  line-height: 1.3;
+  max-width: 180px;
+  z-index: 20;
+}
+.callout .arrow {
+  display: block;
+  width: 1px; height: 1px;
+}
+.callout::before {
+  content: "↳";
+  font-family: var(--hand-display);
+  font-size: 18px;
+  margin-right: 4px;
+  color: var(--ink);
+}
+
+/* ─── Notes pane ──────────────────────────────────────────────────────── */
+.notes {
+  background: var(--note-bg);
+  border: 2px solid var(--note-border);
+  border-radius: 6px;
+  padding: 14px 16px;
+  font-family: var(--hand);
+  font-size: 14px;
+  color: var(--ink);
+  line-height: 1.45;
+  box-shadow: 2px 2px 0 rgba(0,0,0,0.06);
+  position: sticky;
+  top: 18px;
+  align-self: flex-start;
+}
+.notes h4 {
+  font-family: var(--label); font-weight: 800;
+  font-size: 11px; letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+  margin: 0 0 4px;
+}
+.notes h4 + p,
+.notes h4 + ul { margin-top: 0; }
+.notes h4:not(:first-of-type) { margin-top: 14px; }
+.notes ul {
+  margin: 6px 0 0; padding-left: 18px;
+}
+.notes li { margin-bottom: 4px; }
+.notes li::marker { color: var(--ink-3); font-size: 11px; }
+.notes .pin-ref {
+  display: inline-grid; place-items: center;
+  width: 18px; height: 18px;
+  background: var(--flag-red); color: white;
+  border-radius: 50%;
+  font-family: var(--label); font-weight: 800; font-size: 10px;
+  margin-right: 4px;
+  vertical-align: -3px;
+}
+.notes .pin-ref.note { background: var(--ink); }
+.notes .open-q {
+  border-top: 1.5px dashed var(--note-border);
+  margin-top: 12px; padding-top: 10px;
+}
+.notes .components {
+  font-family: "JetBrains Mono", monospace;
+  font-size: 11px;
+  background: rgba(0,0,0,0.04);
+  padding: 8px 10px;
+  border-radius: 4px;
+  margin-top: 8px;
+  line-height: 1.6;
+  color: var(--ink);
+}
+
+/* ─── Centered overlays ───────────────────────────────────────────────── */
+.scrim {
+  position: absolute; inset: 0;
+  background: rgba(20, 18, 14, 0.45);
+  backdrop-filter: blur(2px);
+  display: grid; place-items: center;
+  z-index: 10;
+}
+.scrim.subtle { background: rgba(20, 18, 14, 0.20); }
+
+.modal {
+  background: #fafaf6;
+  border: 2.5px solid var(--line);
+  border-radius: 8px;
+  box-shadow: 4px 4px 0 var(--line);
+  padding: 24px 28px;
+  min-width: 480px;
+  max-width: 720px;
+  position: relative;
+}
+
+/* ─── Hero card (select screen) ──────────────────────────────────────── */
+.hero-card {
+  position: relative;
+  width: 320px; height: 460px;
+  background: var(--box);
+  border: 2.5px solid var(--line);
+  border-radius: 10px;
+  box-shadow: 4px 4px 0 var(--line);
+  display: flex; flex-direction: column;
+  overflow: hidden;
+}
+.hero-card .totem-zone {
+  height: 200px;
+  background: var(--box-2);
+  border-bottom: 2px solid var(--line);
+  display: grid; place-items: center;
+  position: relative;
+}
+.hero-card .totem-zone img {
+  width: 120px; height: 120px;
+  filter: grayscale(1) contrast(0.85) opacity(0.55);
+}
+.hero-card .totem-tag {
+  position: absolute; top: 10px; left: 12px;
+  font-family: var(--label); font-weight: 800;
+  font-size: 10px; letter-spacing: 0.12em;
+  text-transform: uppercase; color: var(--ink-3);
+  background: var(--paper);
+  padding: 2px 6px; border-radius: 3px;
+  border: 1px solid var(--line);
+}
+.hero-card .body { padding: 14px 16px 12px; flex: 1; display: flex; flex-direction: column; }
+.hero-card .name {
+  font-family: var(--hand-display); font-size: 36px; line-height: 1;
+}
+.hero-card .role {
+  font-family: var(--label); font-weight: 700;
+  font-size: 12px; letter-spacing: 0.08em;
+  text-transform: uppercase; color: var(--ink-3);
+  margin-top: 6px;
+}
+.hero-card .flavor {
+  font-family: var(--hand); font-size: 14px;
+  color: var(--ink-2); margin-top: 10px;
+  line-height: 1.4; flex: 1;
+}
+.hero-card .stats {
+  display: flex; gap: 16px; padding-top: 10px;
+  border-top: 1.5px dashed var(--line-soft);
+  margin-top: auto;
+}
+.hero-card .stat .k {
+  font-family: var(--label); font-weight: 800;
+  font-size: 9px; letter-spacing: 0.12em;
+  text-transform: uppercase; color: var(--ink-3);
+}
+.hero-card .stat .v {
+  font-family: "JetBrains Mono", monospace;
+  font-weight: 700; font-size: 18px;
+  font-variant-numeric: tabular-nums;
+}
+.hero-card .cta {
+  background: var(--ink); color: var(--paper);
+  font-family: var(--hand-display); font-size: 22px;
+  text-align: center; padding: 8px 0;
+  border-top: 2px solid var(--line);
+}
+.hero-card.locked .cta {
+  background: var(--box-3); color: var(--ink-2);
+}
+.hero-card.locked .totem-zone img { opacity: 0.25; }
+.hero-card.locked {
+  opacity: 0.7;
+}
+.hero-card.locked::after {
+  content: "LOCKED IN";
+  position: absolute; top: 50%; left: 50%;
+  transform: translate(-50%, -50%) rotate(-8deg);
+  font-family: var(--label); font-weight: 900;
+  font-size: 26px; letter-spacing: 0.2em;
+  color: var(--flag-red);
+  border: 3px solid var(--flag-red);
+  padding: 6px 16px; border-radius: 4px;
+  background: rgba(255,255,255,0.85);
+  z-index: 5;
+}
+.hero-card.locked .lock-by {
+  position: absolute; top: 12px; right: 12px;
+  font-family: var(--label); font-weight: 800;
+  font-size: 10px; letter-spacing: 0.08em;
+  text-transform: uppercase; color: var(--flag-red);
+  background: var(--flag-bg);
+  padding: 2px 6px; border-radius: 3px;
+  border: 1px solid var(--flag-red);
+  z-index: 6;
+}
+.hero-card .ping {
+  position: absolute; bottom: 56px; right: 12px;
+  font-family: "JetBrains Mono", monospace;
+  font-size: 10px; color: var(--ink-3);
+}
+
+/* Build palette (Surface 4) */
+.deploy-card {
+  flex: 1;
+  background: #fff;
+  border: 2px solid var(--line);
+  border-radius: 6px;
+  padding: 8px 10px;
+  position: relative;
+  display: flex; flex-direction: column;
+  min-height: 92px;
+}
+.deploy-card.cd { background: var(--box-2); opacity: 0.7; }
+.deploy-card.cd::after {
+  content: attr(data-cd);
+  position: absolute; top: 50%; left: 50%;
+  transform: translate(-50%, -50%);
+  font-family: "JetBrains Mono", monospace;
+  font-size: 22px; font-weight: 700;
+  color: var(--ink);
+}
+
+/* Wave banner overlay */
+.wave-banner {
+  text-align: center;
+  font-family: var(--hand-display);
+  color: var(--paper);
+}
+.wave-banner .shout {
+  font-family: var(--label);
+  font-weight: 900;
+  font-size: 96px;
+  letter-spacing: 0.04em;
+  line-height: 0.9;
+  color: var(--paper);
+  text-shadow: 4px 4px 0 var(--ink);
+}
+.wave-banner .sub {
+  font-family: var(--hand-display);
+  font-size: 40px;
+  margin-top: 12px;
+  color: var(--paper);
+}
+
+/* Toasts */
+.toast {
+  display: flex; align-items: center; gap: 10px;
+  background: var(--box);
+  border: 2px solid var(--line);
+  border-radius: 8px;
+  box-shadow: 2px 2px 0 var(--line);
+  padding: 8px 14px;
+}
+
+/* Help-request pulse ring */
+.pulse-ring {
+  position: absolute;
+  inset: -8px;
+  border: 2.5px dashed var(--flag-red);
+  border-radius: 12px;
+  pointer-events: none;
+}
+.pulse-ring::after {
+  content: "HELP";
+  position: absolute;
+  top: -12px; right: -8px;
+  background: var(--flag-red); color: white;
+  font-family: var(--label); font-weight: 900;
+  font-size: 10px; letter-spacing: 0.1em;
+  padding: 2px 6px; border-radius: 3px;
+  border: 2px solid var(--paper);
+}
+
+/* Sector core indicator (in-world floating) */
+.core-bar {
+  position: absolute;
+  width: 120px; height: 26px;
+  background: rgba(255,255,255,0.92);
+  border: 2px solid var(--line);
+  border-radius: 4px;
+  padding: 3px 6px;
+  display: flex; align-items: center; gap: 6px;
+  box-shadow: 2px 2px 0 var(--line);
+}
+.core-bar .core-fill {
+  flex: 1; height: 8px; background: #fff;
+  border: 1.5px solid var(--line); border-radius: 2px;
+  position: relative; overflow: hidden;
+}
+.core-bar .core-fill::after {
+  content: ""; position: absolute; inset: 0;
+  width: var(--core, 70%);
+  background: var(--ink-2);
+}
+.core-bar .core-num {
+  font-family: "JetBrains Mono", monospace;
+  font-size: 10px; font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+/* World stub — fake arena floor for HUD context */
+.world-stub {
+  position: absolute; inset: 110px 90px 110px 90px;
+  display: flex; gap: 4px;
+  perspective: 900px;
+}
+.world-stub .sector {
+  flex: 1;
+  background: #ebe7d8;
+  border: 1.5px dashed var(--line-faint);
+  border-radius: 4px;
+  position: relative;
+  display: grid; place-items: center;
+  font-family: var(--hand);
+  font-size: 14px;
+  color: var(--line-faint);
+}
+.world-stub .sector .lbl {
+  position: absolute; top: 8px; left: 8px;
+  font-family: var(--label); font-weight: 800;
+  font-size: 10px; letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+.world-stub .core-dot {
+  width: 28px; height: 28px;
+  background: #fff;
+  border: 2px solid var(--line);
+  border-radius: 4px;
+  position: relative;
+}
+
+/* ─── Helpers ─────────────────────────────────────────────────────────── */
+.row { display: flex; }
+.stack { display: flex; flex-direction: column; }
+.gap-2 { gap: 8px; }
+.gap-3 { gap: 12px; }
+.gap-4 { gap: 16px; }
+.gap-6 { gap: 24px; }

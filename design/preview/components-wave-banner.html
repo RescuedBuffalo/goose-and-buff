@@ -1,0 +1,27 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>Wave banner</title>
+<link rel="stylesheet" href="../colors_and_type.css">
+<style>
+  body { margin: 0; background: var(--night-0); color: var(--fg-1); padding: 28px; font-family: var(--font-body); }
+  .banner {
+    background: rgb(18 17 22 / 0.6); backdrop-filter: blur(8px);
+    border: var(--hairline-warm); border-radius: var(--radius-4);
+    padding: 18px 28px; box-shadow: var(--shadow-3);
+    display: flex; align-items: center; gap: 22px;
+  }
+  .banner .totem { width: 56px; height: 56px; flex-shrink: 0; }
+  .banner .body { flex: 1; }
+  .eyebrow { font-family: var(--font-body); font-weight: 700; font-size: 11px; letter-spacing: 0.18em; text-transform: uppercase; color: var(--fox-core); }
+  .title { font-family: var(--font-display); font-size: 32px; line-height: 1.1; margin-top: 2px; }
+  .timer { font-family: var(--font-mono); font-size: 28px; color: var(--fox-core); font-variant-numeric: tabular-nums; }
+</style></head>
+<body>
+  <div class="banner">
+    <img class="totem" src="../assets/totems/fox.svg" alt="">
+    <div class="body">
+      <div class="eyebrow">Wave 3 · Fox's turn</div>
+      <div class="title">Hold the right flank.</div>
+    </div>
+    <div class="timer">0:24</div>
+  </div>
+</body></html>

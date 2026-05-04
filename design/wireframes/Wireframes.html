@@ -1,0 +1,1616 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>The Long Watch · v0.1 Wireframes</title>
+<link rel="stylesheet" href="wireframes.css">
+</head>
+<body>
+
+<div class="app">
+  <header class="app-header">
+    <div>
+      <h1 class="app-title">The Long Watch — <em>v0.1 wireframes</em></h1>
+      <p class="app-sub">Low-fidelity, grayscale, anchored to 1280×720 with the canonical 24px safe inset. The point is to interrogate structure, not pixels. All copy is placeholder.</p>
+    </div>
+    <div class="app-meta">
+      <strong>5 surfaces · 17 states</strong><br>
+      Author: design pass 1 · May 3, 2026<br>
+      Decisions to surface back → see notes panes
+    </div>
+  </header>
+
+  <nav class="tabs" role="tablist">
+    <button class="tab is-active" data-tab="select" role="tab"><span class="num">01</span>Hero Select</button>
+    <button class="tab" data-tab="hud" role="tab"><span class="num">02</span>In-run HUD</button>
+    <button class="tab" data-tab="help" role="tab"><span class="num">03</span>Help Request</button>
+    <button class="tab" data-tab="prep" role="tab"><span class="num">04</span>Prep / Build</button>
+    <button class="tab" data-tab="rounds" role="tab"><span class="num">05</span>Round Transitions</button>
+  </nav>
+
+  <!-- ════════════════════════════════════════════════════════════════════════
+       SURFACE 1 — HERO SELECT
+       ════════════════════════════════════════════════════════════════════════ -->
+  <section class="tab-panel is-active" data-panel="select">
+    <header class="surface-header">
+      <div>
+        <h2 class="surface-title">01 · Hero Select</h2>
+        <p class="surface-intro">First screen on join. Three cards in canonical order (Goose, Buffalo, Fox). Click a card to lock in. Late joiners see locked cards greyed and a spectate option. Three states below.</p>
+      </div>
+      <aside class="leak-summary">
+        <strong>⚑ Info-asymmetry watch</strong>
+        Pre-run is mostly safe — but if the lobby ever previews wave comp ("Wave 1: 2 Light, 1 Ranged in Fox sector") the spine breaks before the run starts. Keep this screen pure roster.
+      </aside>
+    </header>
+
+    <!-- STATE 1.A: ALL AVAILABLE -->
+    <div class="state-row">
+      <div class="state-head">
+        <span class="state-num">A</span>
+        <h3 class="state-name">All available</h3>
+        <span class="state-tag">First player to join · canonical state</span>
+      </div>
+      <div class="state-grid">
+        <div class="frame">
+          <span class="frame-meta"></span>
+          <div class="safe-zone"></div>
+
+          <!-- Header strip -->
+          <div class="box ghost" style="top: 36px; left: 50%; transform: translateX(-50%); width: 720px; text-align: center; border: 0; box-shadow: none;">
+            <div class="box-label" style="text-align:center; padding: 0;">EYEBROW · run #—</div>
+            <div style="font-family: var(--hand-display); font-size: 56px; line-height: 1; margin-top: 4px;">Pick your post.</div>
+            <div style="font-family: var(--hand); font-size: 18px; color: var(--ink-2); margin-top: 6px;">Three sectors. One companion. We hold the line together.</div>
+          </div>
+
+          <!-- Three hero cards -->
+          <div style="position: absolute; top: 200px; left: 50%; transform: translateX(-50%); display: flex; gap: 24px;">
+            <!-- GOOSE -->
+            <div class="hero-card">
+              <div class="totem-zone">
+                <span class="totem-tag">Totem · Goose</span>
+                <img src="../assets/totems/goose.svg" alt="">
+              </div>
+              <div class="body">
+                <div class="name">Goose</div>
+                <div class="role">Aggression / IGL</div>
+                <div class="flavor">Loud, fast, gets there first. Calls the shots when it counts.</div>
+                <div class="stats">
+                  <div class="stat"><div class="k">HP</div><div class="v">100</div></div>
+                  <div class="stat"><div class="k">Speed</div><div class="v">18</div></div>
+                </div>
+              </div>
+              <div class="cta">Lock in</div>
+              <span class="ping">key 1</span>
+            </div>
+            <!-- BUFFALO -->
+            <div class="hero-card">
+              <div class="totem-zone">
+                <span class="totem-tag">Totem · Buffalo</span>
+                <img src="../assets/totems/buffalo.png" alt="">
+              </div>
+              <div class="body">
+                <div class="name">Buffalo</div>
+                <div class="role">Sentinel anchor</div>
+                <div class="flavor">Heavy. Patient. Whatever's coming through, comes through them.</div>
+                <div class="stats">
+                  <div class="stat"><div class="k">HP</div><div class="v">160</div></div>
+                  <div class="stat"><div class="k">Speed</div><div class="v">12</div></div>
+                </div>
+              </div>
+              <div class="cta">Lock in</div>
+              <span class="ping">key 2</span>
+            </div>
+            <!-- FOX -->
+            <div class="hero-card">
+              <div class="totem-zone">
+                <span class="totem-tag">Totem · Fox</span>
+                <img src="../assets/totems/fox.svg" alt="">
+              </div>
+              <div class="body">
+                <div class="name">Fox</div>
+                <div class="role">Initiator / Recon</div>
+                <div class="flavor">First in, first out. Sees what the others can't until it's too late.</div>
+                <div class="stats">
+                  <div class="stat"><div class="k">HP</div><div class="v">85</div></div>
+                  <div class="stat"><div class="k">Speed</div><div class="v">22</div></div>
+                </div>
+              </div>
+              <div class="cta">Lock in</div>
+              <span class="ping">key 3</span>
+            </div>
+          </div>
+
+          <!-- Footer roster strip -->
+          <div class="box" style="bottom: 24px; left: 50%; transform: translateX(-50%); width: 720px; height: 64px; flex-direction: row; align-items: center; padding: 0 16px; gap: 12px;">
+            <div style="font-family: var(--hand); font-size: 14px; color: var(--ink-3);">Tonight's watch:</div>
+            <div style="display: flex; gap: 8px; flex: 1;">
+              <div style="width: 32px; height: 32px; border-radius: 50%; background: #fff8be; border: 1.5px solid var(--line); display: grid; place-items: center; font-family: var(--hand-display); font-size: 14px;">?</div>
+              <div style="width: 32px; height: 32px; border-radius: 50%; background: #d6b89a; border: 1.5px solid var(--line); display: grid; place-items: center; font-family: var(--hand-display); font-size: 14px;">?</div>
+              <div style="width: 32px; height: 32px; border-radius: 50%; background: #ffce96; border: 1.5px solid var(--line); display: grid; place-items: center; font-family: var(--hand-display); font-size: 14px;">?</div>
+            </div>
+            <div style="font-family: var(--hand); font-size: 14px;">3 / 3 slots</div>
+          </div>
+
+          <!-- Pins -->
+          <div class="pin" style="top: 90px; left: 50%; transform: translateX(-50%) translateX(-340px);">1</div>
+          <div class="pin" style="top: 230px; left: calc(50% - 410px);">2</div>
+          <div class="pin" style="top: 580px; left: calc(50% - 380px);">3</div>
+          <div class="pin note" style="top: 280px; left: calc(50% + 360px);">A</div>
+        </div>
+
+        <aside class="notes">
+          <h4>Components used</h4>
+          <div class="components">
+            HeroCard <span style="color: var(--ink-3)">(new)</span><br>
+            TotemMark · TotemZone<br>
+            RosterStrip <span style="color: var(--ink-3)">(new)</span><br>
+            <span style="color: var(--ink-3)">DS tokens:</span> --font-display,<br>
+            &nbsp;&nbsp;--space-5, --radius-3,<br>
+            &nbsp;&nbsp;--shadow-2, --inset-warm
+          </div>
+
+          <h4>Annotations</h4>
+          <ul>
+            <li><span class="pin-ref">1</span>Sentence-case headline. "Pick your post" leans into the watch metaphor.</li>
+            <li><span class="pin-ref">2</span>Card has 5 zones top-to-bottom: totem, name, role, flavor, stats. Stats use tabular nums.</li>
+            <li><span class="pin-ref">3</span>Live roster strip shows fill state. Avatars stay generic until each player locks in.</li>
+            <li><span class="pin-ref note">A</span>Cards always shown in canonical order (Constants.HEROES). Don't sort by availability — predictable position is muscle memory.</li>
+          </ul>
+
+          <div class="open-q">
+            <h4>Open questions</h4>
+            <ul>
+              <li>Show base abilities (Q/E/F/R) on the card, or save reveal for first run? Argues both ways.</li>
+              <li>Should role labels be the canonical pitch ("Aggression / IGL") or in-character ("calls the shots")?</li>
+              <li>Keyboard shortcuts (1/2/3) shown on cards or hidden until hover?</li>
+            </ul>
+          </div>
+
+          <div class="open-q">
+            <h4>⚑ Leak audit</h4>
+            <ul>
+              <li>Safe — no gameplay info exposed pre-run.</li>
+              <li>If we add seed/run-mods later, keep them shared (everyone sees them) — asymmetric pre-run mods would be a minefield.</li>
+            </ul>
+          </div>
+        </aside>
+      </div>
+    </div>
+
+    <!-- STATE 1.B: ONE LOCKED -->
+    <div class="state-row">
+      <div class="state-head">
+        <span class="state-num">B</span>
+        <h3 class="state-name">One locked</h3>
+        <span class="state-tag">Goose taken · two cards remain interactive</span>
+      </div>
+      <div class="state-grid">
+        <div class="frame">
+          <span class="frame-meta"></span>
+          <div class="safe-zone"></div>
+
+          <div class="box ghost" style="top: 36px; left: 50%; transform: translateX(-50%); width: 720px; text-align: center; border: 0; box-shadow: none;">
+            <div class="box-label" style="text-align:center; padding: 0;">EYEBROW · run #—</div>
+            <div style="font-family: var(--hand-display); font-size: 56px; line-height: 1; margin-top: 4px;">Pick your post.</div>
+            <div style="font-family: var(--hand); font-size: 18px; color: var(--ink-2); margin-top: 6px;">2 of 3 still open.</div>
+          </div>
+
+          <div style="position: absolute; top: 200px; left: 50%; transform: translateX(-50%); display: flex; gap: 24px;">
+            <div class="hero-card locked">
+              <span class="lock-by">Player 1 · Sam</span>
+              <div class="totem-zone">
+                <span class="totem-tag">Totem · Goose</span>
+                <img src="../assets/totems/goose.svg" alt="">
+              </div>
+              <div class="body">
+                <div class="name">Goose</div>
+                <div class="role">Aggression / IGL</div>
+                <div class="flavor">Loud, fast, gets there first.</div>
+                <div class="stats">
+                  <div class="stat"><div class="k">HP</div><div class="v">100</div></div>
+                  <div class="stat"><div class="k">Speed</div><div class="v">18</div></div>
+                </div>
+              </div>
+              <div class="cta">Locked</div>
+            </div>
+            <div class="hero-card">
+              <div class="totem-zone">
+                <span class="totem-tag">Totem · Buffalo</span>
+                <img src="../assets/totems/buffalo.png" alt="">
+              </div>
+              <div class="body">
+                <div class="name">Buffalo</div>
+                <div class="role">Sentinel anchor</div>
+                <div class="flavor">Heavy. Patient. Whatever's coming through, comes through them.</div>
+                <div class="stats">
+                  <div class="stat"><div class="k">HP</div><div class="v">160</div></div>
+                  <div class="stat"><div class="k">Speed</div><div class="v">12</div></div>
+                </div>
+              </div>
+              <div class="cta">Lock in</div>
+            </div>
+            <div class="hero-card">
+              <div class="totem-zone">
+                <span class="totem-tag">Totem · Fox</span>
+                <img src="../assets/totems/fox.svg" alt="">
+              </div>
+              <div class="body">
+                <div class="name">Fox</div>
+                <div class="role">Initiator / Recon</div>
+                <div class="flavor">First in, first out.</div>
+                <div class="stats">
+                  <div class="stat"><div class="k">HP</div><div class="v">85</div></div>
+                  <div class="stat"><div class="k">Speed</div><div class="v">22</div></div>
+                </div>
+              </div>
+              <div class="cta">Lock in</div>
+            </div>
+          </div>
+
+          <div class="box" style="bottom: 24px; left: 50%; transform: translateX(-50%); width: 720px; height: 64px; flex-direction: row; align-items: center; padding: 0 16px; gap: 12px;">
+            <div style="font-family: var(--hand); font-size: 14px; color: var(--ink-3);">Tonight's watch:</div>
+            <div style="display: flex; gap: 8px; flex: 1;">
+              <div style="width: 32px; height: 32px; border-radius: 50%; background: #fff8be; border: 1.5px solid var(--line); display: grid; place-items: center;"><img src="../assets/totems/goose.svg" style="width: 22px; height: 22px;" alt=""></div>
+              <div style="width: 32px; height: 32px; border-radius: 50%; background: #d6b89a; border: 1.5px solid var(--line); display: grid; place-items: center; font-family: var(--hand-display); font-size: 14px;">?</div>
+              <div style="width: 32px; height: 32px; border-radius: 50%; background: #ffce96; border: 1.5px solid var(--line); display: grid; place-items: center; font-family: var(--hand-display); font-size: 14px;">?</div>
+            </div>
+            <div style="font-family: var(--hand);">1 / 3 locked in · waiting on 2</div>
+          </div>
+
+          <div class="pin" style="top: 200px; left: calc(50% - 380px);">1</div>
+          <div class="pin" style="top: 200px; left: calc(50% - 130px);">2</div>
+        </div>
+
+        <aside class="notes">
+          <h4>Components used</h4>
+          <div class="components">
+            HeroCard.locked<br>
+            HeroCard.available<br>
+            LockTag <span style="color: var(--ink-3)">(new)</span><br>
+            RosterStrip
+          </div>
+          <h4>Annotations</h4>
+          <ul>
+            <li><span class="pin-ref">1</span>Locked card: dim to ~70%, "LOCKED IN" stamp diagonal, who-locked-it tag top-right. CTA changes to non-interactive.</li>
+            <li><span class="pin-ref">2</span>Available cards retain full styling — no "press here!" emphasis on remaining options. Equal weight.</li>
+          </ul>
+          <div class="open-q">
+            <h4>Open questions</h4>
+            <ul>
+              <li>Show locker's player name, totem-only, or both? "Sam · Goose" vs just the totem?</li>
+              <li>Sounds: confirm beat on lock-in? Goose-pounce ease per DS?</li>
+            </ul>
+          </div>
+        </aside>
+      </div>
+    </div>
+
+    <!-- STATE 1.C: ALL LOCKED — SPECTATE -->
+    <div class="state-row">
+      <div class="state-head">
+        <span class="state-num">C</span>
+        <h3 class="state-name">All locked · spectator only</h3>
+        <span class="state-tag">Late joiner · run already populated</span>
+      </div>
+      <div class="state-grid">
+        <div class="frame">
+          <span class="frame-meta"></span>
+          <div class="safe-zone"></div>
+
+          <div class="box ghost" style="top: 36px; left: 50%; transform: translateX(-50%); width: 720px; text-align: center; border: 0; box-shadow: none;">
+            <div class="box-label" style="text-align:center; padding: 0;">EYEBROW · run in progress</div>
+            <div style="font-family: var(--hand-display); font-size: 48px; line-height: 1; margin-top: 4px;">Watch in.</div>
+            <div style="font-family: var(--hand); font-size: 17px; color: var(--ink-2); margin-top: 6px;">All three posts are taken. You can spectate, or wait for the next run.</div>
+          </div>
+
+          <div style="position: absolute; top: 200px; left: 50%; transform: translateX(-50%); display: flex; gap: 24px;">
+            <div class="hero-card locked">
+              <span class="lock-by">Player 1 · Sam</span>
+              <div class="totem-zone"><span class="totem-tag">Goose</span><img src="../assets/totems/goose.svg" alt=""></div>
+              <div class="body">
+                <div class="name">Goose</div>
+                <div class="role">Aggression / IGL</div>
+                <div class="flavor">In wave 2 — full HP.</div>
+                <div class="stats"><div class="stat"><div class="k">HP</div><div class="v">100/100</div></div><div class="stat"><div class="k">Wave</div><div class="v">2</div></div></div>
+              </div>
+              <div class="cta">Locked</div>
+            </div>
+            <div class="hero-card locked">
+              <span class="lock-by">Player 2 · Mira</span>
+              <div class="totem-zone"><span class="totem-tag">Buffalo</span><img src="../assets/totems/buffalo.png" alt=""></div>
+              <div class="body">
+                <div class="name">Buffalo</div>
+                <div class="role">Sentinel anchor</div>
+                <div class="flavor">In wave 2 — bruised.</div>
+                <div class="stats"><div class="stat"><div class="k">HP</div><div class="v">88/160</div></div><div class="stat"><div class="k">Wave</div><div class="v">2</div></div></div>
+              </div>
+              <div class="cta">Locked</div>
+            </div>
+            <div class="hero-card locked">
+              <span class="lock-by">Player 3 · Jordan</span>
+              <div class="totem-zone"><span class="totem-tag">Fox</span><img src="../assets/totems/fox.svg" alt=""></div>
+              <div class="body">
+                <div class="name">Fox</div>
+                <div class="role">Initiator / Recon</div>
+                <div class="flavor">In wave 2 — critical.</div>
+                <div class="stats"><div class="stat"><div class="k">HP</div><div class="v">15/85</div></div><div class="stat"><div class="k">Wave</div><div class="v">2</div></div></div>
+              </div>
+              <div class="cta">Locked</div>
+            </div>
+          </div>
+
+          <!-- Spectate / wait CTAs -->
+          <div style="position: absolute; bottom: 36px; left: 50%; transform: translateX(-50%); display: flex; gap: 16px;">
+            <div class="box" style="position: static; width: 220px; height: 64px; align-items: center; justify-content: center; background: var(--ink); color: var(--paper); border-color: var(--ink);">
+              <div style="font-family: var(--hand-display); font-size: 24px;">Spectate run</div>
+            </div>
+            <div class="box dashed" style="position: static; width: 220px; height: 64px; align-items: center; justify-content: center;">
+              <div style="font-family: var(--hand-display); font-size: 24px;">Wait for next run</div>
+            </div>
+          </div>
+
+          <!-- Leak flag -->
+          <div class="leak" style="top: 360px; right: 110px;">
+            HP shown here is fine (already public mid-run). DON'T show wave composition or sector core HP on this card — late joiner shouldn't get info active players don't have.
+          </div>
+
+          <div class="pin" style="top: 200px; left: calc(50% - 380px);">1</div>
+          <div class="pin" style="top: 600px; left: calc(50% - 230px);">2</div>
+        </div>
+
+        <aside class="notes">
+          <h4>Components used</h4>
+          <div class="components">
+            HeroCard.locked + .live<br>
+            SpectateCTA <span style="color: var(--ink-3)">(new)</span><br>
+            WaitForNextCTA
+          </div>
+          <h4>Annotations</h4>
+          <ul>
+            <li><span class="pin-ref">1</span>Cards augment with live HP + current wave number — shows the run is ongoing, not just "full".</li>
+            <li><span class="pin-ref">2</span>Two CTAs of equal weight, primary nudge on "Spectate" (filled). Both bottom-anchored — never a single CTA hidden in a corner.</li>
+          </ul>
+          <div class="open-q">
+            <h4>⚑ Leak audit</h4>
+            <ul>
+              <li>Spectator view: do they see all three sectors' wave comp at once? If yes, that's a Discord-sharing risk during the run. <strong>Recommend: spectator camera mirrors the local hero of whoever they're attached to (rotates), so they only see what one player sees at a time.</strong></li>
+            </ul>
+          </div>
+        </aside>
+      </div>
+    </div>
+  </section>
+
+  <!-- ════════════════════════════════════════════════════════════════════════
+       SURFACE 2 — IN-RUN HUD
+       ════════════════════════════════════════════════════════════════════════ -->
+  <section class="tab-panel" data-panel="hud">
+    <header class="surface-header">
+      <div>
+        <h2 class="surface-title">02 · In-run HUD</h2>
+        <p class="surface-intro">Assembled HUD over an empty arena. All four anchor regions visible, plus sector core HP and the asymmetric combat rendering. Three states: idle, Fox-in-combat (asymmetry shown from <em>your</em> POV as Goose), and help requested.</p>
+      </div>
+      <aside class="leak-summary">
+        <strong>⚑ Info-asymmetry watch — this is the spine</strong>
+        Two rules: (1) only the player in combat sees full wave composition. (2) Other players see only "X is in combat" + a coarse health bar. Anything richer broadcast to teammates breaks the design.
+      </aside>
+    </header>
+
+    <!-- HUD STATE A: IDLE -->
+    <div class="state-row">
+      <div class="state-head">
+        <span class="state-num">A</span>
+        <h3 class="state-name">Idle — between waves, no combat</h3>
+        <span class="state-tag">Baseline · all anchors visible</span>
+      </div>
+      <div class="state-grid">
+        <div class="frame">
+          <span class="frame-meta"></span>
+          <div class="safe-zone"></div>
+
+          <!-- Faux arena -->
+          <div class="world-stub">
+            <div class="sector"><span class="lbl">Goose sector</span>
+              <div class="core-dot" style="position: absolute; bottom: 30%; left: 50%; transform: translateX(-50%);"></div>
+              <div class="core-bar" style="bottom: calc(30% + 32px); left: 50%; transform: translateX(-50%); --core: 100%;"><div class="core-fill"></div><span class="core-num">100%</span></div>
+            </div>
+            <div class="sector"><span class="lbl">Buffalo sector</span>
+              <div class="core-dot" style="position: absolute; bottom: 30%; left: 50%; transform: translateX(-50%);"></div>
+              <div class="core-bar" style="bottom: calc(30% + 32px); left: 50%; transform: translateX(-50%); --core: 100%;"><div class="core-fill"></div><span class="core-num">100%</span></div>
+            </div>
+            <div class="sector"><span class="lbl">Fox sector</span>
+              <div class="core-dot" style="position: absolute; bottom: 30%; left: 50%; transform: translateX(-50%);"></div>
+              <div class="core-bar" style="bottom: calc(30% + 32px); left: 50%; transform: translateX(-50%); --core: 100%;"><div class="core-fill"></div><span class="core-num">100%</span></div>
+            </div>
+          </div>
+
+          <!-- Top-left: hero stack (you = Goose, row 1) -->
+          <div style="position: absolute; top: 24px; left: 24px; display: flex; flex-direction: column; gap: 8px;">
+            <div class="hud-badge"><div class="puck"><img src="../assets/totems/goose.svg" alt=""></div><div class="col"><div class="name">Goose</div><div class="hp-row"><div class="hp-bar" style="--hp: 92%;"></div><div class="hp-num">92 / 100</div></div></div></div>
+            <div class="hud-badge buffalo"><div class="puck"><img src="../assets/totems/buffalo.png" alt=""></div><div class="col"><div class="name">Buffalo</div><div class="hp-row"><div class="hp-bar" style="--hp: 88%;"></div><div class="hp-num">141 / 160</div></div></div></div>
+            <div class="hud-badge fox"><div class="puck"><img src="../assets/totems/fox.svg" alt=""></div><div class="col"><div class="name">Fox</div><div class="hp-row"><div class="hp-bar" style="--hp: 100%;"></div><div class="hp-num">85 / 85</div></div></div></div>
+          </div>
+
+          <!-- Top-right: WavePill -->
+          <div style="position: absolute; top: 24px; right: 24px;">
+            <div class="wave-pill">
+              <div class="wp-info">
+                <div class="wp-eyebrow">Wave 3 · prep</div>
+                <div class="wp-title">Hold steady.</div>
+              </div>
+              <div class="wp-timer">0:24</div>
+            </div>
+          </div>
+
+          <!-- Bottom-center: ValStrip -->
+          <div style="position: absolute; bottom: 24px; left: 50%; transform: translateX(-50%);">
+            <div class="val-strip">
+              <div class="puck"><img src="../assets/totems/val.svg" alt=""></div>
+              <div><div class="val-name">Val</div><div class="val-status">circling Goose · ready</div></div>
+            </div>
+          </div>
+
+          <!-- Bottom-left: ability rail -->
+          <div style="position: absolute; bottom: 24px; left: 24px; display: flex;">
+            <div class="ability"><span class="key">Q</span><span class="glyph"></span></div>
+            <div class="ability"><span class="key">E</span><span class="glyph"></span></div>
+            <div class="ability cd" data-cd="3"><span class="key">F</span><span class="cd-num">3</span></div>
+            <div class="ability cd" data-cd="14"><span class="key">R</span><span class="cd-num">14</span></div>
+          </div>
+
+          <!-- Pins -->
+          <div class="pin" style="top: 32px; left: 296px;">1</div>
+          <div class="pin" style="top: 32px; right: 320px;">2</div>
+          <div class="pin" style="bottom: 56px; left: 320px;">3</div>
+          <div class="pin" style="bottom: 32px; right: 380px;">4</div>
+          <div class="pin note" style="top: 250px; left: 350px;">A</div>
+          <div class="pin note" style="top: 322px; right: 580px;">B</div>
+
+          <!-- Inline callout -->
+          <div class="callout" style="top: 195px; left: 200px;">core HP floats above each core, in-world</div>
+          <div class="callout" style="top: 270px; left: 460px;">center is gameplay — never overlap</div>
+        </div>
+
+        <aside class="notes">
+          <h4>Components used</h4>
+          <div class="components">
+            HeroBadge × 3<br>
+            WavePill<br>
+            ValStrip<br>
+            AbilityRail (Q/E/F/R)<br>
+            <span style="color: var(--ink-3)">+ new:</span><br>
+            CoreHpFloater <span style="color: var(--ink-3)">(in-world)</span>
+          </div>
+          <h4>Annotations</h4>
+          <ul>
+            <li><span class="pin-ref">1</span>Hero stack, canonical order Goose→Buffalo→Fox. <strong>Local player = row 1, no visual distinction</strong> (per call: position is the cue).</li>
+            <li><span class="pin-ref">2</span>WavePill: eyebrow + short imperative title + timer. Backdrop blur is the only blurred surface in the system.</li>
+            <li><span class="pin-ref">3</span>AbilityRail: Q/E/F/R. Cooldowns shown as bare seconds (mono).</li>
+            <li><span class="pin-ref">4</span>ValStrip: name + 1-line status. Bottom-center, never blocking aim.</li>
+            <li><span class="pin-ref note">A</span><strong>Core HP, default = in-world floater above each core.</strong> Always glanceable from any sector since cores are visible across the arena. Trade-off below.</li>
+            <li><span class="pin-ref note">B</span>Faux arena floor only — real geometry from WorldBuilder.lua.</li>
+          </ul>
+          <div class="open-q">
+            <h4>Open questions</h4>
+            <ul>
+              <li><strong>Sector core HP — in-world vs HUD.</strong> Default: in-world floater (eyes already on action). Trade-off: when core is occluded by combat or you're looking up, you lose HP. Mitigation: HUD chip appears under your own HeroBadge <em>only when your core is &lt; 50%</em>. Want me to wireframe the chip variant?</li>
+              <li>Should idle state hide the AbilityRail cooldown numbers if they're 0? Or always show "0" for consistency?</li>
+              <li>Val pins to whichever player she's currently with — does her status read "circling Goose" or "with you" from Goose's POV?</li>
+            </ul>
+          </div>
+          <div class="open-q">
+            <h4>⚑ Leak audit</h4>
+            <ul>
+              <li>Idle state has no asymmetry to break. Safe.</li>
+            </ul>
+          </div>
+        </aside>
+      </div>
+    </div>
+
+    <!-- HUD STATE B: FOX IN COMBAT (your POV as Goose) -->
+    <div class="state-row">
+      <div class="state-head">
+        <span class="state-num">B</span>
+        <h3 class="state-name">Fox in combat — <em>your</em> view as Goose</h3>
+        <span class="state-tag">Asymmetric · spine mechanic</span>
+      </div>
+      <div class="state-grid">
+        <div class="frame">
+          <span class="frame-meta"></span>
+          <div class="safe-zone"></div>
+
+          <div class="world-stub">
+            <div class="sector"><span class="lbl">Goose sector</span><div class="core-dot" style="position: absolute; bottom: 30%; left: 50%; transform: translateX(-50%);"></div><div class="core-bar" style="bottom: calc(30% + 32px); left: 50%; transform: translateX(-50%); --core: 100%;"><div class="core-fill"></div><span class="core-num">100%</span></div></div>
+            <div class="sector"><span class="lbl">Buffalo sector</span><div class="core-dot" style="position: absolute; bottom: 30%; left: 50%; transform: translateX(-50%);"></div><div class="core-bar" style="bottom: calc(30% + 32px); left: 50%; transform: translateX(-50%); --core: 95%;"><div class="core-fill"></div><span class="core-num">95%</span></div></div>
+            <div class="sector"><span class="lbl">Fox sector · combat</span><div class="core-dot" style="position: absolute; bottom: 30%; left: 50%; transform: translateX(-50%);"></div><div class="core-bar" style="bottom: calc(30% + 32px); left: 50%; transform: translateX(-50%); --core: 70%;"><div class="core-fill"></div><span class="core-num">70%</span></div></div>
+          </div>
+
+          <!-- Hero stack — Fox row shows COARSE-only data plus combat marker -->
+          <div style="position: absolute; top: 24px; left: 24px; display: flex; flex-direction: column; gap: 8px;">
+            <div class="hud-badge"><div class="puck"><img src="../assets/totems/goose.svg" alt=""></div><div class="col"><div class="name">Goose</div><div class="hp-row"><div class="hp-bar" style="--hp: 92%;"></div><div class="hp-num">92 / 100</div></div></div></div>
+            <div class="hud-badge buffalo"><div class="puck"><img src="../assets/totems/buffalo.png" alt=""></div><div class="col"><div class="name">Buffalo</div><div class="hp-row"><div class="hp-bar" style="--hp: 88%;"></div><div class="hp-num">141 / 160</div></div></div></div>
+            <div class="hud-badge fox" style="border-width: 3px;">
+              <div class="puck"><img src="../assets/totems/fox.svg" alt=""></div>
+              <div class="col">
+                <div class="name">Fox <span style="font-family: var(--label); font-weight: 800; font-size: 10px; letter-spacing: 0.1em; background: var(--flag-red); color: white; padding: 2px 6px; border-radius: 3px; margin-left: 6px; vertical-align: 3px;">IN COMBAT</span></div>
+                <div class="hp-row">
+                  <!-- COARSE bar — three blocks, no number -->
+                  <div style="flex: 1; display: flex; gap: 3px; height: 10px;">
+                    <div style="flex: 1; background: var(--ink-2); border: 1.5px solid var(--line); border-radius: 2px;"></div>
+                    <div style="flex: 1; background: var(--ink-2); border: 1.5px solid var(--line); border-radius: 2px;"></div>
+                    <div style="flex: 1; background: #fff; border: 1.5px solid var(--line); border-radius: 2px;"></div>
+                  </div>
+                  <div class="hp-num" style="color: var(--ink-3); font-style: italic;">~ low</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- WavePill: from Goose POV, says "Fox's wave" generally -->
+          <div style="position: absolute; top: 24px; right: 24px;">
+            <div class="wave-pill">
+              <div class="wp-info">
+                <div class="wp-eyebrow">Wave 3 · Fox engaged</div>
+                <div class="wp-title">Stay sharp.</div>
+              </div>
+              <div class="wp-timer">0:38</div>
+            </div>
+          </div>
+
+          <!-- Bottom-center -->
+          <div style="position: absolute; bottom: 24px; left: 50%; transform: translateX(-50%);">
+            <div class="val-strip"><div class="puck"><img src="../assets/totems/val.svg" alt=""></div><div><div class="val-name">Val</div><div class="val-status">circling Fox · supporting</div></div></div>
+          </div>
+
+          <!-- Abilities -->
+          <div style="position: absolute; bottom: 24px; left: 24px; display: flex;">
+            <div class="ability"><span class="key">Q</span><span class="glyph"></span></div>
+            <div class="ability"><span class="key">E</span><span class="glyph"></span></div>
+            <div class="ability"><span class="key">F</span><span class="glyph"></span></div>
+            <div class="ability cd" data-cd="14"><span class="key">R</span><span class="cd-num">14</span></div>
+          </div>
+
+          <!-- Leak flag at the Fox row -->
+          <div class="leak" style="top: 178px; left: 300px;">
+            Coarse 3-block bar + "~ low". <strong>Never</strong> show exact HP, wave comp, or attacker types here. That's Fox's private info.
+          </div>
+
+          <!-- Callout for what Fox WOULD see (sidebar reference) -->
+          <div class="callout" style="top: 110px; right: 340px;">
+            from Fox's POV, a wave-comp side panel slides in here (see state C of "Help" tab) →
+          </div>
+
+          <!-- Pins -->
+          <div class="pin" style="top: 175px; left: 240px;">1</div>
+          <div class="pin" style="top: 32px; right: 320px;">2</div>
+          <div class="pin note" style="top: 200px; left: calc(50% + 80px); top: 300px;">A</div>
+        </div>
+
+        <aside class="notes">
+          <h4>Components used</h4>
+          <div class="components">
+            HeroBadge.combat <span style="color: var(--ink-3)">(coarse variant)</span><br>
+            HeroBadge.standard × 2<br>
+            WavePill.peer-engaged<br>
+            ValStrip.with-other<br>
+            AbilityRail
+          </div>
+          <h4>Annotations</h4>
+          <ul>
+            <li><span class="pin-ref">1</span><strong>Coarse health bar</strong> for Fox (the player in combat): three discrete blocks + qualitative label ("~ low" / "~ half" / "~ full"). Pulsing border on the badge to mark "engaged". <strong>No exact HP number visible to teammates.</strong></li>
+            <li><span class="pin-ref">2</span>WavePill from peer POV: just notes who's engaged + general "stay sharp". No specifics about what Fox is fighting.</li>
+            <li><span class="pin-ref note">A</span>From Fox's POV, the wave-comp panel slides in from the right under WavePill (see Help tab state C, or build me a dedicated POV-swap page if you want). It is <strong>local to Fox's screen only</strong>.</li>
+          </ul>
+          <div class="open-q">
+            <h4>Open questions</h4>
+            <ul>
+              <li>How coarse is "coarse"? 3 blocks (full / half / low) is the strawman. 5 blocks would be more useful but starts leaking precision. Lock to 3?</li>
+              <li>Pulsing border on the engaged badge — is that motion-noisy when sustained? Could swap to a static "in combat" pip.</li>
+              <li>Should the WavePill on peer screens show Fox's <em>core HP</em> (which is public) but not the wave comp? It's a clean way to communicate stakes without leaking.</li>
+            </ul>
+          </div>
+          <div class="open-q">
+            <h4>⚑ Leak audit</h4>
+            <ul>
+              <li>SAFE: coarse HP, "in combat" pip, sector core %, Val location.</li>
+              <li>LEAKS (forbid): exact HP number, wave comp ("2 light, 1 ranged"), attacker types, Fox's ability cooldowns, kill counts.</li>
+              <li>Watch: damage-number floaters in-world. If they spawn at the engagement point and other players' cameras can pan there, comp leaks visually. <strong>Recommend: damage numbers are local-only, not networked floaters.</strong></li>
+            </ul>
+          </div>
+        </aside>
+      </div>
+    </div>
+
+    <!-- HUD STATE C: HELP REQUESTED -->
+    <div class="state-row">
+      <div class="state-head">
+        <span class="state-num">C</span>
+        <h3 class="state-name">Fox requests help — your view as Goose</h3>
+        <span class="state-tag">Strongest pick · alternatives in tab 03</span>
+      </div>
+      <div class="state-grid">
+        <div class="frame">
+          <span class="frame-meta"></span>
+          <div class="safe-zone"></div>
+
+          <div class="world-stub">
+            <div class="sector"><span class="lbl">Goose</span><div class="core-dot" style="position: absolute; bottom: 30%; left: 50%; transform: translateX(-50%);"></div></div>
+            <div class="sector"><span class="lbl">Buffalo</span><div class="core-dot" style="position: absolute; bottom: 30%; left: 50%; transform: translateX(-50%);"></div></div>
+            <div class="sector" style="border-color: var(--flag-red); border-style: solid; border-width: 2px;"><span class="lbl" style="color: var(--flag-red);">Fox · HELP</span><div class="core-dot" style="position: absolute; bottom: 30%; left: 50%; transform: translateX(-50%);"></div></div>
+          </div>
+
+          <!-- Hero stack with HeroBadge pulse on Fox -->
+          <div style="position: absolute; top: 24px; left: 24px; display: flex; flex-direction: column; gap: 8px;">
+            <div class="hud-badge"><div class="puck"><img src="../assets/totems/goose.svg" alt=""></div><div class="col"><div class="name">Goose</div><div class="hp-row"><div class="hp-bar" style="--hp: 92%;"></div><div class="hp-num">92 / 100</div></div></div></div>
+            <div class="hud-badge buffalo"><div class="puck"><img src="../assets/totems/buffalo.png" alt=""></div><div class="col"><div class="name">Buffalo</div><div class="hp-row"><div class="hp-bar" style="--hp: 88%;"></div><div class="hp-num">141 / 160</div></div></div></div>
+            <div class="hud-badge fox" style="position: relative;">
+              <div class="pulse-ring"></div>
+              <div class="puck"><img src="../assets/totems/fox.svg" alt=""></div>
+              <div class="col">
+                <div class="name">Fox</div>
+                <div class="hp-row">
+                  <div style="flex: 1; display: flex; gap: 3px; height: 10px;">
+                    <div style="flex: 1; background: var(--ink-2); border: 1.5px solid var(--line); border-radius: 2px;"></div>
+                    <div style="flex: 1; background: #fff; border: 1.5px solid var(--line); border-radius: 2px;"></div>
+                    <div style="flex: 1; background: #fff; border: 1.5px solid var(--line); border-radius: 2px;"></div>
+                  </div>
+                  <div class="hp-num" style="color: var(--flag-red); font-weight: 800;">~ low</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Banner under WavePill -->
+          <div style="position: absolute; top: 116px; right: 24px; width: 280px;">
+            <div class="box" style="position: static; padding: 10px 14px; background: var(--flag-bg); border-color: var(--flag-red); border-width: 2.5px;">
+              <div style="font-family: var(--label); font-weight: 900; font-size: 10px; letter-spacing: 0.14em; color: var(--flag-red); text-transform: uppercase;">⚑ Help request</div>
+              <div style="font-family: var(--hand-display); font-size: 22px; line-height: 1; margin-top: 4px; color: #5a1f15;">Fox needs you.</div>
+              <div style="font-family: var(--hand); font-size: 13px; color: #5a1f15; margin-top: 4px;">Press [G] to ping back · [V] to call Val</div>
+            </div>
+          </div>
+
+          <!-- WavePill -->
+          <div style="position: absolute; top: 24px; right: 24px;">
+            <div class="wave-pill">
+              <div class="wp-info">
+                <div class="wp-eyebrow">Wave 3 · Fox engaged</div>
+                <div class="wp-title">Fox needs help.</div>
+              </div>
+              <div class="wp-timer">0:38</div>
+            </div>
+          </div>
+
+          <!-- Val + abilities (same as B) -->
+          <div style="position: absolute; bottom: 24px; left: 50%; transform: translateX(-50%);">
+            <div class="val-strip"><div class="puck"><img src="../assets/totems/val.svg" alt=""></div><div><div class="val-name">Val</div><div class="val-status">circling Fox · ready</div></div></div>
+          </div>
+          <div style="position: absolute; bottom: 24px; left: 24px; display: flex;">
+            <div class="ability"><span class="key">Q</span><span class="glyph"></span></div>
+            <div class="ability"><span class="key">E</span><span class="glyph"></span></div>
+            <div class="ability"><span class="key">F</span><span class="glyph"></span></div>
+            <div class="ability cd" data-cd="14"><span class="key">R</span><span class="cd-num">14</span></div>
+          </div>
+
+          <!-- Pins -->
+          <div class="pin" style="top: 165px; left: 280px;">1</div>
+          <div class="pin" style="top: 110px; right: 320px;">2</div>
+          <div class="pin" style="top: 32px; right: 230px;">3</div>
+          <div class="pin note" style="bottom: 200px; right: 280px;">A</div>
+        </div>
+
+        <aside class="notes">
+          <h4>Components used</h4>
+          <div class="components">
+            HeroBadge.help-pulse<br>
+            HelpBanner <span style="color: var(--ink-3)">(new)</span><br>
+            WavePill.help <span style="color: var(--ink-3)">(copy variant)</span>
+          </div>
+          <h4>Annotations</h4>
+          <ul>
+            <li><span class="pin-ref">1</span>Pulse ring around Fox's HeroBadge — red dashed, "HELP" tag top-right. Anchored to the badge so the eye knows <em>who</em>.</li>
+            <li><span class="pin-ref">2</span>HelpBanner sits under WavePill (top-right cluster). Holds the "what to do" — keybinds for ping-back / call Val.</li>
+            <li><span class="pin-ref">3</span>WavePill copy updates: "Fox needs help" replaces the standard imperative. Same chrome.</li>
+            <li><span class="pin-ref note">A</span>This is the <strong>strongest pick</strong> for the help indicator: <em>pulse + banner + WavePill copy</em>, all three. Toast-only or pulse-only feel under-conveyed for a 30s urgency window. See Help Request tab for the alternatives.</li>
+          </ul>
+          <div class="open-q">
+            <h4>Open questions</h4>
+            <ul>
+              <li>Should the help-banner say <em>what kind</em> of help is needed ("damage", "heal", "off-target") if Fox tags the request? Or always neutral to preserve asymmetry?</li>
+              <li>How long does the help state persist? 10s? Until Fox cancels? Until the wave ends?</li>
+            </ul>
+          </div>
+          <div class="open-q">
+            <h4>⚑ Leak audit</h4>
+            <ul>
+              <li>The help banner explicitly does NOT leak comp. "Fox needs you" is intent, not data.</li>
+              <li>If we add typed help ("send DPS!"), keep the categories abstract — never enumerate the wave members.</li>
+            </ul>
+          </div>
+        </aside>
+      </div>
+    </div>
+  </section>
+
+  <!-- ════════════════════════════════════════════════════════════════════════
+       SURFACE 3 — HELP REQUEST INDICATOR
+       ════════════════════════════════════════════════════════════════════════ -->
+  <section class="tab-panel" data-panel="help">
+    <header class="surface-header">
+      <div>
+        <h2 class="surface-title">03 · Help request indicator</h2>
+        <p class="surface-intro">When Fox presses the help-request hotkey, what shows on Goose's and Buffalo's screens? Three structural picks below; my strongest is the third (combined). Frames focus on the cluster — the rest of the HUD is dimmed for clarity.</p>
+      </div>
+      <aside class="leak-summary">
+        <strong>⚑ Info-asymmetry watch</strong>
+        Help request is <em>intent</em>, not <em>data</em>. The signal must say "Fox needs you" without saying what Fox is fighting. None of these three options leak — but copy variants like "Fox needs DPS on the Heavies" would.
+      </aside>
+    </header>
+
+    <!-- Pick A: Toast -->
+    <div class="state-row">
+      <div class="state-head">
+        <span class="state-num">A</span>
+        <h3 class="state-name">Pick A — Toast</h3>
+        <span class="state-tag">Lightest · easy to miss</span>
+      </div>
+      <div class="state-grid">
+        <div class="frame">
+          <span class="frame-meta"></span>
+          <div class="safe-zone"></div>
+
+          <!-- Dimmed HUD -->
+          <div style="opacity: 0.35;">
+            <div style="position: absolute; top: 24px; left: 24px; display: flex; flex-direction: column; gap: 8px;">
+              <div class="hud-badge"><div class="puck"><img src="../assets/totems/goose.svg" alt=""></div><div class="col"><div class="name">Goose</div><div class="hp-row"><div class="hp-bar" style="--hp: 92%;"></div><div class="hp-num">92 / 100</div></div></div></div>
+              <div class="hud-badge buffalo"><div class="puck"><img src="../assets/totems/buffalo.png" alt=""></div><div class="col"><div class="name">Buffalo</div><div class="hp-row"><div class="hp-bar" style="--hp: 88%;"></div><div class="hp-num">141 / 160</div></div></div></div>
+              <div class="hud-badge fox"><div class="puck"><img src="../assets/totems/fox.svg" alt=""></div><div class="col"><div class="name">Fox</div><div class="hp-row"><div class="hp-bar" style="--hp: 25%;"></div><div class="hp-num">~ low</div></div></div></div>
+            </div>
+            <div style="position: absolute; top: 24px; right: 24px;"><div class="wave-pill"><div class="wp-info"><div class="wp-eyebrow">Wave 3</div><div class="wp-title">Stay sharp.</div></div><div class="wp-timer">0:38</div></div></div>
+          </div>
+
+          <!-- Toast: top-center, slides down -->
+          <div style="position: absolute; top: 130px; left: 50%; transform: translateX(-50%);">
+            <div class="toast" style="background: var(--flag-bg); border-color: var(--flag-red); border-width: 2.5px;">
+              <div class="puck" style="width: 36px; height: 36px; border-radius: 6px; background: #ffce96; border: 1.5px solid var(--line); display: grid; place-items: center;"><img src="../assets/totems/fox.svg" style="width: 26px; height: 26px;" alt=""></div>
+              <div>
+                <div style="font-family: var(--label); font-weight: 800; font-size: 10px; letter-spacing: 0.12em; color: var(--flag-red); text-transform: uppercase;">⚑ Help request</div>
+                <div style="font-family: var(--hand-display); font-size: 22px; line-height: 1; margin-top: 2px;">Fox needs you.</div>
+              </div>
+              <div style="font-family: var(--hand); font-size: 12px; color: var(--ink-2); margin-left: 12px; padding-left: 12px; border-left: 1.5px dashed var(--ink-3);">3s</div>
+            </div>
+          </div>
+
+          <div class="pin" style="top: 130px; left: calc(50% + 200px);">1</div>
+        </div>
+        <aside class="notes">
+          <h4>Components</h4>
+          <div class="components">HelpToast <span style="color: var(--ink-3)">(new)</span></div>
+          <h4>Pros</h4>
+          <ul><li>Cheap, low-distraction. Familiar pattern.</li><li>Auto-dismisses (3s).</li></ul>
+          <h4>Cons</h4>
+          <ul>
+            <li><span class="pin-ref">1</span>Easy to miss — top-center is also where Roblox chat/system notifications go.</li>
+            <li>Doesn't persist; if Goose looks down for 4s, request is gone.</li>
+            <li>Disconnects "who" from "where on screen" — toast is far from the HeroBadge.</li>
+          </ul>
+        </aside>
+      </div>
+    </div>
+
+    <!-- Pick B: Pulse on HeroBadge -->
+    <div class="state-row">
+      <div class="state-head">
+        <span class="state-num">B</span>
+        <h3 class="state-name">Pick B — HeroBadge pulse only</h3>
+        <span class="state-tag">Anchored · subtle</span>
+      </div>
+      <div class="state-grid">
+        <div class="frame">
+          <span class="frame-meta"></span>
+          <div class="safe-zone"></div>
+
+          <div style="opacity: 0.35;">
+            <div style="position: absolute; top: 24px; right: 24px;"><div class="wave-pill"><div class="wp-info"><div class="wp-eyebrow">Wave 3</div><div class="wp-title">Stay sharp.</div></div><div class="wp-timer">0:38</div></div></div>
+          </div>
+
+          <div style="position: absolute; top: 24px; left: 24px; display: flex; flex-direction: column; gap: 8px;">
+            <div class="hud-badge"><div class="puck"><img src="../assets/totems/goose.svg" alt=""></div><div class="col"><div class="name">Goose</div><div class="hp-row"><div class="hp-bar" style="--hp: 92%;"></div><div class="hp-num">92 / 100</div></div></div></div>
+            <div class="hud-badge buffalo"><div class="puck"><img src="../assets/totems/buffalo.png" alt=""></div><div class="col"><div class="name">Buffalo</div><div class="hp-row"><div class="hp-bar" style="--hp: 88%;"></div><div class="hp-num">141 / 160</div></div></div></div>
+            <div class="hud-badge fox" style="position: relative;">
+              <div class="pulse-ring"></div>
+              <div class="puck"><img src="../assets/totems/fox.svg" alt=""></div>
+              <div class="col">
+                <div class="name">Fox</div>
+                <div class="hp-row"><div class="hp-bar" style="--hp: 25%;"></div><div class="hp-num" style="color: var(--flag-red); font-weight: 800;">~ low</div></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="pin" style="top: 165px; left: 296px;">1</div>
+        </div>
+        <aside class="notes">
+          <h4>Components</h4>
+          <div class="components">HeroBadge + .help-pulse</div>
+          <h4>Pros</h4>
+          <ul><li><span class="pin-ref">1</span>Tightly couples "who needs help" with the visual anchor for that hero.</li><li>Low motion noise; easy to live in the HUD until cancelled.</li></ul>
+          <h4>Cons</h4>
+          <ul><li>Only effective if Goose's eye is already on the hero stack. Doesn't grab attention from across the screen.</li><li>Could be confused with the "in combat" border treatment if both go red.</li></ul>
+        </aside>
+      </div>
+    </div>
+
+    <!-- Pick C: Combined (RECOMMENDED) -->
+    <div class="state-row">
+      <div class="state-head">
+        <span class="state-num">C</span>
+        <h3 class="state-name">Pick C — pulse + banner + WavePill copy</h3>
+        <span class="state-tag">Recommended · matches HUD state C</span>
+      </div>
+      <div class="state-grid">
+        <div class="frame">
+          <span class="frame-meta"></span>
+          <div class="safe-zone"></div>
+
+          <!-- Same as HUD State C -->
+          <div style="position: absolute; top: 24px; left: 24px; display: flex; flex-direction: column; gap: 8px;">
+            <div class="hud-badge"><div class="puck"><img src="../assets/totems/goose.svg" alt=""></div><div class="col"><div class="name">Goose</div><div class="hp-row"><div class="hp-bar" style="--hp: 92%;"></div><div class="hp-num">92 / 100</div></div></div></div>
+            <div class="hud-badge buffalo"><div class="puck"><img src="../assets/totems/buffalo.png" alt=""></div><div class="col"><div class="name">Buffalo</div><div class="hp-row"><div class="hp-bar" style="--hp: 88%;"></div><div class="hp-num">141 / 160</div></div></div></div>
+            <div class="hud-badge fox" style="position: relative;">
+              <div class="pulse-ring"></div>
+              <div class="puck"><img src="../assets/totems/fox.svg" alt=""></div>
+              <div class="col"><div class="name">Fox</div><div class="hp-row"><div class="hp-bar" style="--hp: 25%;"></div><div class="hp-num" style="color: var(--flag-red); font-weight: 800;">~ low</div></div></div>
+            </div>
+          </div>
+
+          <div style="position: absolute; top: 24px; right: 24px;"><div class="wave-pill"><div class="wp-info"><div class="wp-eyebrow">Wave 3 · Fox engaged</div><div class="wp-title">Fox needs help.</div></div><div class="wp-timer">0:38</div></div></div>
+
+          <div style="position: absolute; top: 116px; right: 24px; width: 280px;">
+            <div class="box" style="position: static; padding: 10px 14px; background: var(--flag-bg); border-color: var(--flag-red); border-width: 2.5px;">
+              <div style="font-family: var(--label); font-weight: 900; font-size: 10px; letter-spacing: 0.14em; color: var(--flag-red); text-transform: uppercase;">⚑ Help request</div>
+              <div style="font-family: var(--hand-display); font-size: 22px; line-height: 1; margin-top: 4px; color: #5a1f15;">Fox needs you.</div>
+              <div style="font-family: var(--hand); font-size: 13px; color: #5a1f15; margin-top: 4px;">[G] ping back · [V] call Val</div>
+            </div>
+          </div>
+
+          <div class="pin" style="top: 165px; left: 296px;">1</div>
+          <div class="pin" style="top: 32px; right: 230px;">2</div>
+          <div class="pin" style="top: 110px; right: 320px;">3</div>
+        </div>
+        <aside class="notes">
+          <h4>Components</h4>
+          <div class="components">HeroBadge.help-pulse<br>WavePill.help (copy)<br>HelpBanner</div>
+          <h4>Why C wins</h4>
+          <ul>
+            <li><span class="pin-ref">1</span>Pulse anchors <strong>who</strong>.</li>
+            <li><span class="pin-ref">2</span>WavePill change tells <strong>what</strong> at a glance.</li>
+            <li><span class="pin-ref">3</span>Banner gives <strong>actions</strong> + persists until cancelled.</li>
+          </ul>
+          <h4>Cost</h4>
+          <ul>
+            <li>Three coordinated UI changes — needs a single state machine to fire/clear in lockstep, not three independent listeners.</li>
+            <li>Banner crowds top-right cluster (WavePill + banner + maybe core HP chip in 100% mode). Need to reserve vertical space.</li>
+          </ul>
+        </aside>
+      </div>
+    </div>
+  </section>
+
+  <!-- ════════════════════════════════════════════════════════════════════════
+       SURFACE 4 — PREP / BUILD MODE
+       ════════════════════════════════════════════════════════════════════════ -->
+  <section class="tab-panel" data-panel="prep">
+    <header class="surface-header">
+      <div>
+        <h2 class="surface-title">04 · Prep / Build mode</h2>
+        <p class="surface-intro">~30s between waves. Bottom drawer holds deploy palette + coin balance + ready-up. Three states: deploying, waiting on teammates, all ready.</p>
+      </div>
+      <aside class="leak-summary">
+        <strong>⚑ Info-asymmetry watch</strong>
+        Drawer is <em>your</em> sector only. Don't show teammates' purchases or what they've deployed. The "X is ready" indicator is fine — it's a state flag, not a deployment list.
+      </aside>
+    </header>
+
+    <!-- 4.A Deploying -->
+    <div class="state-row">
+      <div class="state-head">
+        <span class="state-num">A</span>
+        <h3 class="state-name">Deploying — coin spending, mid-prep</h3>
+        <span class="state-tag">Local sector only</span>
+      </div>
+      <div class="state-grid">
+        <div class="frame">
+          <span class="frame-meta"></span>
+          <div class="safe-zone"></div>
+
+          <!-- Faux arena, prep highlight -->
+          <div class="world-stub" style="bottom: 200px;">
+            <div class="sector" style="background: #f0ebd6; border-style: solid; border-color: var(--line);"><span class="lbl">Goose · prep</span></div>
+            <div class="sector"><span class="lbl">Buffalo</span></div>
+            <div class="sector"><span class="lbl">Fox</span></div>
+          </div>
+
+          <!-- Top-right WavePill = countdown -->
+          <div style="position: absolute; top: 24px; right: 24px;">
+            <div class="wave-pill">
+              <div class="wp-info"><div class="wp-eyebrow">Prep · wave 3 incoming</div><div class="wp-title">Deploy. Settle in.</div></div>
+              <div class="wp-timer">0:18</div>
+            </div>
+          </div>
+
+          <!-- Top-left hero stack (compact, optional) -->
+          <div style="position: absolute; top: 24px; left: 24px; display: flex; flex-direction: column; gap: 8px;">
+            <div class="hud-badge"><div class="puck"><img src="../assets/totems/goose.svg" alt=""></div><div class="col"><div class="name">Goose</div><div class="hp-row"><div class="hp-bar" style="--hp: 92%;"></div><div class="hp-num">92 / 100</div></div></div></div>
+            <div class="hud-badge buffalo"><div class="puck"><img src="../assets/totems/buffalo.png" alt=""></div><div class="col"><div class="name">Buffalo</div><div class="hp-row"><div class="hp-bar" style="--hp: 88%;"></div><div class="hp-num">141 / 160</div></div></div></div>
+            <div class="hud-badge fox"><div class="puck"><img src="../assets/totems/fox.svg" alt=""></div><div class="col"><div class="name">Fox</div><div class="hp-row"><div class="hp-bar" style="--hp: 100%;"></div><div class="hp-num">85 / 85</div></div></div></div>
+          </div>
+
+          <!-- Bottom drawer -->
+          <div class="box" style="left: 24px; right: 24px; bottom: 24px; padding: 14px 18px; background: var(--box); height: 156px; flex-direction: row; gap: 16px; align-items: stretch;">
+            <!-- Coins + label -->
+            <div style="width: 160px; flex-shrink: 0; display: flex; flex-direction: column; justify-content: space-between;">
+              <div>
+                <div class="box-label" style="padding: 0;">EYEBROW · your coin</div>
+                <div style="font-family: var(--hand-display); font-size: 44px; line-height: 1; margin-top: 2px;">42</div>
+                <div style="font-family: var(--hand); font-size: 12px; color: var(--ink-3);">+8 from wave 2 debrief</div>
+              </div>
+              <div style="font-family: var(--hand); font-size: 12px; color: var(--ink-3);">Coin resets each run.</div>
+            </div>
+
+            <!-- Deploy palette -->
+            <div style="flex: 1; display: flex; flex-direction: column;">
+              <div style="display: flex; align-items: baseline; gap: 8px; margin-bottom: 6px;">
+                <div class="box-label" style="padding: 0;">PALETTE · pick & place in your sector</div>
+                <div style="font-family: var(--hand); font-size: 12px; color: var(--ink-3); margin-left: auto;">click → drag → drop</div>
+              </div>
+              <div style="display: flex; gap: 10px; flex: 1;">
+                <div class="deploy-card">
+                  <div style="display: flex; align-items: center; justify-content: space-between;">
+                    <div style="font-family: var(--hand-display); font-size: 18px;">Light</div>
+                    <div style="font-family: 'JetBrains Mono', monospace; font-size: 12px; font-weight: 700;">5c</div>
+                  </div>
+                  <div style="flex: 1; margin: 4px 0; background: var(--box-2); border-radius: 3px; display: grid; place-items: center; font-family: var(--hand); font-size: 11px; color: var(--ink-3);">unit silhouette</div>
+                  <div style="font-family: var(--hand); font-size: 11px; color: var(--ink-2);">fast / fragile</div>
+                </div>
+                <div class="deploy-card cd" data-cd="6">
+                  <div style="display: flex; align-items: center; justify-content: space-between;">
+                    <div style="font-family: var(--hand-display); font-size: 18px;">Ranged</div>
+                    <div style="font-family: 'JetBrains Mono', monospace; font-size: 12px; font-weight: 700;">12c</div>
+                  </div>
+                  <div style="flex: 1; margin: 4px 0; background: var(--box-2); border-radius: 3px;"></div>
+                  <div style="font-family: var(--hand); font-size: 11px; color: var(--ink-2);">cd · 6s</div>
+                </div>
+                <div class="deploy-card">
+                  <div style="display: flex; align-items: center; justify-content: space-between;">
+                    <div style="font-family: var(--hand-display); font-size: 18px;">Heavy</div>
+                    <div style="font-family: 'JetBrains Mono', monospace; font-size: 12px; font-weight: 700;">28c</div>
+                  </div>
+                  <div style="flex: 1; margin: 4px 0; background: var(--box-2); border-radius: 3px; display: grid; place-items: center; font-family: var(--hand); font-size: 11px; color: var(--ink-3);">unit silhouette</div>
+                  <div style="font-family: var(--hand); font-size: 11px; color: var(--ink-2);">slow / stout</div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Ready up -->
+            <div style="width: 200px; flex-shrink: 0; display: flex; flex-direction: column; gap: 8px;">
+              <div class="box-label" style="padding: 0;">READY</div>
+              <div class="box" style="position: static; flex: 1; align-items: center; justify-content: center; background: var(--ink); color: var(--paper); border-color: var(--ink); flex-direction: column;">
+                <div style="font-family: var(--hand-display); font-size: 26px; line-height: 1;">Ready up</div>
+                <div style="font-family: var(--hand); font-size: 12px; opacity: 0.7; margin-top: 4px;">[Space]</div>
+              </div>
+              <div style="display: flex; gap: 6px; align-items: center; font-family: var(--hand); font-size: 12px; color: var(--ink-3);">
+                <span style="width: 10px; height: 10px; border-radius: 50%; background: var(--box-3); border: 1.5px solid var(--line);"></span>
+                <span style="width: 10px; height: 10px; border-radius: 50%; background: var(--box-3); border: 1.5px solid var(--line);"></span>
+                <span style="width: 10px; height: 10px; border-radius: 50%; background: var(--box-3); border: 1.5px solid var(--line);"></span>
+                <span style="margin-left: 4px;">0/3 ready</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="pin" style="bottom: 168px; left: 200px;">1</div>
+          <div class="pin" style="bottom: 168px; left: 460px;">2</div>
+          <div class="pin" style="bottom: 168px; right: 240px;">3</div>
+          <div class="pin note" style="top: 32px; right: 320px;">A</div>
+        </div>
+
+        <aside class="notes">
+          <h4>Components used</h4>
+          <div class="components">
+            BuildDrawer <span style="color: var(--ink-3)">(new)</span><br>
+            CoinBalance <span style="color: var(--ink-3)">(new)</span><br>
+            DeployCard × 3 (Light/Ranged/Heavy)<br>
+            ReadyUpButton <span style="color: var(--ink-3)">(new)</span><br>
+            ReadyDots <span style="color: var(--ink-3)">(new)</span>
+          </div>
+          <h4>Annotations</h4>
+          <ul>
+            <li><span class="pin-ref">1</span>CoinBalance: big tabular numerals; subline shows how much came from last wave so the reward feedback loop is visible.</li>
+            <li><span class="pin-ref">2</span>DeployCard with cost (mono), unit silhouette, short tagline. Cooldown variant darkens and overlays seconds.</li>
+            <li><span class="pin-ref">3</span>Ready-up button + 3-dot indicator. Position is unambiguous on right edge of drawer.</li>
+            <li><span class="pin-ref note">A</span>WavePill repurposes for prep: eyebrow becomes "Prep · wave N incoming", title is the imperative, timer counts <em>down</em> to wave start.</li>
+          </ul>
+          <div class="open-q">
+            <h4>Open questions</h4>
+            <ul>
+              <li>Drawer is ~150px tall. Eats lower-third of screen — does it occlude critical sector geometry? Could be auto-hide on ready-up.</li>
+              <li>Can you deploy AND look at hero stats simultaneously? If hero stack stays visible, this is fine. If we add a stats card, where?</li>
+              <li>Drag-place vs click-to-place vs tile grid? (Probably: click card → preview ghost on cursor → click in sector to place.)</li>
+            </ul>
+          </div>
+          <div class="open-q">
+            <h4>⚑ Leak audit</h4>
+            <ul>
+              <li><strong>Critical:</strong> drawer shows only the local player's coin + cooldowns + ready state. Never enumerate teammates' deployments. The 3-dot ready indicator is a state flag, fine.</li>
+              <li>Does the chat or system bar show "Mira deployed 2 Light units"? <strong>Forbid that log line</strong>; it would leak comp via the prep economy.</li>
+            </ul>
+          </div>
+        </aside>
+      </div>
+    </div>
+
+    <!-- 4.B Waiting -->
+    <div class="state-row">
+      <div class="state-head">
+        <span class="state-num">B</span>
+        <h3 class="state-name">Waiting on teammates</h3>
+        <span class="state-tag">You're ready · 1 of 3 still building</span>
+      </div>
+      <div class="state-grid">
+        <div class="frame">
+          <span class="frame-meta"></span>
+          <div class="safe-zone"></div>
+
+          <div style="position: absolute; top: 24px; right: 24px;">
+            <div class="wave-pill">
+              <div class="wp-info"><div class="wp-eyebrow">Prep · waiting</div><div class="wp-title">Mira's still buying.</div></div>
+              <div class="wp-timer">0:08</div>
+            </div>
+          </div>
+
+          <div style="position: absolute; top: 24px; left: 24px; display: flex; flex-direction: column; gap: 8px;">
+            <div class="hud-badge"><div class="puck"><img src="../assets/totems/goose.svg" alt=""></div><div class="col"><div class="name">Goose</div><div class="hp-row"><div class="hp-bar" style="--hp: 92%;"></div><div class="hp-num">92 / 100</div></div></div></div>
+            <div class="hud-badge buffalo"><div class="puck"><img src="../assets/totems/buffalo.png" alt=""></div><div class="col"><div class="name">Buffalo</div><div class="hp-row"><div class="hp-bar" style="--hp: 88%;"></div><div class="hp-num">141 / 160</div></div></div></div>
+            <div class="hud-badge fox"><div class="puck"><img src="../assets/totems/fox.svg" alt=""></div><div class="col"><div class="name">Fox</div><div class="hp-row"><div class="hp-bar" style="--hp: 100%;"></div><div class="hp-num">85 / 85</div></div></div></div>
+          </div>
+
+          <!-- Drawer in waiting state — palette dimmed, ready collapsed -->
+          <div class="box" style="left: 24px; right: 24px; bottom: 24px; padding: 14px 18px; background: var(--box-2); height: 110px; flex-direction: row; gap: 16px; align-items: center;">
+            <div style="width: 160px; flex-shrink: 0;">
+              <div class="box-label" style="padding: 0;">YOUR COIN</div>
+              <div style="font-family: var(--hand-display); font-size: 30px; line-height: 1; margin-top: 2px;">19</div>
+              <div style="font-family: var(--hand); font-size: 11px; color: var(--ink-3);">spent 23 this prep</div>
+            </div>
+            <div style="flex: 1; opacity: 0.5; pointer-events: none; display: flex; gap: 10px;">
+              <div class="deploy-card" style="min-height: 70px;"><div style="font-family: var(--hand-display); font-size: 16px;">Light · 5c</div></div>
+              <div class="deploy-card" style="min-height: 70px;"><div style="font-family: var(--hand-display); font-size: 16px;">Ranged · 12c</div></div>
+              <div class="deploy-card" style="min-height: 70px;"><div style="font-family: var(--hand-display); font-size: 16px;">Heavy · 28c</div></div>
+            </div>
+            <div style="width: 240px; flex-shrink: 0;">
+              <div style="display: flex; gap: 8px; align-items: center; margin-bottom: 6px;">
+                <span style="width: 12px; height: 12px; border-radius: 50%; background: #fff8be; border: 1.5px solid var(--line);"></span>
+                <span style="font-family: var(--hand); font-size: 13px;">Goose ready ✓</span>
+              </div>
+              <div style="display: flex; gap: 8px; align-items: center; margin-bottom: 6px;">
+                <span style="width: 12px; height: 12px; border-radius: 50%; background: var(--box-3); border: 1.5px dashed var(--line);"></span>
+                <span style="font-family: var(--hand); font-size: 13px; color: var(--ink-3);">Buffalo · still buying…</span>
+              </div>
+              <div style="display: flex; gap: 8px; align-items: center;">
+                <span style="width: 12px; height: 12px; border-radius: 50%; background: #ffce96; border: 1.5px solid var(--line);"></span>
+                <span style="font-family: var(--hand); font-size: 13px;">Fox ready ✓</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="pin" style="bottom: 110px; right: 240px;">1</div>
+          <div class="pin" style="top: 32px; right: 230px;">2</div>
+        </div>
+
+        <aside class="notes">
+          <h4>Components</h4>
+          <div class="components">BuildDrawer.waiting<br>ReadyRoster <span style="color: var(--ink-3)">(new)</span></div>
+          <h4>Annotations</h4>
+          <ul>
+            <li><span class="pin-ref">1</span>Drawer collapses; palette dimmed (still visible so you can change your mind, but de-emphasized). Ready roster uses totem dots + name + state. Names of who's holding things up matter — it's three friends.</li>
+            <li><span class="pin-ref">2</span>WavePill copy gets specific: "Mira's still buying." Inside-joke voice without leaking comp info.</li>
+          </ul>
+          <div class="open-q">
+            <h4>Open questions</h4>
+            <ul>
+              <li>If the timer runs out and Mira hasn't readied, what happens? Auto-ready, force-start, or extend? (Probably force-start to preserve cadence.)</li>
+              <li>Can you un-ready? Useful if you spot a coin you forgot to spend.</li>
+            </ul>
+          </div>
+        </aside>
+      </div>
+    </div>
+
+    <!-- 4.C All ready — transition tease -->
+    <div class="state-row">
+      <div class="state-head">
+        <span class="state-num">C</span>
+        <h3 class="state-name">All ready · 3-second auto-start</h3>
+        <span class="state-tag">Hand-off into round transition</span>
+      </div>
+      <div class="state-grid">
+        <div class="frame">
+          <span class="frame-meta"></span>
+          <div class="safe-zone"></div>
+
+          <div style="position: absolute; top: 24px; right: 24px;">
+            <div class="wave-pill" style="background: var(--ink); color: var(--paper); border-color: var(--ink);">
+              <div class="wp-info"><div class="wp-eyebrow" style="color: var(--paper); opacity: 0.7;">All ready · wave 3</div><div class="wp-title" style="color: var(--paper);">Starting…</div></div>
+              <div class="wp-timer" style="color: var(--paper);">0:03</div>
+            </div>
+          </div>
+
+          <div style="position: absolute; top: 24px; left: 24px; display: flex; flex-direction: column; gap: 8px;">
+            <div class="hud-badge"><div class="puck"><img src="../assets/totems/goose.svg" alt=""></div><div class="col"><div class="name">Goose</div><div class="hp-row"><div class="hp-bar" style="--hp: 92%;"></div><div class="hp-num">92 / 100</div></div></div></div>
+            <div class="hud-badge buffalo"><div class="puck"><img src="../assets/totems/buffalo.png" alt=""></div><div class="col"><div class="name">Buffalo</div><div class="hp-row"><div class="hp-bar" style="--hp: 88%;"></div><div class="hp-num">141 / 160</div></div></div></div>
+            <div class="hud-badge fox"><div class="puck"><img src="../assets/totems/fox.svg" alt=""></div><div class="col"><div class="name">Fox</div><div class="hp-row"><div class="hp-bar" style="--hp: 100%;"></div><div class="hp-num">85 / 85</div></div></div></div>
+          </div>
+
+          <!-- Drawer fully collapsed; just confirms ready state -->
+          <div class="box" style="left: 24px; right: 24px; bottom: 24px; padding: 16px 24px; background: var(--ink); color: var(--paper); border-color: var(--ink); height: 76px; flex-direction: row; gap: 16px; align-items: center; justify-content: center;">
+            <div style="font-family: var(--hand-display); font-size: 32px; color: var(--paper); line-height: 1;">All posts manned. Watch begins in 0:03.</div>
+            <div style="display: flex; gap: 8px; margin-left: 24px;">
+              <span style="width: 16px; height: 16px; border-radius: 50%; background: #fff8be; border: 1.5px solid var(--paper);"></span>
+              <span style="width: 16px; height: 16px; border-radius: 50%; background: #d6b89a; border: 1.5px solid var(--paper);"></span>
+              <span style="width: 16px; height: 16px; border-radius: 50%; background: #ffce96; border: 1.5px solid var(--paper);"></span>
+            </div>
+          </div>
+
+          <div class="pin" style="top: 32px; right: 230px;">1</div>
+          <div class="pin" style="bottom: 80px; left: 50%; transform: translateX(-50%);">2</div>
+        </div>
+        <aside class="notes">
+          <h4>Components</h4>
+          <div class="components">BuildDrawer.starting<br>WavePill.allReady (inverted)</div>
+          <h4>Annotations</h4>
+          <ul>
+            <li><span class="pin-ref">1</span>WavePill inverts to dark — visual cue that prep is closed.</li>
+            <li><span class="pin-ref">2</span>Drawer collapses to a one-line confirmation strip. Hands off to the wave-banner shout in 04→ Round Transitions.</li>
+          </ul>
+          <div class="open-q">
+            <h4>Open questions</h4>
+            <ul>
+              <li>Is 3s long enough to reposition? Maybe 5s on early waves, 3s after wave 5 once players know the rhythm.</li>
+            </ul>
+          </div>
+        </aside>
+      </div>
+    </div>
+  </section>
+
+  <!-- ════════════════════════════════════════════════════════════════════════
+       SURFACE 5 — ROUND TRANSITIONS
+       ════════════════════════════════════════════════════════════════════════ -->
+  <section class="tab-panel" data-panel="rounds">
+    <header class="surface-header">
+      <div>
+        <h2 class="surface-title">05 · Round transitions</h2>
+        <p class="surface-intro">Five sub-states: prep → wave countdown, wave-banner shout, wave → debrief, run end (victory + defeat) with return-to-lobby. All centered overlays use the 60% night-0 scrim per DS rules.</p>
+      </div>
+      <aside class="leak-summary">
+        <strong>⚑ Info-asymmetry watch</strong>
+        Wave-banner shout is the only place ALL-CAPS is allowed. Banner says <em>whose turn</em>, never <em>what's coming</em>. Debrief screens are public — show stats, not wave comp.
+      </aside>
+    </header>
+
+    <!-- 5.A Prep → wave countdown banner -->
+    <div class="state-row">
+      <div class="state-head">
+        <span class="state-num">A</span>
+        <h3 class="state-name">Prep → wave shout</h3>
+        <span class="state-tag">Centered banner · ~1.5s</span>
+      </div>
+      <div class="state-grid">
+        <div class="frame">
+          <span class="frame-meta"></span>
+          <div class="safe-zone"></div>
+
+          <!-- Faux HUD dimmed -->
+          <div style="opacity: 0.25;">
+            <div style="position: absolute; top: 24px; left: 24px; display: flex; flex-direction: column; gap: 8px;">
+              <div class="hud-badge"><div class="puck"><img src="../assets/totems/goose.svg" alt=""></div><div class="col"><div class="name">Goose</div><div class="hp-row"><div class="hp-bar" style="--hp: 92%;"></div><div class="hp-num">92/100</div></div></div></div>
+              <div class="hud-badge buffalo"><div class="puck"><img src="../assets/totems/buffalo.png" alt=""></div><div class="col"><div class="name">Buffalo</div><div class="hp-row"><div class="hp-bar" style="--hp: 88%;"></div><div class="hp-num">141/160</div></div></div></div>
+              <div class="hud-badge fox"><div class="puck"><img src="../assets/totems/fox.svg" alt=""></div><div class="col"><div class="name">Fox</div><div class="hp-row"><div class="hp-bar" style="--hp: 100%;"></div><div class="hp-num">85/85</div></div></div></div>
+            </div>
+          </div>
+
+          <!-- Scrim with banner -->
+          <div class="scrim subtle">
+            <div class="wave-banner">
+              <div style="font-family: var(--label); font-weight: 800; font-size: 18px; letter-spacing: 0.18em; color: var(--paper); opacity: 0.7;">— THE LONG WATCH —</div>
+              <div class="shout">WAVE 3 — FOX'S TURN</div>
+              <div class="sub">first in, first out.</div>
+            </div>
+          </div>
+
+          <div class="pin" style="top: 200px; right: 220px;">1</div>
+          <div class="pin" style="top: 380px; right: 280px;">2</div>
+        </div>
+        <aside class="notes">
+          <h4>Components</h4>
+          <div class="components">WaveShoutBanner <span style="color: var(--ink-3)">(new)</span><br>Scrim.subtle (--night-0 / 20%)</div>
+          <h4>Annotations</h4>
+          <ul>
+            <li><span class="pin-ref">1</span>ALL-CAPS shout — only place in the system this is allowed. 96px label-font weight 900, hard drop-shadow for the chunky A-Hat-in-Time feel.</li>
+            <li><span class="pin-ref">2</span>Hero flavor line below — short, in-character. "First in, first out." for Fox; "Hold the line." for Buffalo; "Goose hour." for Goose.</li>
+          </ul>
+          <div class="open-q">
+            <h4>Open questions</h4>
+            <ul>
+              <li>Banner duration: 1.5s feels right (doesn't burn the prep handoff). Confirm?</li>
+              <li>Sound: distinct stinger per hero? Or one shared "wave begins" stinger?</li>
+              <li>Backdrop blur per DS rules? The scrim alone is dimmer — blur is reserved for WavePill.</li>
+            </ul>
+          </div>
+        </aside>
+      </div>
+    </div>
+
+    <!-- 5.B Wave → debrief -->
+    <div class="state-row">
+      <div class="state-head">
+        <span class="state-num">B</span>
+        <h3 class="state-name">Wave → debrief</h3>
+        <span class="state-tag">Brief score readout · what dropped</span>
+      </div>
+      <div class="state-grid">
+        <div class="frame">
+          <span class="frame-meta"></span>
+          <div class="safe-zone"></div>
+
+          <div class="scrim">
+            <div class="modal" style="min-width: 720px;">
+              <div style="font-family: var(--label); font-weight: 800; font-size: 11px; letter-spacing: 0.14em; color: var(--ink-3); text-transform: uppercase;">Wave 3 · cleared</div>
+              <div style="font-family: var(--hand-display); font-size: 56px; line-height: 1; margin-top: 4px;">We held.</div>
+              <div style="font-family: var(--hand); font-size: 16px; color: var(--ink-2); margin-top: 4px;">2:14 to clear · all sectors standing</div>
+
+              <!-- Per-hero strip -->
+              <div style="display: flex; gap: 12px; margin-top: 20px;">
+                <div style="flex: 1; border: 2px solid var(--line); border-radius: 6px; padding: 10px 12px; background: #fff;">
+                  <div style="display: flex; align-items: center; gap: 8px;"><div style="width: 28px; height: 28px; border-radius: 4px; background: #fff8be; border: 1.5px solid var(--line); display: grid; place-items: center;"><img src="../assets/totems/goose.svg" style="width: 22px; height: 22px;" alt=""></div><div style="font-family: var(--hand-display); font-size: 22px;">Goose</div></div>
+                  <div style="font-family: 'JetBrains Mono', monospace; font-size: 14px; margin-top: 6px;">kills · 12<br>damage · 480<br>healed · 0</div>
+                </div>
+                <div style="flex: 1; border: 2px solid var(--line); border-radius: 6px; padding: 10px 12px; background: #fff;">
+                  <div style="display: flex; align-items: center; gap: 8px;"><div style="width: 28px; height: 28px; border-radius: 4px; background: #d6b89a; border: 1.5px solid var(--line); display: grid; place-items: center;"><img src="../assets/totems/buffalo.png" style="width: 22px; height: 22px;" alt=""></div><div style="font-family: var(--hand-display); font-size: 22px;">Buffalo</div></div>
+                  <div style="font-family: 'JetBrains Mono', monospace; font-size: 14px; margin-top: 6px;">kills · 8<br>damage · 320<br>blocked · 240</div>
+                </div>
+                <div style="flex: 1; border: 2px solid var(--line); border-radius: 6px; padding: 10px 12px; background: #fff;">
+                  <div style="display: flex; align-items: center; gap: 8px;"><div style="width: 28px; height: 28px; border-radius: 4px; background: #ffce96; border: 1.5px solid var(--line); display: grid; place-items: center;"><img src="../assets/totems/fox.svg" style="width: 22px; height: 22px;" alt=""></div><div style="font-family: var(--hand-display); font-size: 22px;">Fox</div></div>
+                  <div style="font-family: 'JetBrains Mono', monospace; font-size: 14px; margin-top: 6px;">kills · 18<br>damage · 720<br>flanks · 3</div>
+                </div>
+              </div>
+
+              <!-- Drops -->
+              <div style="margin-top: 18px; padding-top: 14px; border-top: 1.5px dashed var(--line-soft);">
+                <div style="font-family: var(--label); font-weight: 800; font-size: 11px; letter-spacing: 0.14em; color: var(--ink-3); text-transform: uppercase;">Drops</div>
+                <div style="display: flex; gap: 8px; margin-top: 8px; font-family: var(--hand);">
+                  <span style="background: var(--box-2); border: 1.5px solid var(--line); border-radius: 4px; padding: 4px 10px;">+24c each</span>
+                  <span style="background: var(--box-2); border: 1.5px solid var(--line); border-radius: 4px; padding: 4px 10px;">core repair · Buffalo +20</span>
+                  <span style="background: var(--box-2); border: 1.5px solid var(--line); border-radius: 4px; padding: 4px 10px;">[mod placeholder]</span>
+                </div>
+              </div>
+
+              <!-- CTA -->
+              <div style="margin-top: 20px; display: flex; justify-content: flex-end; gap: 12px;">
+                <div class="box" style="position: static; padding: 8px 18px; font-family: var(--hand-display); font-size: 22px; cursor: pointer;">Skip</div>
+                <div class="box" style="position: static; padding: 8px 22px; background: var(--ink); color: var(--paper); border-color: var(--ink); font-family: var(--hand-display); font-size: 22px; cursor: pointer;">To prep · 0:03</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="pin" style="top: 168px; left: 290px;">1</div>
+          <div class="pin" style="top: 410px; left: 290px;">2</div>
+          <div class="pin" style="bottom: 104px; right: 250px;">3</div>
+        </div>
+        <aside class="notes">
+          <h4>Components</h4>
+          <div class="components">DebriefModal <span style="color: var(--ink-3)">(new)</span><br>HeroStatCard × 3<br>DropList<br>Scrim (60% night-0)</div>
+          <h4>Annotations</h4>
+          <ul>
+            <li><span class="pin-ref">1</span>Per-hero stat blocks. Sentence-case eyebrow + display title. Stats use mono numerals.</li>
+            <li><span class="pin-ref">2</span>Drops as chips. "[mod placeholder]" stays placeholder until v0.2 drops/mods system lands.</li>
+            <li><span class="pin-ref">3</span>Auto-advance countdown on the primary CTA so you can flow through if everyone agrees. "Skip" lets one player keep the modal open if needed.</li>
+          </ul>
+          <div class="open-q">
+            <h4>Open questions</h4>
+            <ul>
+              <li>Auto-advance vs require-all-to-confirm? With 3 friends in voice, auto-advance is probably fine + skip beats waiting.</li>
+              <li>Show wave-comp recap here as fair game? It's already happened, no leak. Could be useful for "what just hit us".</li>
+            </ul>
+          </div>
+          <div class="open-q">
+            <h4>⚑ Leak audit</h4>
+            <ul>
+              <li>Debrief is post-hoc — no leak risk. Showing what each sector fought is fine here.</li>
+            </ul>
+          </div>
+        </aside>
+      </div>
+    </div>
+
+    <!-- 5.C Run end — victory -->
+    <div class="state-row">
+      <div class="state-head">
+        <span class="state-num">C</span>
+        <h3 class="state-name">Run end · victory</h3>
+        <span class="state-tag">"RUN COMPLETE" · simple stats</span>
+      </div>
+      <div class="state-grid">
+        <div class="frame">
+          <span class="frame-meta"></span>
+          <div class="safe-zone"></div>
+
+          <div class="scrim">
+            <div class="modal" style="min-width: 720px; text-align: center;">
+              <div style="font-family: var(--label); font-weight: 800; font-size: 12px; letter-spacing: 0.18em; color: var(--ink-3); text-transform: uppercase;">— THE LONG WATCH —</div>
+              <div style="font-family: var(--label); font-weight: 900; font-size: 72px; letter-spacing: 0.04em; line-height: 0.95; margin-top: 8px;">RUN COMPLETE</div>
+              <div style="font-family: var(--hand-display); font-size: 36px; margin-top: 6px;">we held the line.</div>
+
+              <!-- Stats grid -->
+              <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-top: 24px; text-align: left;">
+                <div style="border: 2px solid var(--line); border-radius: 6px; padding: 8px 12px; background: #fff;">
+                  <div style="font-family: var(--label); font-weight: 800; font-size: 9px; letter-spacing: 0.12em; color: var(--ink-3); text-transform: uppercase;">Waves</div>
+                  <div style="font-family: 'JetBrains Mono', monospace; font-size: 28px; font-weight: 700;">8 / 8</div>
+                </div>
+                <div style="border: 2px solid var(--line); border-radius: 6px; padding: 8px 12px; background: #fff;">
+                  <div style="font-family: var(--label); font-weight: 800; font-size: 9px; letter-spacing: 0.12em; color: var(--ink-3); text-transform: uppercase;">Run time</div>
+                  <div style="font-family: 'JetBrains Mono', monospace; font-size: 28px; font-weight: 700;">22:14</div>
+                </div>
+                <div style="border: 2px solid var(--line); border-radius: 6px; padding: 8px 12px; background: #fff;">
+                  <div style="font-family: var(--label); font-weight: 800; font-size: 9px; letter-spacing: 0.12em; color: var(--ink-3); text-transform: uppercase;">Cores standing</div>
+                  <div style="font-family: 'JetBrains Mono', monospace; font-size: 28px; font-weight: 700;">3 / 3</div>
+                </div>
+                <div style="border: 2px solid var(--line); border-radius: 6px; padding: 8px 12px; background: #fff;">
+                  <div style="font-family: var(--label); font-weight: 800; font-size: 9px; letter-spacing: 0.12em; color: var(--ink-3); text-transform: uppercase;">Val saves</div>
+                  <div style="font-family: 'JetBrains Mono', monospace; font-size: 28px; font-weight: 700;">4</div>
+                </div>
+              </div>
+
+              <!-- MVP -->
+              <div style="margin-top: 16px; padding-top: 14px; border-top: 1.5px dashed var(--line-soft); text-align: left; display: flex; align-items: center; gap: 12px;">
+                <div style="width: 44px; height: 44px; border-radius: 6px; background: #ffce96; border: 1.5px solid var(--line); display: grid; place-items: center;"><img src="../assets/totems/fox.svg" style="width: 32px; height: 32px;" alt=""></div>
+                <div>
+                  <div style="font-family: var(--label); font-weight: 800; font-size: 10px; letter-spacing: 0.12em; color: var(--ink-3); text-transform: uppercase;">Watch's nod</div>
+                  <div style="font-family: var(--hand-display); font-size: 26px; line-height: 1;">Fox · 92 kills, no deaths</div>
+                </div>
+              </div>
+
+              <!-- CTAs -->
+              <div style="margin-top: 22px; display: flex; gap: 12px; justify-content: center;">
+                <div class="box" style="position: static; padding: 10px 22px; font-family: var(--hand-display); font-size: 24px;">Return to lobby</div>
+                <div class="box" style="position: static; padding: 10px 22px; background: var(--ink); color: var(--paper); border-color: var(--ink); font-family: var(--hand-display); font-size: 24px;">Another run</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="pin" style="top: 142px; left: 50%; transform: translateX(-50%) translateX(120px);">1</div>
+          <div class="pin" style="top: 285px; left: 320px;">2</div>
+          <div class="pin" style="bottom: 130px; right: 320px;">3</div>
+        </div>
+        <aside class="notes">
+          <h4>Components</h4>
+          <div class="components">RunEndModal.victory<br>StatTile × 4<br>WatchsNod (MVP)<br>RunEndCTAs (lobby / again)</div>
+          <h4>Annotations</h4>
+          <ul>
+            <li><span class="pin-ref">1</span>"RUN COMPLETE" is the single big shout — only ALL-CAPS moment. Subline is in-character ("we held the line").</li>
+            <li><span class="pin-ref">2</span>Four stat tiles. Mono tabular numerals. Stats are the numbers we'd actually pull up in voice chat afterward.</li>
+            <li><span class="pin-ref">3</span>Two-CTA pattern: "Another run" primary, "Return to lobby" secondary. Same chrome as defeat — single component variant.</li>
+          </ul>
+          <div class="open-q">
+            <h4>Open questions</h4>
+            <ul>
+              <li>"Watch's nod" or "MVP"? The former matches the voice; the latter is universally understood. Lean: "Watch's nod" since this game is for three friends, not the public.</li>
+              <li>Wave count is fixed (8) or variable per run? Affects the "8 / 8" tile copy.</li>
+            </ul>
+          </div>
+        </aside>
+      </div>
+    </div>
+
+    <!-- 5.D Run end — defeat -->
+    <div class="state-row">
+      <div class="state-head">
+        <span class="state-num">D</span>
+        <h3 class="state-name">Run end · defeat</h3>
+        <span class="state-tag">"RUN ENDED" · which sector fell</span>
+      </div>
+      <div class="state-grid">
+        <div class="frame">
+          <span class="frame-meta"></span>
+          <div class="safe-zone"></div>
+
+          <div class="scrim">
+            <div class="modal" style="min-width: 720px; text-align: center;">
+              <div style="font-family: var(--label); font-weight: 800; font-size: 12px; letter-spacing: 0.18em; color: var(--ink-3); text-transform: uppercase;">— THE LONG WATCH —</div>
+              <div style="font-family: var(--label); font-weight: 900; font-size: 72px; letter-spacing: 0.04em; line-height: 0.95; margin-top: 8px;">RUN ENDED</div>
+              <div style="font-family: var(--hand-display); font-size: 32px; margin-top: 6px;">Buffalo's core fell.</div>
+
+              <!-- Sector status row -->
+              <div style="display: flex; gap: 12px; margin-top: 22px;">
+                <div style="flex: 1; border: 2px solid var(--line); border-radius: 6px; padding: 10px 12px; background: #fff;">
+                  <div style="display: flex; align-items: center; gap: 8px;"><div style="width: 28px; height: 28px; border-radius: 4px; background: #fff8be; border: 1.5px solid var(--line); display: grid; place-items: center;"><img src="../assets/totems/goose.svg" style="width: 22px; height: 22px;" alt=""></div><div style="font-family: var(--hand-display); font-size: 22px;">Goose</div></div>
+                  <div style="font-family: var(--label); font-weight: 700; font-size: 11px; color: var(--ink-2); margin-top: 6px;">CORE STANDING · 78%</div>
+                </div>
+                <div style="flex: 1; border: 2.5px solid var(--flag-red); border-radius: 6px; padding: 10px 12px; background: var(--flag-bg);">
+                  <div style="display: flex; align-items: center; gap: 8px;"><div style="width: 28px; height: 28px; border-radius: 4px; background: #d6b89a; border: 1.5px solid var(--line); display: grid; place-items: center;"><img src="../assets/totems/buffalo.png" style="width: 22px; height: 22px;" alt=""></div><div style="font-family: var(--hand-display); font-size: 22px; color: #5a1f15;">Buffalo</div></div>
+                  <div style="font-family: var(--label); font-weight: 800; font-size: 11px; color: var(--flag-red); margin-top: 6px;">CORE FELL · wave 6</div>
+                </div>
+                <div style="flex: 1; border: 2px solid var(--line); border-radius: 6px; padding: 10px 12px; background: #fff;">
+                  <div style="display: flex; align-items: center; gap: 8px;"><div style="width: 28px; height: 28px; border-radius: 4px; background: #ffce96; border: 1.5px solid var(--line); display: grid; place-items: center;"><img src="../assets/totems/fox.svg" style="width: 22px; height: 22px;" alt=""></div><div style="font-family: var(--hand-display); font-size: 22px;">Fox</div></div>
+                  <div style="font-family: var(--label); font-weight: 700; font-size: 11px; color: var(--ink-2); margin-top: 6px;">CORE STANDING · 91%</div>
+                </div>
+              </div>
+
+              <div style="margin-top: 16px; padding-top: 14px; border-top: 1.5px dashed var(--line-soft); text-align: left;">
+                <div style="font-family: var(--hand); font-size: 14px; color: var(--ink-2);">Made it to wave 6. 18:42 on the clock. Coin earned across the run · 184c.</div>
+              </div>
+
+              <!-- CTAs -->
+              <div style="margin-top: 22px; display: flex; gap: 12px; justify-content: center;">
+                <div class="box" style="position: static; padding: 10px 22px; font-family: var(--hand-display); font-size: 24px;">Return to lobby</div>
+                <div class="box" style="position: static; padding: 10px 22px; background: var(--ink); color: var(--paper); border-color: var(--ink); font-family: var(--hand-display); font-size: 24px;">Another run</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="pin" style="top: 142px; left: calc(50% + 100px);">1</div>
+          <div class="pin" style="top: 282px; left: calc(50% - 70px);">2</div>
+          <div class="pin" style="bottom: 130px; right: 320px;">3</div>
+        </div>
+        <aside class="notes">
+          <h4>Components</h4>
+          <div class="components">RunEndModal.defeat<br>SectorStatusCard × 3<br>(.fell variant)<br>RunEndCTAs</div>
+          <h4>Annotations</h4>
+          <ul>
+            <li><span class="pin-ref">1</span>"RUN ENDED" — same shout chrome as victory, neutral tone (not punishing). Sub-line names which sector fell, in-voice ("Buffalo's core fell").</li>
+            <li><span class="pin-ref">2</span>Sector status row makes the cause concrete: which one fell, which two stood. The fell card uses the leak-flag warmth (red) — repurposed for "the bad thing happened" semantically.</li>
+            <li><span class="pin-ref">3</span>Same CTAs as victory — single component, swap headline + subline + sector treatment.</li>
+          </ul>
+          <div class="open-q">
+            <h4>Open questions</h4>
+            <ul>
+              <li>Show per-hero stats in defeat too, like debrief? Or keep defeat lean (just sector status + run-time)? My pick: lean — it respects the moment.</li>
+              <li>"Another run" preserves the same hero choices, or returns to Hero Select? Lean: returns to Hero Select so people can switch.</li>
+            </ul>
+          </div>
+        </aside>
+      </div>
+    </div>
+
+    <!-- 5.E Lobby — between runs -->
+    <div class="state-row">
+      <div class="state-head">
+        <span class="state-num">E</span>
+        <h3 class="state-name">Lobby — between runs</h3>
+        <span class="state-tag">Hand-off back to hero select / queue</span>
+      </div>
+      <div class="state-grid">
+        <div class="frame">
+          <span class="frame-meta"></span>
+          <div class="safe-zone"></div>
+
+          <div class="box ghost" style="top: 60px; left: 50%; transform: translateX(-50%); width: 720px; text-align: center; border: 0; box-shadow: none;">
+            <div style="font-family: var(--label); font-weight: 800; font-size: 11px; letter-spacing: 0.18em; color: var(--ink-3); text-transform: uppercase;">— LOBBY · BETWEEN RUNS —</div>
+            <div style="font-family: var(--hand-display); font-size: 56px; line-height: 1; margin-top: 4px;">Take a beat.</div>
+            <div style="font-family: var(--hand); font-size: 17px; color: var(--ink-2); margin-top: 6px;">Three of you, three posts. When you're ready, ready up again.</div>
+          </div>
+
+          <!-- Player presence row -->
+          <div style="position: absolute; top: 230px; left: 50%; transform: translateX(-50%); display: flex; gap: 18px;">
+            <div class="box" style="position: static; width: 200px; height: 220px; flex-direction: column; align-items: center; justify-content: center; padding: 16px;">
+              <div style="width: 80px; height: 80px; border-radius: 50%; background: #fff8be; border: 2px solid var(--line); display: grid; place-items: center;"><img src="../assets/totems/goose.svg" style="width: 56px; height: 56px;" alt=""></div>
+              <div style="font-family: var(--hand-display); font-size: 24px; line-height: 1; margin-top: 12px;">Sam</div>
+              <div style="font-family: var(--label); font-weight: 700; font-size: 11px; letter-spacing: 0.1em; color: var(--ink-3); text-transform: uppercase; margin-top: 4px;">last run · Goose</div>
+              <div style="font-family: var(--hand); font-size: 13px; color: var(--ink-2); margin-top: 8px;">"Another run."</div>
+            </div>
+            <div class="box" style="position: static; width: 200px; height: 220px; flex-direction: column; align-items: center; justify-content: center; padding: 16px;">
+              <div style="width: 80px; height: 80px; border-radius: 50%; background: #d6b89a; border: 2px solid var(--line); display: grid; place-items: center;"><img src="../assets/totems/buffalo.png" style="width: 56px; height: 56px;" alt=""></div>
+              <div style="font-family: var(--hand-display); font-size: 24px; line-height: 1; margin-top: 12px;">Mira</div>
+              <div style="font-family: var(--label); font-weight: 700; font-size: 11px; letter-spacing: 0.1em; color: var(--ink-3); text-transform: uppercase; margin-top: 4px;">last run · Buffalo</div>
+              <div style="font-family: var(--hand); font-size: 13px; color: var(--ink-2); margin-top: 8px;">deciding…</div>
+            </div>
+            <div class="box dashed" style="position: static; width: 200px; height: 220px; flex-direction: column; align-items: center; justify-content: center; padding: 16px; background: var(--box-2); opacity: 0.7;">
+              <div style="width: 80px; height: 80px; border-radius: 50%; background: var(--box-3); border: 2px dashed var(--line); display: grid; place-items: center; font-family: var(--hand-display); font-size: 36px; color: var(--ink-3);">?</div>
+              <div style="font-family: var(--hand-display); font-size: 22px; line-height: 1; margin-top: 12px; color: var(--ink-3);">Jordan</div>
+              <div style="font-family: var(--label); font-weight: 700; font-size: 11px; letter-spacing: 0.1em; color: var(--ink-3); text-transform: uppercase; margin-top: 4px;">disconnected</div>
+              <div style="font-family: var(--hand); font-size: 12px; color: var(--ink-3); margin-top: 8px;">waiting…</div>
+            </div>
+          </div>
+
+          <!-- Bottom CTAs -->
+          <div style="position: absolute; bottom: 36px; left: 50%; transform: translateX(-50%); display: flex; gap: 16px; align-items: center;">
+            <div class="box" style="position: static; padding: 10px 22px; font-family: var(--hand-display); font-size: 22px;">Run history</div>
+            <div class="box" style="position: static; padding: 10px 22px; background: var(--ink); color: var(--paper); border-color: var(--ink); font-family: var(--hand-display); font-size: 22px;">Ready up</div>
+            <div style="font-family: var(--hand); font-size: 13px; color: var(--ink-3);">1 / 3 ready</div>
+          </div>
+
+          <div class="pin" style="top: 240px; left: calc(50% - 230px);">1</div>
+          <div class="pin" style="top: 240px; left: calc(50% + 240px);">2</div>
+          <div class="pin" style="bottom: 60px; left: calc(50% + 100px);">3</div>
+        </div>
+        <aside class="notes">
+          <h4>Components</h4>
+          <div class="components">LobbyPresenceCard × 3<br>(present / deciding / disconnected)<br>ReadyUpCTA<br>RunHistoryCTA</div>
+          <h4>Annotations</h4>
+          <ul>
+            <li><span class="pin-ref">1</span>Presence card per friend. Shows last run's hero (memory hook), name, current state ("Another run." / "deciding…").</li>
+            <li><span class="pin-ref">2</span>Disconnected variant: dashed, opacity 0.7, "?" totem. Doesn't read like a missing slot — they'll be back.</li>
+            <li><span class="pin-ref">3</span>Bottom CTAs: ready-up primary, run history secondary. Ready count visible inline. From here → Hero Select (since "Another run" returns to selection).</li>
+          </ul>
+          <div class="open-q">
+            <h4>Open questions</h4>
+            <ul>
+              <li>Run history CTA scope: just last 5 runs, or full session? Lean: last 5 plus a "session totals" line.</li>
+              <li>Voice indicator on presence card (mic active dot)? Useful in a 3-friend setup.</li>
+              <li>Should the lobby show the run-end stats from the last run inline, or only behind "Run history"? Inline keeps the postgame mood; behind history keeps the lobby clean.</li>
+            </ul>
+          </div>
+        </aside>
+      </div>
+    </div>
+  </section>
+
+  <!-- ════════════════════════════════════════════════════════════════════════
+       FOOTER
+       ════════════════════════════════════════════════════════════════════════ -->
+  <footer style="margin-top: 40px; padding-top: 18px; border-top: 2px dashed var(--line); font-family: var(--hand); font-size: 14px; color: var(--ink-2); display: flex; justify-content: space-between; gap: 24px;">
+    <div>
+      <strong style="color: var(--ink); font-family: var(--label); font-weight: 800; letter-spacing: 0.1em; text-transform: uppercase; font-size: 11px;">Decisions surfaced back</strong><br>
+      • Sector core HP → in-world floater (default), HUD chip fallback under low %.<br>
+      • Wave-comp panel → side panel under WavePill, slides in from right (per your call).<br>
+      • Build UI → bottom drawer (per your call).<br>
+      • Local player HeroBadge → no visual distinction (per your call).<br>
+      • Help request → combined pulse + banner + WavePill copy.
+    </div>
+    <div style="text-align: right;">
+      <strong style="color: var(--ink); font-family: var(--label); font-weight: 800; letter-spacing: 0.1em; text-transform: uppercase; font-size: 11px;">Next pass</strong><br>
+      Final color, type, motion polish · variant states · component spec sheets · Roblox ScreenGui mapping
+    </div>
+  </footer>
+</div>
+
+<script>
+  // Wrap each .frame in a .frame-wrap so we can scale it to fit narrow viewports
+  // while keeping the children's absolute pixel positions on a 1280x720 canvas.
+  document.querySelectorAll('.frame').forEach(frame => {
+    if (frame.parentElement.classList.contains('frame-wrap')) return;
+    const wrap = document.createElement('div');
+    wrap.className = 'frame-wrap';
+    frame.parentNode.insertBefore(wrap, frame);
+    wrap.appendChild(frame);
+  });
+
+  // Compute scale per wrap based on its actual width
+  function rescaleFrames() {
+    document.querySelectorAll('.frame-wrap').forEach(wrap => {
+      const w = wrap.getBoundingClientRect().width;
+      const scale = Math.min(1, w / 1280);
+      wrap.style.setProperty('--frame-scale', scale);
+      // Set wrap height so the page reflows correctly
+      if (scale < 1) {
+        wrap.style.height = (720 * scale) + 'px';
+      } else {
+        wrap.style.height = '';
+      }
+    });
+  }
+  rescaleFrames();
+  window.addEventListener('resize', rescaleFrames);
+
+  // Tab switching
+  const tabs = document.querySelectorAll('.tab');
+  const panels = document.querySelectorAll('.tab-panel');
+  tabs.forEach(t => t.addEventListener('click', () => {
+    const id = t.dataset.tab;
+    tabs.forEach(x => x.classList.toggle('is-active', x === t));
+    panels.forEach(p => p.classList.toggle('is-active', p.dataset.panel === id));
+    window.scrollTo({top: 0, behavior: 'smooth'});
+    // Hidden panels have width 0 — rescale once they're visible
+    requestAnimationFrame(rescaleFrames);
+  }));
+</script>
+</body>
+</html>
