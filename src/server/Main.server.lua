@@ -176,9 +176,11 @@ local function applyHero(player: Player, heroId: string)
 	heroByPlayer[player] = heroId
 	takenHeroes[heroId] = true
 
-	-- BUF-91: send initial state now that we know this player's hero, so the
-	-- HUD can build its portraits before any wave fires.
-	broadcastStateTo(player)
+	-- BUF-91: occupancy just changed, so refresh every HUD — incumbents need
+	-- the new teammate card to appear, and the joiner needs their initial
+	-- state. Especially load-bearing when a player fills a vacated slot
+	-- after the schedule has finished and no other state change is coming.
+	broadcastStateToAll()
 
 	player.CharacterAdded:Connect(function(character: Model)
 		local humanoid = character:WaitForChild("Humanoid") :: Humanoid
