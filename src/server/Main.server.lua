@@ -16,6 +16,10 @@ Players.CharacterAutoLoads = false
 
 local heroByPlayer: { [Player]: string } = {}
 local takenHeroes: { [string]: boolean } = {}
+-- Guards the connect-then-iterate window: a player who joins between
+-- PlayerAdded:Connect and the GetPlayers() catch-up pass would otherwise
+-- be processed twice.
+local seenPlayers: { [Player]: boolean } = {}
 
 local function nextAvailableHero(): string?
 	for _, heroId in ipairs(Constants.HEROES) do
@@ -114,16 +118,28 @@ local function sendToSpectator(player: Player)
 	player:LoadCharacter()
 end
 
-Players.PlayerAdded:Connect(function(player)
+local function onPlayerJoined(player: Player)
+	if seenPlayers[player] then return end
+	seenPlayers[player] = true
+
 	local heroId = nextAvailableHero()
 	if heroId then
 		applyHero(player, heroId)
 	else
 		sendToSpectator(player)
 	end
-end)
+end
+
+Players.PlayerAdded:Connect(onPlayerJoined)
+
+-- Catch any players already present when this script started (e.g. if
+-- a long-running require elsewhere delayed our boot past the first join).
+for _, player in ipairs(Players:GetPlayers()) do
+	onPlayerJoined(player)
+end
 
 Players.PlayerRemoving:Connect(function(player)
+	seenPlayers[player] = nil
 	local heroId = heroByPlayer[player]
 	if heroId then
 		takenHeroes[heroId] = nil
