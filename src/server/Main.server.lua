@@ -4,10 +4,16 @@
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local ServerScriptService = game:GetService("ServerScriptService")
 local Workspace = game:GetService("Workspace")
 
 local Heroes = require(ReplicatedStorage.Data.Heroes)
 local Constants = require(ReplicatedStorage.Shared.Constants)
+local WorldBuilder = require(ServerScriptService.Adapters.WorldBuilder)
+
+-- Build the arena before wiring player handlers so spawn pads and the
+-- spectator zone exist by the time anyone joins.
+WorldBuilder.build()
 
 -- We control the first spawn ourselves so the character never appears at the
 -- default SpawnLocation before being teleported into a sector. Respawns after
