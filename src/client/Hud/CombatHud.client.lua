@@ -299,3 +299,8 @@ local function applyState(state: any)
 end
 
 stateUpdate.OnClientEvent:Connect(applyState)
+
+-- Ask the server for a fresh snapshot now that we're listening. The server
+-- also broadcasts on join, but that send races our OnClientEvent:Connect and
+-- can be lost on slow joins; this handshake guarantees at least one state.
+stateUpdate:FireServer()

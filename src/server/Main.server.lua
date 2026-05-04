@@ -74,6 +74,16 @@ end
 
 director:onStateChanged(broadcastStateToAll)
 
+-- Client-driven handshake: the join-time FireClient below is best-effort
+-- and is dropped if the client's CombatHud hasn't yet connected its
+-- OnClientEvent (slow joins, late StarterPlayerScripts boot). The HUD
+-- fires this event as soon as it's wired up, and we reply with a fresh
+-- snapshot — guarantees every client gets at least one state regardless
+-- of timing.
+stateUpdate.OnServerEvent:Connect(function(player: Player)
+	broadcastStateTo(player)
+end)
+
 -- Cores already exist (built above). Re-broadcast on HP change so teammate
 -- portraits track damage. We don't need to disconnect — cores live for the
 -- lifetime of the server.
