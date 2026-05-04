@@ -44,6 +44,13 @@ type Director = {
 	isFinished: (Director) -> boolean,
 }
 
+-- Optional: a function that returns the schedule for a given round. When
+-- bound, the controller passes the per-round schedule to director:reset()
+-- at the top of each wave phase, so round 2/3 use rotated lead heroes per
+-- the v0.1 spec. When nil, every round uses whatever schedule the director
+-- was constructed with — preserves the existing behavior for unit tests.
+type ScheduleProvider = (number) -> any
+
 type RunState = {
 	onResult: (RunState, (Result) -> ()) -> (),
 	setResult: (RunState, Result) -> (),
@@ -60,6 +67,7 @@ export type RunController = typeof(setmetatable(
 		_statusCallbacks: { StatusCallback },
 		_roundStartCallback: RoundStartCallback?,
 		_director: Director?,
+		_scheduleProvider: ScheduleProvider?,
 		_enemiesFolder: Folder?,
 		_runState: RunState?,
 		_running: boolean,
@@ -79,6 +87,7 @@ function RunController.new(): RunController
 		_statusCallbacks = {},
 		_roundStartCallback = nil,
 		_director = nil,
+		_scheduleProvider = nil,
 		_enemiesFolder = nil,
 		_runState = nil,
 		_running = false,
@@ -87,6 +96,14 @@ end
 
 function RunController.bindDirector(self: RunController, director: Director)
 	self._director = director
+end
+
+-- BUF-12: hand the controller a per-round schedule lookup (e.g.
+-- `WaveDirector.scheduleForRound`). At the top of each wave phase the
+-- controller calls `provider(roundIdx)` and resets the director with the
+-- result, so round 2/3 fire their rotated schedules.
+function RunController.bindScheduleProvider(self: RunController, provider: ScheduleProvider)
+	self._scheduleProvider = provider
 end
 
 function RunController.bindEnemiesFolder(self: RunController, folder: Folder)
@@ -193,8 +210,12 @@ function RunController._runLoop(self: RunController)
 			-- reset() is a no-op on the very first round (director is
 			-- already at zero), but it's safe to call and keeps the
 			-- per-round invariant uniform: every wave phase begins
-			-- with a fresh schedule cursor.
-			self._director:reset()
+			-- with a fresh schedule cursor. With a schedule provider
+			-- wired (BUF-12), round 2/3 also swap in their rotated
+			-- schedule so isFinished() only flips after the full run.
+			local provider = self._scheduleProvider
+			local schedule = if provider then provider(roundIdx) else nil
+			self._director:reset(schedule)
 		end
 		local cb = self._roundStartCallback
 		if cb then
@@ -212,13 +233,12 @@ function RunController._runLoop(self: RunController)
 		end
 
 		if self._director then
-			-- reset (not just stop): if the last wave's enemies were
-			-- killed before WAVE_VISIBILITY_SECONDS elapsed, the
-			-- director's _active map still holds them. Without
-			-- clearing it, clients would keep rendering the reveal
-			-- panel and "IN COMBAT" badges throughout debrief. reset
-			-- empties _active and fires onStateChanged so the
-			-- broadcaster pushes a wave-free PlayerView.
+			-- reset (not just stop): the last wave's `_active` entries
+			-- live until the adapter calls director:endWave on the
+			-- final enemy clear. If the round-clear poll wins the race
+			-- (Enemies folder empty before endWave runs), the active
+			-- map can still hold a stale entry that would keep the
+			-- reveal panel up through debrief. reset clears it.
 			self._director:reset()
 		end
 
