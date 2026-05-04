@@ -212,7 +212,14 @@ function RunController._runLoop(self: RunController)
 		end
 
 		if self._director then
-			self._director:stop()
+			-- reset (not just stop): if the last wave's enemies were
+			-- killed before WAVE_VISIBILITY_SECONDS elapsed, the
+			-- director's _active map still holds them. Without
+			-- clearing it, clients would keep rendering the reveal
+			-- panel and "IN COMBAT" badges throughout debrief. reset
+			-- empties _active and fires onStateChanged so the
+			-- broadcaster pushes a wave-free PlayerView.
+			self._director:reset()
 		end
 
 		-- ─── Debrief (skipped after the final round) ────
