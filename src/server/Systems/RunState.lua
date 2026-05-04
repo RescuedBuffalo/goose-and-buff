@@ -61,7 +61,12 @@ function RunState.bindCore(self: RunState, humanoid: Humanoid)
 	end)
 end
 
-local function checkWin(self: RunState)
+-- Public: re-evaluate the win condition. Called both internally on
+-- Enemies.ChildRemoved AND externally (from Main's director:onStateChanged
+-- hook) so a wave that spawns zero enemies — or an already-finished
+-- director at bind time — can still trigger a win, since neither path
+-- fires a ChildRemoved.
+function RunState.checkWin(self: RunState)
 	if self._state ~= "running" then
 		return
 	end
@@ -83,8 +88,11 @@ function RunState.bindRun(self: RunState, director: Director, enemiesFolder: Fol
 	self._director = director
 	self._enemiesFolder = enemiesFolder
 	enemiesFolder.ChildRemoved:Connect(function()
-		checkWin(self)
+		self:checkWin()
 	end)
+	-- Cover "already done at bind time" (e.g. an empty schedule) so we
+	-- don't depend on a future ChildRemoved that will never fire.
+	self:checkWin()
 end
 
 function RunState.result(self: RunState): Result?

@@ -121,7 +121,14 @@ local function broadcastStateTo(player: Player)
 	stateUpdate:FireClient(player, director:getVisibleStateForPlayer(player))
 end
 
-director:onStateChanged(broadcastStateToAll)
+-- onStateChanged fires when waves activate or expire. Re-broadcast for
+-- BUF-91's HUD AND let RunState re-evaluate the win condition (BUF-90),
+-- since a wave that spawns zero enemies fires no ChildRemoved and would
+-- otherwise leave the run stuck on "running".
+director:onStateChanged(function()
+	broadcastStateToAll()
+	runState:checkWin()
+end)
 
 -- Client-driven handshake: the join-time FireClient below is best-effort
 -- and is dropped if the client's CombatHud hasn't yet connected its
