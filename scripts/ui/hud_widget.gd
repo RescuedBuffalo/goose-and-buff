@@ -80,10 +80,10 @@ func _draw() -> void:
 	var strip := Rect2(0, 0, size.x, 64)
 	draw_rect(strip, Color(DesignTokens.NIGHT_0.r, DesignTokens.NIGHT_0.g, DesignTokens.NIGHT_0.b, 0.78), true)
 	draw_line(Vector2(0, 64), Vector2(size.x, 64), DesignTokens.DIVIDER, 2.0)
-	# Hero — Buffalo HP.
+	# Hero HP. Label is the picked hero — written in full per voice rules.
 	var hp := GameState.hero_hp
 	var hp_max := GameState.hero_hp_max
-	_draw_label("Buffalo", Vector2(24, 16), DesignTokens.FG_3, DesignTokens.FS_XS)
+	_draw_label(GameState.hero_id, Vector2(24, 16), DesignTokens.FG_3, DesignTokens.FS_XS)
 	_draw_label("%d / %d" % [int(hp), int(hp_max)], Vector2(24, 36), DesignTokens.FG_1, DesignTokens.FS_LG, true)
 	var hp_ratio: float = 0.0 if hp_max == 0.0 else hp / hp_max
 	draw_rect(Rect2(110, 44, 160, 6), DesignTokens.NIGHT_3, true)

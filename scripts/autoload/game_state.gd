@@ -12,6 +12,7 @@ enum Phase { PREP, WAVE, DEBRIEF, RUN_COMPLETE, RUN_ENDED }
 
 var phase: int = Phase.PREP
 var round_index: int = 1
+var hero_id: String = "Buffalo"
 var hero_hp: float = 0.0
 var hero_hp_max: float = 0.0
 var core_hp: float = 0.0
@@ -23,11 +24,17 @@ var retreat_mode: bool = false
 func reset() -> void:
 	phase = Phase.PREP
 	round_index = 1
+	# hero_id intentionally preserved across reset() — it's set on hero
+	# select and survives a "Try again" run. "Change hero" overwrites it
+	# explicitly via set_hero().
 	hero_hp = 0.0
 	hero_hp_max = 0.0
 	core_hp = 0.0
 	core_hp_max = 0.0
 	set_retreat(false)
+
+func set_hero(new_hero_id: String) -> void:
+	hero_id = new_hero_id
 
 func set_retreat(active: bool) -> void:
 	if retreat_mode == active:

@@ -20,6 +20,7 @@ const BuildingScene := preload("res://scenes/building.tscn")
 const HandScene := preload("res://scenes/ui/hand.tscn")
 const HudScene := preload("res://scenes/ui/hud.tscn")
 const EndScene := preload("res://scenes/ui/end_screen.tscn")
+const HeroSelectScene := preload("res://scenes/ui/hero_select.tscn")
 
 # Logic
 var economy
@@ -32,7 +33,12 @@ var hero
 var hand
 var hud
 var end_screen
+var hero_select
 var building_node: Node = null  # at most one in v0
+# Hero is rebuilt fresh each run so a different pick can swap sprite +
+# stats. Keeping it nullable lets _start_run handle both first launch
+# (no hero yet) and post-restart (old hero already freed).
+const DEFAULT_HERO_ID := "Buffalo"
 
 func _ready() -> void:
 	randomize()
@@ -40,7 +46,7 @@ func _ready() -> void:
 	_build_world()
 	_build_ui()
 	_wire_signals()
-	_start_run()
+	_open_hero_select()
 
 func _build_logic() -> void:
 	economy = Economy.new()
@@ -48,10 +54,10 @@ func _build_logic() -> void:
 	wave_director = WaveDirector.new()
 
 func _build_world() -> void:
+	# The hero is intentionally NOT instanced here — _start_run instances it
+	# fresh per pick so hero_data / sprite / spawn pad reflect the choice.
 	sector = SectorScene.instantiate()
 	add_child(sector)
-	hero = HeroScene.instantiate()
-	add_child(hero)
 
 func _build_ui() -> void:
 	var ui_layer := CanvasLayer.new()
@@ -63,6 +69,8 @@ func _build_ui() -> void:
 	ui_layer.add_child(hand)
 	end_screen = EndScene.instantiate()
 	ui_layer.add_child(end_screen)
+	hero_select = HeroSelectScene.instantiate()
+	ui_layer.add_child(hero_select)
 
 func _wire_signals() -> void:
 	hud.bind(economy, wave_director, sector)
@@ -77,6 +85,36 @@ func _wire_signals() -> void:
 	wave_director.wave_ended.connect(_on_wave_ended)
 	sector.core_destroyed.connect(_on_core_destroyed)
 	end_screen.restart_requested.connect(_on_restart_requested)
+	end_screen.change_hero_requested.connect(_on_change_hero_requested)
+	hero_select.hero_selected.connect(_on_hero_selected)
+
+func _open_hero_select() -> void:
+	# The select screen is the entry point. Hide the in-run UI so the
+	# curtain pulls clean, and pause the wave clock so the 30s prep timer
+	# doesn't tick while the player is still picking (see _process).
+	GameState.set_phase(GameState.Phase.PREP)
+	end_screen.visible = false
+	hud.visible = false
+	hand.visible = false
+	hero_select.open()
+
+func _on_hero_selected(hero_id: String) -> void:
+	GameState.set_hero(hero_id)
+	# Sector retones immediately so the curtain pull-back lands on the
+	# correct palette.
+	sector.set_hero(hero_id)
+	_spawn_hero(hero_id)
+	hud.visible = true
+	hand.visible = true
+	_start_run()
+
+func _spawn_hero(hero_id: String) -> void:
+	# Tear down any prior hero — happens on the "Change hero" path.
+	if hero != null and is_instance_valid(hero):
+		hero.queue_free()
+	hero = HeroScene.instantiate()
+	hero.set_hero(hero_id)
+	add_child(hero)
 
 func _start_run() -> void:
 	GameState.reset()
@@ -93,6 +131,10 @@ func _start_run() -> void:
 	GameState.set_phase(GameState.Phase.PREP)
 
 func _process(delta: float) -> void:
+	# Don't tick the run while the hero select is up — otherwise the prep
+	# timer would burn down behind the curtain.
+	if hero_select != null and hero_select.visible:
+		return
 	# Drive logic ticks. WaveDirector + Economy progress only here.
 	wave_director.tick(delta)
 	if wave_director.is_prep_phase() or wave_director.is_wave_phase():
@@ -192,7 +234,8 @@ func _show_charge_line(from: Vector2, to: Vector2, width: float) -> void:
 	line.add_point(from)
 	line.add_point(to)
 	line.width = width
-	line.default_color = Color(DesignTokens.BUFFALO_CORE.r, DesignTokens.BUFFALO_CORE.g, DesignTokens.BUFFALO_CORE.b, 0.55)
+	var accent := DesignTokens.core_color(GameState.hero_id)
+	line.default_color = Color(accent.r, accent.g, accent.b, 0.55)
 	line.z_index = 5
 	add_child(line)
 	var tween := create_tween()
@@ -276,7 +319,23 @@ func _on_run_ended() -> void:
 	end_screen.show_defeat()
 
 func _on_restart_requested() -> void:
-	# Clear transient nodes; _start_run re-publishes core/hero HP itself.
+	# "Try again" — same hero, fresh run. Clear transients; _start_run
+	# re-publishes core/hero HP itself.
+	_clear_run_transients()
+	end_screen.visible = false
+	_start_run()
+
+func _on_change_hero_requested() -> void:
+	# "Change hero" — back to hero select. Tear down hero too so the next
+	# pick instantiates a fresh one with the right sprite + stats.
+	_clear_run_transients()
+	if hero != null and is_instance_valid(hero):
+		hero.queue_free()
+		hero = null
+	end_screen.visible = false
+	_open_hero_select()
+
+func _clear_run_transients() -> void:
 	for n in get_tree().get_nodes_in_group("units"):
 		if is_instance_valid(n): n.queue_free()
 	for n in get_tree().get_nodes_in_group("enemies"):
@@ -284,5 +343,3 @@ func _on_restart_requested() -> void:
 	if building_node != null and is_instance_valid(building_node):
 		building_node.queue_free()
 		building_node = null
-	end_screen.visible = false
-	_start_run()
