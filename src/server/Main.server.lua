@@ -60,6 +60,9 @@ director:setCoreInfoResolver(function(heroId: string)
 	if not humanoid then return nil end
 	return { hp = humanoid.Health, maxHp = humanoid.MaxHealth }
 end)
+director:setHeroOccupancyResolver(function(heroId: string)
+	return takenHeroes[heroId] == true
+end)
 
 local function broadcastStateToAll()
 	for _, player in ipairs(Players:GetPlayers()) do
@@ -235,5 +238,7 @@ Players.PlayerRemoving:Connect(function(player)
 	if heroId then
 		takenHeroes[heroId] = nil
 		heroByPlayer[player] = nil
+		-- BUF-91: refresh remaining clients so the leaver's portrait drops out.
+		broadcastStateToAll()
 	end
 end)

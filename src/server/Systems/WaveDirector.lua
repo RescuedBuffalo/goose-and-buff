@@ -53,6 +53,7 @@ export type PlayerView = {
 export type CoreInfo = { hp: number, maxHp: number }
 export type HeroResolver = (Player) -> string?
 export type CoreInfoResolver = (string) -> CoreInfo?
+export type HeroOccupancyResolver = (string) -> boolean
 
 -- How long the reveal panel stays up after a wave fires, in seconds.
 -- v0.1 stub: BUF-7 will replace with explicit "wave cleared" events.
@@ -73,6 +74,7 @@ export type WaveDirector = typeof(setmetatable(
 		_active: { [string]: ActiveWave },
 		_heroResolver: HeroResolver?,
 		_coreInfoResolver: CoreInfoResolver?,
+		_heroOccupancyResolver: HeroOccupancyResolver?,
 		_allHeroes: { string },
 	},
 	WaveDirector
@@ -110,6 +112,7 @@ function WaveDirector.new(schedule: { Wave }?): WaveDirector
 		_active = {},
 		_heroResolver = nil,
 		_coreInfoResolver = nil,
+		_heroOccupancyResolver = nil,
 		_allHeroes = collectHeroesFromSchedule(sched),
 	}, WaveDirector)
 	return self
@@ -143,6 +146,14 @@ end
 
 function WaveDirector.setCoreInfoResolver(self: WaveDirector, resolver: CoreInfoResolver)
 	self._coreInfoResolver = resolver
+end
+
+-- Optional. When set, teammate rows are filtered to heroes the resolver
+-- reports as occupied (i.e., a player is currently bound to that hero).
+-- Without it, all scheduled heroes are listed — fine for tests, wrong for
+-- partial lobbies where empty slots would otherwise show phantom cards.
+function WaveDirector.setHeroOccupancyResolver(self: WaveDirector, resolver: HeroOccupancyResolver)
+	self._heroOccupancyResolver = resolver
 end
 
 local function fireStateChanged(self: WaveDirector)
@@ -244,6 +255,7 @@ end
 function WaveDirector.getVisibleStateForPlayer(self: WaveDirector, player: Player): PlayerView
 	local heroResolver = self._heroResolver
 	local coreInfoResolver = self._coreInfoResolver
+	local occupancyResolver = self._heroOccupancyResolver
 	local selfHeroId: string? = if heroResolver then heroResolver(player) else nil
 
 	local selfActive = if selfHeroId then self._active[selfHeroId] else nil
@@ -251,16 +263,22 @@ function WaveDirector.getVisibleStateForPlayer(self: WaveDirector, player: Playe
 	local teammates: { TeammateView } = {}
 	for _, heroId in ipairs(self._allHeroes) do
 		if heroId ~= selfHeroId then
-			local coreInfo = if coreInfoResolver then coreInfoResolver(heroId) else nil
-			local hp = if coreInfo then coreInfo.hp else 0
-			local maxHp = if coreInfo then coreInfo.maxHp else 0
-			table.insert(teammates, {
-				heroId = heroId,
-				name = heroId,
-				inCombat = self._active[heroId] ~= nil,
-				coreHp = hp,
-				coreMaxHp = maxHp,
-			})
+			-- Skip unoccupied slots so partial lobbies (1–2 players, mid-disconnect)
+			-- don't render phantom teammate cards. With no resolver wired we keep
+			-- the old "include all" default for tests.
+			local occupied = if occupancyResolver then occupancyResolver(heroId) else true
+			if occupied then
+				local coreInfo = if coreInfoResolver then coreInfoResolver(heroId) else nil
+				local hp = if coreInfo then coreInfo.hp else 0
+				local maxHp = if coreInfo then coreInfo.maxHp else 0
+				table.insert(teammates, {
+					heroId = heroId,
+					name = heroId,
+					inCombat = self._active[heroId] ~= nil,
+					coreHp = hp,
+					coreMaxHp = maxHp,
+				})
+			end
 		end
 	end
 
