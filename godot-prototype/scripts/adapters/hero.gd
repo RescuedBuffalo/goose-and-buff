@@ -56,6 +56,13 @@ func reset_hp() -> void:
 	hp = hp_max
 	GameState.set_hero_hp(hp, hp_max)
 
+func reset_position() -> void:
+	# Snap Buffalo back to the spawn pad. Called by main._start_run on a
+	# fresh run / restart so each opening is identical regardless of where
+	# the player was standing when the previous run ended.
+	_scripted_motion = false
+	position = spawn_position()
+
 func _load_sprite() -> void:
 	# The shipped buffalo asset is a PNG. The other totems are SVG; Godot
 	# imports both natively. Sprite is scaled down from the source 240×200.

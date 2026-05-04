@@ -126,8 +126,14 @@ func _advance_spawn_queue(dt: float) -> void:
 	if _spawn_queue.is_empty():
 		return
 	_spawn_accum += dt
-	var next: Dictionary = _spawn_queue[0]
-	if _spawn_accum >= float(next.interval):
-		_spawn_accum = 0.0
+	# Subtract per spawn rather than zeroing so a long frame catches the
+	# queue up — important during stutters / breakpoints / low FPS, where
+	# zeroing would silently slow the wave below its configured rate.
+	while not _spawn_queue.is_empty():
+		var next: Dictionary = _spawn_queue[0]
+		var interval: float = float(next.interval)
+		if _spawn_accum < interval:
+			break
+		_spawn_accum -= interval
 		_spawn_queue.pop_front()
 		enemy_due.emit(next.type, next.slot)

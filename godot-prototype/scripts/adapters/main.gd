@@ -85,6 +85,7 @@ func _start_run() -> void:
 	# without this the HUD would show 0/0 until the first damage tick.
 	sector.reset_core()
 	hero.reset_hp()
+	hero.reset_position()
 	economy.reset()
 	card_system.reset()
 	wave_director.reset()

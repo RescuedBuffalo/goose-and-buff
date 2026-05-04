@@ -96,19 +96,15 @@ func _try_drop(local_pos: Vector2) -> void:
 		return
 	# Convert local hand-coords to global viewport coords for the play target.
 	var global_drop := global_position + local_pos
-	# Cards drop into the sector area (above the hand). For ability cards
-	# we route to a separate signal so the main scene can do line-aim.
-	var card: Dictionary = Cards.get_card(_drag_card_id)
-	if card.kind == "ability":
-		# For v0 simplicity: ability cards play immediately on drop, casting
-		# from the hero toward the drop position.
-		ability_targeting_started.emit(_drag_card_id)
+	# Every card kind requires the drop to land in the sector. For ability
+	# cards the drop position becomes the cast target; for unit / building
+	# cards it's the spawn point. Out-of-bounds drops snap back to the hand.
+	if Sectors.is_inside_sector(global_drop):
+		var card: Dictionary = Cards.get_card(_drag_card_id)
+		if card.kind == "ability":
+			ability_targeting_started.emit(_drag_card_id)
 		play_requested.emit(_drag_card_id, global_drop)
 	else:
-		if Sectors.is_inside_sector(global_drop):
-			play_requested.emit(_drag_card_id, global_drop)
-		else:
-			# Snap back — rebuild restores layout.
-			_rebuild()
+		_rebuild()
 	_drag_widget = null
 	_drag_card_id = ""
