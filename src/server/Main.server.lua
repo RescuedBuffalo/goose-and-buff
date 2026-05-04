@@ -95,11 +95,23 @@ end
 -- spawner and the HUD reveal panel read from the same source of truth.
 -- The director is reused across rounds via :reset(), driven by RunController.
 local director = WaveDirector.new()
+-- BUF-10: track per-wave alive-enemy count and call director:endWave(hero)
+-- when the count reaches zero. Combat state stays "in combat" exactly while
+-- enemies from that wave are still in the game tree — death OR reach-core
+-- despawn both trigger Destroying. The `gone` guard prevents double-decrement
+-- when humanoid.Died fires *and* the model is then destroyed by the spawner.
 director:onWave(function(hero, _elapsed)
 	local wave = Waves.byHero[hero]
 	if not wave then
 		warn(string.format("[Main] No wave composition for hero %q", hero))
 		return
+	end
+	local alive = 0
+	local function decrement()
+		alive -= 1
+		if alive <= 0 then
+			director:endWave(hero)
+		end
 	end
 	for _, enemy in ipairs(wave.enemies) do
 		local models = WaveSpawner.spawn(hero, enemy.type, enemy.count, enemy.formation)
@@ -109,7 +121,23 @@ director:onWave(function(hero, _elapsed)
 			if torso and torso:IsA("BasePart") and humanoid then
 				Combat.bindEnemyClicks(torso, humanoid)
 			end
+			alive += 1
+			local gone = false
+			local function onGone()
+				if gone then return end
+				gone = true
+				decrement()
+			end
+			if humanoid then
+				humanoid.Died:Connect(onGone)
+			end
+			model.Destroying:Connect(onGone)
 		end
+	end
+	-- A composition with zero enemies (data error or mid-iteration empty
+	-- list) would leave the wave active forever. Trip endWave immediately.
+	if alive <= 0 then
+		director:endWave(hero)
 	end
 end)
 
@@ -168,8 +196,11 @@ end
 -- BUF-92: round-flow controller. Drives prep → wave → debrief, fires
 -- "win" via RunState after the final round clears, and converts a "loss"
 -- (any core down) into a "defeat" phase update.
+-- BUF-12: bind the per-round schedule provider so round 2/3 use their
+-- rotated lead heroes from the v0.1 spec.
 local controller = RunController.new()
 controller:bindDirector(director)
+controller:bindScheduleProvider(WaveDirector.scheduleForRound)
 controller:bindEnemiesFolder(enemiesFolder :: Folder)
 controller:bindRunState(runState)
 
@@ -218,7 +249,17 @@ runState:onResult(function(result)
 	WorldBuilder.showResult(result)
 end)
 
-controller:start()
+-- BUF-9: don't begin the run until at least one hero slot is filled.
+-- Without this gate the prep timer started during boot and waves could
+-- fire into empty sectors (and the WaveDirector occupancy filter would
+-- skip them all, making the run an empty walk-through). We start the
+-- controller in applyHero on the first assignment.
+local controllerStarted = false
+local function ensureControllerStarted()
+	if controllerStarted then return end
+	controllerStarted = true
+	controller:start()
+end
 
 -- BUF-92: respawn-only Restart button for v0.1. Lodge / true restart
 -- comes in v0.2. We accept the request only after the run has resolved
@@ -282,6 +323,11 @@ end
 
 local function bindRespawn(player: Player, humanoid: Humanoid)
 	humanoid.Died:Once(function()
+		-- BUF-11: the run loses if every assigned hero is simultaneously
+		-- down. Mark down before the respawn delay so a coordinated wipe
+		-- inside RespawnTime trips the loss. markHeroDown is a no-op for
+		-- spectators (they were never registered).
+		runState:markHeroDown(player)
 		task.wait(Players.RespawnTime)
 		if player.Parent == Players then
 			player:LoadCharacter()
@@ -298,6 +344,10 @@ local function applyHero(player: Player, heroId: string)
 
 	takenHeroes[heroId] = true
 	Combat.bindPlayer(player, heroId)
+	-- BUF-11: track this player's alive state for the all-heroes-downed
+	-- loss condition. registerHero is idempotent so a re-bind on rejoin
+	-- doesn't double-count.
+	runState:registerHero(player)
 
 	-- BUF-91 + BUF-92: send initial state and run status now that we know
 	-- this player's hero, so the HUD can build its portraits + phase
@@ -321,10 +371,18 @@ local function applyHero(player: Player, heroId: string)
 			warn(string.format("[Main] Missing Workspace.Sectors.%s.SpawnPad", heroId))
 		end
 
+		-- BUF-11: a fresh character is alive again. Mark up before the
+		-- death listener attaches so a respawn correctly clears the
+		-- "all down" state.
+		runState:markHeroUp(player)
 		bindRespawn(player, humanoid)
 	end)
 
 	player:LoadCharacter()
+
+	-- BUF-9: kick off the run on the first assignment. Subsequent calls
+	-- are no-ops via the controllerStarted flag.
+	ensureControllerStarted()
 end
 
 local function sendToSpectator(player: Player)
@@ -376,6 +434,10 @@ Players.PlayerRemoving:Connect(function(player)
 	if heroId then
 		takenHeroes[heroId] = nil
 		Combat.unbindPlayer(player)
+		-- BUF-11: drop the leaver from alive tracking. Otherwise a
+		-- player who quits mid-run would stay marked down forever and
+		-- the remaining heroes would never clear the all-down check.
+		runState:unregisterHero(player)
 		-- BUF-91: refresh remaining clients so the leaver's portrait drops out.
 		broadcastStateToAll()
 	end

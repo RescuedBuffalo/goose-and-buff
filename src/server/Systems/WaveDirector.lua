@@ -4,13 +4,23 @@
 -- first-hit info reveal — the spine mechanic. Only the targeted player
 -- sees the composition; teammates see redacted "in combat" status.
 --
--- Round 1 schedule per the v0.1 spec: Fox @ 0s, Goose @ 12s, Buffalo @ 24s.
 -- Wave compositions live in shared/Data/Waves.lua (pure data).
+-- v0.1 spec defines a 3-round rotation:
+--   Round 1: Fox  @ 0s, Goose   @ 12s, Buffalo @ 24s
+--   Round 2: Buffalo @ 0s, Fox  @ 12s, Goose   @ 24s
+--   Round 3: Goose   @ 0s, Buffalo @ 12s, Fox   @ 24s
+-- RunController calls `:reset(scheduleForRound(roundIdx))` between rounds.
 --
--- Without a real "wave cleared" signal yet (BUF-7 owns the run lifecycle),
--- we auto-expire active waves after WAVE_VISIBILITY_SECONDS so the reveal
--- panel doesn't get stuck on screen forever. BUF-7 should swap auto-expiry
--- for explicit `:endWave(hero)` calls when enemies are downed.
+-- Active waves clear via explicit `:endWave(hero)` calls — fire once the
+-- last enemy from that wave is gone (death OR reach-core despawn). The
+-- auto-expiry timer that used to live here was a v0.1 stub; it broke
+-- BUF-91's info-asymmetry contract by hiding teammate "IN COMBAT" badges
+-- while enemies were still attacking the sector.
+--
+-- Partial-lobby behavior: when an occupancy resolver is wired and the
+-- targeted hero is unoccupied, the schedule cursor advances without
+-- activating the wave or firing `onWave`. This prevents enemies from
+-- spawning into empty sectors and silently killing an undefended core.
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
@@ -29,7 +39,6 @@ type ActiveWave = {
 	hero: string,
 	composition: WaveComposition,
 	startedAt: number,
-	expiresAt: number,
 }
 
 -- Per-player teammate row in the visible state.
@@ -55,10 +64,6 @@ export type HeroResolver = (Player) -> string?
 export type CoreInfoResolver = (string) -> CoreInfo?
 export type HeroOccupancyResolver = (string) -> boolean
 
--- How long the reveal panel stays up after a wave fires, in seconds.
--- v0.1 stub: BUF-7 will replace with explicit "wave cleared" events.
-local WAVE_VISIBILITY_SECONDS = 10
-
 local WaveDirector = {}
 WaveDirector.__index = WaveDirector
 
@@ -80,11 +85,27 @@ export type WaveDirector = typeof(setmetatable(
 	WaveDirector
 ))
 
+-- v0.1 rotation: each round shifts the lead hero so every player gets
+-- a turn at the first-hit reveal across the run.
 local ROUND_1_SCHEDULE: { Wave } = {
 	{ time = 0, hero = "Fox" },
 	{ time = 12, hero = "Goose" },
 	{ time = 24, hero = "Buffalo" },
 }
+
+local ROUND_2_SCHEDULE: { Wave } = {
+	{ time = 0, hero = "Buffalo" },
+	{ time = 12, hero = "Fox" },
+	{ time = 24, hero = "Goose" },
+}
+
+local ROUND_3_SCHEDULE: { Wave } = {
+	{ time = 0, hero = "Goose" },
+	{ time = 12, hero = "Buffalo" },
+	{ time = 24, hero = "Fox" },
+}
+
+local ROUND_SCHEDULES: { { Wave } } = { ROUND_1_SCHEDULE, ROUND_2_SCHEDULE, ROUND_3_SCHEDULE }
 
 local function collectHeroesFromSchedule(schedule: { Wave }): { string }
 	local seen: { [string]: boolean } = {}
@@ -118,13 +139,33 @@ function WaveDirector.new(schedule: { Wave }?): WaveDirector
 	return self
 end
 
-function WaveDirector.round1Schedule(): { Wave }
-	-- Defensive copy so callers can't mutate the canonical schedule.
-	local copy = table.create(#ROUND_1_SCHEDULE)
-	for i, wave in ipairs(ROUND_1_SCHEDULE) do
+local function copySchedule(schedule: { Wave }): { Wave }
+	local copy = table.create(#schedule)
+	for i, wave in ipairs(schedule) do
 		copy[i] = { time = wave.time, hero = wave.hero }
 	end
 	return copy
+end
+
+function WaveDirector.round1Schedule(): { Wave }
+	-- Defensive copy so callers can't mutate the canonical schedule.
+	return copySchedule(ROUND_1_SCHEDULE)
+end
+
+-- BUF-12: returns a fresh copy of the schedule for `roundIdx` (1-indexed).
+-- Out-of-range indices fall back to round 1 with a warn so a misconfigured
+-- TOTAL_ROUNDS can't silently re-run the same round.
+function WaveDirector.scheduleForRound(roundIdx: number): { Wave }
+	local schedule = ROUND_SCHEDULES[roundIdx]
+	if not schedule then
+		warn(string.format("[WaveDirector] No schedule for round %d — falling back to round 1", roundIdx))
+		schedule = ROUND_1_SCHEDULE
+	end
+	return copySchedule(schedule)
+end
+
+function WaveDirector.totalRounds(): number
+	return #ROUND_SCHEDULES
 end
 
 function WaveDirector.onWave(self: WaveDirector, callback: WaveCallback)
@@ -173,19 +214,16 @@ local function activateWave(self: WaveDirector, hero: string, elapsed: number)
 		hero = hero,
 		composition = composition,
 		startedAt = elapsed,
-		expiresAt = elapsed + WAVE_VISIBILITY_SECONDS,
 	}
 end
 
-local function expireDueWaves(self: WaveDirector): boolean
-	local changed = false
-	for hero, active in pairs(self._active) do
-		if self._elapsed >= active.expiresAt then
-			self._active[hero] = nil
-			changed = true
-		end
-	end
-	return changed
+-- BUF-9: per the partial-lobby contract, an unoccupied hero must not
+-- receive a damaging wave. We still advance the schedule cursor so
+-- isFinished() reflects elapsed time, but skip activation and onWave.
+local function isHeroOccupied(self: WaveDirector, hero: string): boolean
+	local resolver = self._heroOccupancyResolver
+	if not resolver then return true end
+	return resolver(hero) == true
 end
 
 function WaveDirector.tick(self: WaveDirector, dt: number)
@@ -194,24 +232,37 @@ function WaveDirector.tick(self: WaveDirector, dt: number)
 	end
 	self._elapsed += dt
 
-	local stateChanged = expireDueWaves(self)
+	local stateChanged = false
 
 	while self._nextIndex <= #self._schedule
 		and self._elapsed >= self._schedule[self._nextIndex].time
 	do
 		local wave = self._schedule[self._nextIndex]
 		self._nextIndex += 1
-		activateWave(self, wave.hero, self._elapsed)
-		stateChanged = true
-		local cb = self._onWave
-		if cb then
-			cb(wave.hero, self._elapsed)
+		if isHeroOccupied(self, wave.hero) then
+			activateWave(self, wave.hero, self._elapsed)
+			stateChanged = true
+			local cb = self._onWave
+			if cb then
+				cb(wave.hero, self._elapsed)
+			end
 		end
 	end
 
 	if stateChanged then
 		fireStateChanged(self)
 	end
+end
+
+-- BUF-10: explicit wave-cleared signal. Adapters call this once the last
+-- enemy from a hero's wave is gone (Humanoid.Died OR model removal).
+-- Drops the active entry and re-broadcasts state so the reveal panel
+-- closes and teammate "IN COMBAT" badges drop in lockstep with the
+-- actual combat state — not on a fixed timer.
+function WaveDirector.endWave(self: WaveDirector, hero: string)
+	if self._active[hero] == nil then return end
+	self._active[hero] = nil
+	fireStateChanged(self)
 end
 
 function WaveDirector.start(self: WaveDirector)
