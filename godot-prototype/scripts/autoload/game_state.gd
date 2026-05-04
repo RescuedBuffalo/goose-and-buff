@@ -6,6 +6,7 @@ extends Node
 
 signal phase_changed(phase: String)
 signal hero_hp_changed(current: float, maximum: float)
+signal retreat_changed(active: bool)
 
 enum Phase { PREP, WAVE, DEBRIEF, RUN_COMPLETE, RUN_ENDED }
 
@@ -15,6 +16,9 @@ var hero_hp: float = 0.0
 var hero_hp_max: float = 0.0
 var core_hp: float = 0.0
 var core_hp_max: float = 0.0
+# Retreat mode: when true, units ignore enemies and only follow the leader.
+# Toggled by the player; auto-cleared on wave start.
+var retreat_mode: bool = false
 
 func reset() -> void:
 	phase = Phase.PREP
@@ -23,6 +27,13 @@ func reset() -> void:
 	hero_hp_max = 0.0
 	core_hp = 0.0
 	core_hp_max = 0.0
+	set_retreat(false)
+
+func set_retreat(active: bool) -> void:
+	if retreat_mode == active:
+		return
+	retreat_mode = active
+	retreat_changed.emit(active)
 
 func set_phase(new_phase: int) -> void:
 	if phase == new_phase:

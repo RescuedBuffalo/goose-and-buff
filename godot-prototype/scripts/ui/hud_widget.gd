@@ -21,6 +21,7 @@ func _ready() -> void:
 	set_anchors_preset(Control.PRESET_FULL_RECT)
 	GameState.hero_hp_changed.connect(func(_a, _b): queue_redraw())
 	GameState.phase_changed.connect(_on_phase_changed)
+	GameState.retreat_changed.connect(func(_active): queue_redraw())
 	set_process(true)
 
 func bind(economy, wave_director, sector) -> void:
@@ -108,6 +109,18 @@ func _draw() -> void:
 	# Ready hint during prep.
 	if _phase_label == "Prep":
 		_draw_label("Press space to ready up", Vector2(size.x * 0.5 - 110, 70), DesignTokens.FG_3, DesignTokens.FS_SM, false)
+	# Retreat hint + badge. The hint sits on the right; the badge replaces
+	# it while R is held so the state is unmistakable.
+	if GameState.retreat_mode:
+		var badge_rect := Rect2(size.x - 200, 70, 168, 24)
+		draw_rect(badge_rect, DesignTokens.HP_CRIT, true)
+		draw_rect(badge_rect, DesignTokens.NIGHT_0, false, 1.0)
+		_draw_label("Retreating — units holding fire",
+			Vector2(badge_rect.position.x + 6, badge_rect.position.y - 2),
+			DesignTokens.NIGHT_0, DesignTokens.FS_XS, false)
+	else:
+		_draw_label("Hold R to retreat (units ignore enemies)",
+			Vector2(size.x - 280, 70), DesignTokens.FG_3, DesignTokens.FS_SM, false)
 	# Wave banner overlay.
 	if _wave_banner != "":
 		var banner_y := 200.0

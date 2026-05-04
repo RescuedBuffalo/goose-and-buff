@@ -98,6 +98,10 @@ func _process(delta: float) -> void:
 		economy.tick(delta)
 	if Input.is_action_just_pressed("ready_round") and wave_director.is_prep_phase():
 		wave_director.ready_round()
+	# Hold-to-retreat: while the key is down, units ignore enemies. The
+	# setter short-circuits when the value is unchanged, so polling every
+	# frame is fine.
+	GameState.set_retreat(Input.is_action_pressed("toggle_retreat"))
 
 func _on_play_requested(card_id: String, world_pos: Vector2) -> void:
 	card_system.play_card_at(card_id, world_pos, _current_phase_name(), economy.balance)

@@ -15,6 +15,10 @@ const BASE_DETECTION_RADIUS := 220.0
 # Distance under which a unit considers itself "in formation" and stops
 # moving — prevents jitter when the leader is stationary.
 const FORMATION_SLOP := 6.0
+# Beyond this distance from the leader, the unit auto-drops any enemy
+# target and chases. So just running away gathers the army back up,
+# without the player ever having to press the retreat key.
+const LEASH_DISTANCE := 320.0
 
 @export var unit_id: String = "Calf"
 
@@ -62,16 +66,24 @@ func _physics_process(delta: float) -> void:
 	if hp <= 0.0 or _scripted_motion:
 		return
 	_attack_cooldown = max(0.0, _attack_cooldown - delta)
-	var target := _find_enemy_in_detection()
-	if target != null:
-		var dist := position.distance_to(target.position)
-		if dist > attack_range_px:
-			_advance_toward(target.position, delta)
-		elif _attack_cooldown <= 0.0:
-			_attack_cooldown = attack_interval
-			target.damage(damage_amount)
-		return
-	# No enemy in range — fall in behind the leader.
+	# Two reasons to skip the engage branch and only follow:
+	# 1. Player toggled retreat — explicit M-click semantics.
+	# 2. Leader has run far enough that the leash snaps — auto-disengage.
+	var leader_far := false
+	if leader != null and is_instance_valid(leader):
+		leader_far = position.distance_to(leader.position) > LEASH_DISTANCE
+	var following_only: bool = GameState.retreat_mode or leader_far
+	if not following_only:
+		var target := _find_enemy_in_detection()
+		if target != null:
+			var dist := position.distance_to(target.position)
+			if dist > attack_range_px:
+				_advance_toward(target.position, delta)
+			elif _attack_cooldown <= 0.0:
+				_attack_cooldown = attack_interval
+				target.damage(damage_amount)
+			return
+	# No engage — fall in behind the leader.
 	if leader != null and is_instance_valid(leader):
 		var anchor: Vector2 = leader.position + formation_offset
 		if position.distance_to(anchor) > FORMATION_SLOP:
