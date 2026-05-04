@@ -68,13 +68,26 @@ func _gui_input(event: InputEvent) -> void:
 		var hid := _hero_id_at(event.position)
 		if hid != "":
 			_lock_in(hid)
+
+func _unhandled_input(event: InputEvent) -> void:
+	# Keyboard shortcuts mirror the pings on the wireframe (key 1/2/3).
+	# Routed through _unhandled_input rather than _gui_input because the
+	# latter only fires for the focused Control — this overlay never
+	# grabs focus, and we don't want to depend on it.
+	if not visible:
 		return
-	if event is InputEventKey and event.pressed and not event.echo:
-		# Keyboard shortcuts mirror the pings on the wireframe (key 1/2/3).
-		match event.keycode:
-			KEY_1: _lock_in(Heroes.ORDER[0])
-			KEY_2: _lock_in(Heroes.ORDER[1])
-			KEY_3: _lock_in(Heroes.ORDER[2])
+	if not (event is InputEventKey and event.pressed and not event.echo):
+		return
+	match event.keycode:
+		KEY_1:
+			_lock_in(Heroes.ORDER[0])
+			get_viewport().set_input_as_handled()
+		KEY_2:
+			_lock_in(Heroes.ORDER[1])
+			get_viewport().set_input_as_handled()
+		KEY_3:
+			_lock_in(Heroes.ORDER[2])
+			get_viewport().set_input_as_handled()
 
 func _lock_in(hero_id: String) -> void:
 	if not Heroes.ALL.has(hero_id):
