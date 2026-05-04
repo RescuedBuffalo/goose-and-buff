@@ -7,13 +7,10 @@ extends Node2D
 ## state and emit signals; adapters subscribe and translate to scene
 ## changes. The wiring stays in this single file.
 
-const Cards := preload("res://data/cards.gd")
 const Sectors := preload("res://data/sectors.gd")
-const Heroes := preload("res://data/heroes.gd")
-const Economy := preload("res://scripts/logic/economy.gd")
-const CardSystem := preload("res://scripts/logic/card_system.gd")
-const WaveDirector := preload("res://scripts/logic/wave_director.gd")
-const AbilityResolver := preload("res://scripts/logic/ability_resolver.gd")
+# Logic classes (Economy, CardSystem, WaveDirector, AbilityResolver) and the
+# data classes that have a class_name are reachable as globals — no need to
+# alias them via const here.
 
 const SectorScene := preload("res://scenes/sector.tscn")
 const HeroScene := preload("res://scenes/hero.tscn")
@@ -134,7 +131,7 @@ func _spawn_unit(unit_id: String, world_pos: Vector2) -> void:
 
 func _place_or_upgrade_building(world_pos: Vector2) -> void:
 	if building_node != null and is_instance_valid(building_node):
-		var tier := economy.place_or_upgrade_node()
+		var tier: int = economy.place_or_upgrade_node()
 		building_node.set_tier(tier)
 		return
 	economy.place_or_upgrade_node()
@@ -169,8 +166,8 @@ func _point_in_capsule(p: Vector2, a: Vector2, b: Vector2, radius: float) -> boo
 	var ab_len_sq := ab.length_squared()
 	if ab_len_sq <= 0.0001:
 		return p.distance_to(a) <= radius
-	var t = clamp((p - a).dot(ab) / ab_len_sq, 0.0, 1.0)
-	var nearest := a + ab * t
+	var t: float = clamp((p - a).dot(ab) / ab_len_sq, 0.0, 1.0)
+	var nearest: Vector2 = a + ab * t
 	return p.distance_to(nearest) <= radius
 
 func _show_charge_line(from: Vector2, to: Vector2, width: float) -> void:

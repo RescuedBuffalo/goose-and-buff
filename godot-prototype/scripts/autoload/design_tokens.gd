@@ -77,28 +77,28 @@ const RADIUS_3 := 14
 const RADIUS_4 := 22
 
 # ─── Hero look-up by faction id ───────────────────────────────────────────
-static func floor_color(faction: String) -> Color:
+func floor_color(faction: String) -> Color:
 	match faction:
 		"Goose": return GOOSE_FLOOR
 		"Buffalo": return BUFFALO_FLOOR
 		"Fox": return FOX_FLOOR
 		_: return NIGHT_2
 
-static func core_color(faction: String) -> Color:
+func core_color(faction: String) -> Color:
 	match faction:
 		"Goose": return GOOSE_CORE
 		"Buffalo": return BUFFALO_CORE
 		"Fox": return FOX_CORE
 		_: return NIGHT_3
 
-static func ink_color(faction: String) -> Color:
+func ink_color(faction: String) -> Color:
 	match faction:
 		"Goose": return GOOSE_INK
 		"Buffalo": return BUFFALO_INK
 		"Fox": return FOX_INK
 		_: return FG_1
 
-static func hp_color(ratio: float) -> Color:
+func hp_color(ratio: float) -> Color:
 	if ratio > 0.5:
 		return HP_FULL
 	if ratio > 0.25:

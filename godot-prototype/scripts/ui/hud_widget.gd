@@ -66,7 +66,9 @@ func _on_wave_started(round_index: int, _composition: Dictionary) -> void:
 	_wave_banner_timeout = 2.4
 	queue_redraw()
 
-func _on_wave_ended(_round_index: int, victory: bool) -> void:
+func _on_wave_ended(_idx: int, victory: bool) -> void:
+	# Param prefixed with `_` would normally signal "unused", but a leading-
+	# underscore name still shadows the class member `_round_index` under 4.6.
 	_wave_banner = "We held." if victory else "The line broke."
 	_wave_banner_timeout = 3.0
 	queue_redraw()
@@ -121,7 +123,8 @@ func _draw_label(text: String, pos: Vector2, color: Color, font_size: int, _tabu
 	draw_string(font, pos + Vector2(0, font_size), text, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size, color)
 
 func _format_timer(seconds: float) -> String:
-	var s := int(ceil(seconds))
-	var minutes := s / 60
-	var rem := s % 60
+	var s: int = int(ceil(seconds))
+	@warning_ignore("integer_division")
+	var minutes: int = s / 60
+	var rem: int = s % 60
 	return "%d:%02d" % [minutes, rem]

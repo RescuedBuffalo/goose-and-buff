@@ -3,7 +3,7 @@ extends Node2D
 ## A deployed unit. Walks toward the nearest enemy (or the enemy entry
 ## edge when none exists), engages on sight. Stats come from data/units.gd.
 
-const UnitsData := preload("res://data/units.gd")
+# UnitsData is reachable via class_name from data/units.gd — no preload alias.
 const Sectors := preload("res://data/sectors.gd")
 
 const PIXELS_PER_STUD := 12.0

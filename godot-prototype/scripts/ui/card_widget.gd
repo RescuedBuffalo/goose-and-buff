@@ -69,13 +69,14 @@ func _kind_background(kind: String) -> Color:
 		"resource": return DesignTokens.NIGHT_2
 		_: return DesignTokens.NIGHT_1
 
-func _draw_label(text: String, pos: Vector2, color: Color, size: int, mono: bool, max_width: float = 0.0) -> void:
+func _draw_label(text: String, pos: Vector2, color: Color, font_size: int, mono: bool, max_width: float = 0.0) -> void:
+	# Param renamed from `size` — Control.size shadowed it under 4.6.
 	var font := ThemeDB.fallback_font
 	if mono:
 		# Tabular numerals for any cost / numeric text.
 		font = ThemeDB.fallback_font
 	if max_width > 0.0:
 		# Draw multi-line with width clamp.
-		draw_multiline_string(font, pos + Vector2(0, size), text, HORIZONTAL_ALIGNMENT_LEFT, max_width, size, -1, color)
+		draw_multiline_string(font, pos + Vector2(0, font_size), text, HORIZONTAL_ALIGNMENT_LEFT, max_width, font_size, -1, color)
 	else:
-		draw_string(font, pos + Vector2(0, size), text, HORIZONTAL_ALIGNMENT_LEFT, -1, size, color)
+		draw_string(font, pos + Vector2(0, font_size), text, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size, color)

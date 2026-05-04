@@ -23,7 +23,8 @@ func reset() -> void:
 func tick(dt: float) -> void:
 	if production_tier <= 0:
 		return
-	var rate := PRODUCTION_TIERS[clamp(production_tier - 1, 0, PRODUCTION_TIERS.size() - 1)]
+	var idx: int = clamp(production_tier - 1, 0, PRODUCTION_TIERS.size() - 1)
+	var rate: float = PRODUCTION_TIERS[idx]
 	_accum += rate * dt
 	if _accum >= 1.0:
 		var whole := int(_accum)
