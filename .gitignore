@@ -6,6 +6,9 @@
 *.rbxl.lock
 *.rbxlx.lock
 
+# Aftman tool installs
+.aftman/
+
 # Editor
 .vscode/
 .idea/
