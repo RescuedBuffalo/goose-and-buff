@@ -1,9 +1,11 @@
 extends Control
 ##
-## Win/loss screen. Single button to restart. Copy follows the voice rules
-## from README.md (sentence case, no emoji, warm but not ironic).
+## Win/loss screen. Two buttons: "Try again" (same hero, fresh run) and
+## "Change hero" (back to hero select). Copy follows the voice rules from
+## README.md (sentence case, no emoji, warm but not ironic).
 
 signal restart_requested()
+signal change_hero_requested()
 
 var _is_victory: bool = true
 
@@ -24,9 +26,10 @@ func _ready() -> void:
 
 func _gui_input(event: InputEvent) -> void:
 	if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
-		var rect := _restart_rect()
-		if rect.has_point(event.position):
+		if _restart_rect().has_point(event.position):
 			restart_requested.emit()
+		elif _change_rect().has_point(event.position):
+			change_hero_requested.emit()
 
 func _draw() -> void:
 	# Curtain.
@@ -41,16 +44,26 @@ func _draw() -> void:
 	var sub_w := font.get_string_size(sub, HORIZONTAL_ALIGNMENT_CENTER, -1, DesignTokens.FS_LG).x
 	draw_string(font, Vector2((size.x - sub_w) * 0.5, size.y * 0.4 + 48),
 		sub, HORIZONTAL_ALIGNMENT_CENTER, -1, DesignTokens.FS_LG, DesignTokens.FG_2)
-	# Restart button.
-	var rect := _restart_rect()
+	# Buttons. Primary keeps the player in the run with the same hero;
+	# secondary returns to hero select for a fresh pick.
+	var accent := DesignTokens.core_color(GameState.hero_id)
+	_draw_button(_restart_rect(), "Try again", accent, font, true)
+	_draw_button(_change_rect(), "Change hero", accent, font, false)
+
+func _draw_button(rect: Rect2, label: String, accent: Color, font: Font, primary: bool) -> void:
 	draw_rect(rect, DesignTokens.NIGHT_2, true)
-	draw_rect(rect, DesignTokens.BUFFALO_CORE, false, 2.0)
-	var label := "Try again"
+	draw_rect(rect, accent, false, 2.0 if primary else 1.0)
+	var label_color := DesignTokens.FG_1 if primary else DesignTokens.FG_2
 	var label_w := font.get_string_size(label, HORIZONTAL_ALIGNMENT_CENTER, -1, DesignTokens.FS_LG).x
 	draw_string(font, rect.position + Vector2((rect.size.x - label_w) * 0.5, rect.size.y * 0.5 + 8),
-		label, HORIZONTAL_ALIGNMENT_CENTER, -1, DesignTokens.FS_LG, DesignTokens.FG_1)
+		label, HORIZONTAL_ALIGNMENT_CENTER, -1, DesignTokens.FS_LG, label_color)
 
 func _restart_rect() -> Rect2:
 	var w := 220.0
 	var h := 56.0
 	return Rect2((size.x - w) * 0.5, size.y * 0.6, w, h)
+
+func _change_rect() -> Rect2:
+	var w := 220.0
+	var h := 48.0
+	return Rect2((size.x - w) * 0.5, size.y * 0.6 + 72, w, h)
