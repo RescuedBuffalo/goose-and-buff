@@ -88,6 +88,20 @@ local function getCorePosition(heroId: string): Vector3?
 	return nil
 end
 
+local CORE_APPROACH_BUFFER = 2
+
+-- The MoveTo target: a point a couple studs in front of the core's near
+-- face on the enemy's approach side. We can't aim at the core's center —
+-- the Core is a collidable 8x8x8 Part, so the enemy's torso physically
+-- can't get within MoveTo's ~2-stud proximity threshold of it. That would
+-- make MoveToFinished always report `reached=false` and the navigate
+-- retry loop run forever, piling enemies up at the boundary.
+local function approachTargetFor(corePos: Vector3): Vector3
+	local coreSign = if Sectors.coreOffset.Z >= 0 then 1 else -1
+	local approachZ = -coreSign * (Sectors.coreSize.Z / 2 + CORE_APPROACH_BUFFER)
+	return corePos + Vector3.new(0, 0, approachZ)
+end
+
 local function getEnemiesContainer(): Folder
 	local existing = Workspace:FindFirstChild("Enemies")
 	if existing and existing:IsA("Folder") then
@@ -190,6 +204,7 @@ function WaveSpawner.spawn(heroId: string, enemyType: string, count: number, for
 		warn(string.format("[WaveSpawner] No Core in sector %q (build the world first)", heroId))
 		return {}
 	end
+	local target = approachTargetFor(corePos)
 
 	local container = getEnemiesContainer()
 	local anchor = spawnAnchorFor(sector, formation)
@@ -207,7 +222,7 @@ function WaveSpawner.spawn(heroId: string, enemyType: string, count: number, for
 			model:Destroy()
 		end)
 
-		task.spawn(navigate, model, humanoid, corePos)
+		task.spawn(navigate, model, humanoid, target)
 		table.insert(spawned, model)
 	end
 
