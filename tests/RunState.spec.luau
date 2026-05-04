@@ -221,6 +221,48 @@ return {
 		end,
 	},
 	{
+		"BUF-11: unregistering the last alive hero leaves the survivors all-down → loss",
+		function()
+			-- Regression (Codex review on PR #15): if the only alive
+			-- teammate disconnects while everyone else is already down,
+			-- _heroCount drops but no markHeroDown event fires again.
+			-- unregisterHero must re-run the all-down check or the run
+			-- silently continues with every remaining hero dead.
+			local RunState = loadRunState()
+			local state = RunState.new()
+			state:registerHero("p1")
+			state:registerHero("p2")
+			state:markHeroDown("p1") -- p1 down; p2 still alive
+
+			local fires = 0
+			state:onResult(function() fires += 1 end)
+
+			state:unregisterHero("p2") -- the only alive hero leaves
+			expect.eq(fires, 1, "loss fires when leaver was the last alive hero")
+			expect.eq(state:result(), "loss")
+		end,
+	},
+	{
+		"BUF-11: unregistering an already-down hero with alive teammates does not fire loss",
+		function()
+			-- Sentinel: unregisterHero shouldn't fabricate a loss while
+			-- alive teammates remain. Only fires when the survivors are
+			-- already all-down.
+			local RunState = loadRunState()
+			local state = RunState.new()
+			state:registerHero("p1")
+			state:registerHero("p2")
+			state:markHeroDown("p1")
+
+			local fires = 0
+			state:onResult(function() fires += 1 end)
+
+			state:unregisterHero("p1") -- a downed leaver
+			expect.eq(fires, 0, "p2 still alive — no loss")
+			expect.nilish(state:result())
+		end,
+	},
+	{
 		"BUF-11: register/down/down sequence still fires loss exactly once",
 		function()
 			-- Even with multiple down events in a row, fire() guards keep

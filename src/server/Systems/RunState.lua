@@ -81,17 +81,6 @@ function RunState.registerHero(self: RunState, key: any)
 	self._heroCount += 1
 end
 
--- unregisterHero is for permanent removal (player leaves). Use markHeroDown
--- for transient death+respawn cycles so the loss check sees the hero as
--- down rather than absent.
-function RunState.unregisterHero(self: RunState, key: any)
-	if self._aliveHeroes[key] == nil then
-		return
-	end
-	self._aliveHeroes[key] = nil
-	self._heroCount -= 1
-end
-
 local function checkAllDown(self: RunState)
 	if self._heroCount <= 0 then
 		return
@@ -102,6 +91,21 @@ local function checkAllDown(self: RunState)
 		end
 	end
 	fire(self, "loss")
+end
+
+-- unregisterHero is for permanent removal (player leaves). Use markHeroDown
+-- for transient death+respawn cycles so the loss check sees the hero as
+-- down rather than absent. Re-evaluates all-down on the way out: if the
+-- leaver was the only remaining alive hero, the survivors are all down
+-- and the run must resolve to defeat — there's no future markHeroDown
+-- event coming to retrigger the check.
+function RunState.unregisterHero(self: RunState, key: any)
+	if self._aliveHeroes[key] == nil then
+		return
+	end
+	self._aliveHeroes[key] = nil
+	self._heroCount -= 1
+	checkAllDown(self)
 end
 
 function RunState.markHeroDown(self: RunState, key: any)
