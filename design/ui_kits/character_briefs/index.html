@@ -1,0 +1,163 @@
+<!doctype html>
+<html><head>
+<meta charset="utf-8">
+<title>Character Briefs · The Long Watch</title>
+<link rel="stylesheet" href="../../colors_and_type.css">
+<style>
+  body { margin: 0; background: var(--parchment-0); color: var(--parchment-ink); font-family: var(--font-body); }
+  .page { max-width: 1100px; margin: 0 auto; padding: 48px 32px 80px; }
+  .lede { max-width: 720px; }
+  .lede h1 { font-family: var(--font-display); font-size: 56px; line-height: 1.05; margin: 0 0 12px; color: var(--parchment-ink); }
+  .lede p { font-size: 17px; line-height: 1.6; color: rgb(46 32 22 / 0.78); }
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-top: 36px; }
+  .brief {
+    background: white; border: 1px solid rgb(46 32 22 / 0.08);
+    border-radius: var(--radius-3); padding: 22px;
+    box-shadow: 0 1px 0 rgb(46 32 22 / 0.04), 0 6px 24px rgb(46 32 22 / 0.06);
+    display: flex; flex-direction: column; gap: 14px;
+  }
+  .brief-head { display: flex; gap: 14px; align-items: center; }
+  .totem-square {
+    width: 80px; height: 80px; border-radius: var(--radius-2);
+    display: grid; place-items: center; flex-shrink: 0;
+  }
+  .totem-square img { width: 64px; height: 64px; }
+  .name { font-family: var(--font-display); font-size: 32px; line-height: 1; }
+  .role { font-size: 13px; color: rgb(46 32 22 / 0.6); margin-top: 4px; }
+  .row { display: grid; grid-template-columns: 110px 1fr; gap: 12px; font-size: 13px; line-height: 1.5; }
+  .row .k { font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; font-size: 11px; color: rgb(46 32 22 / 0.6); padding-top: 2px; }
+  .palette { display: flex; gap: 6px; }
+  .palette span { width: 28px; height: 28px; border-radius: 6px; border: 1px solid rgb(0 0 0 / 0.1); }
+  .stats { display: flex; gap: 16px; }
+  .stat { background: var(--parchment-1); border-radius: var(--radius-2); padding: 8px 12px; font-family: var(--font-mono); font-size: 12px; }
+  .stat b { display: block; font-family: var(--font-display); font-size: 18px; color: var(--parchment-ink); }
+  .vibe { font-style: italic; color: rgb(46 32 22 / 0.7); border-left: 3px solid currentColor; padding-left: 12px; }
+
+  .goose-tint { background: var(--goose-floor); }
+  .buffalo-tint { background: var(--buffalo-floor); }
+  .fox-tint { background: var(--fox-floor); }
+  .val-tint { background: var(--val-cream); }
+
+  .blender-prompt {
+    grid-column: 1 / -1;
+    background: var(--night-1); color: var(--fg-1); border-radius: var(--radius-3); padding: 20px;
+    font-family: var(--font-mono); font-size: 12px; line-height: 1.6; white-space: pre-wrap;
+    border: var(--hairline);
+  }
+  .blender-prompt h3 { font-family: var(--font-display); color: var(--fg-1); margin: 0 0 8px; font-size: 18px; }
+</style>
+</head>
+<body>
+<div class="page">
+
+<div class="lede">
+  <h1>Three animals,<br>one den.</h1>
+  <p>Stylized low-poly hero briefs for Blender. Slight proportion exaggeration is on-brief — bigger heads, chunkier feet, single readable silhouette. These should render natively in Roblox without re-topology.</p>
+</div>
+
+<div class="grid">
+
+  <div class="brief">
+    <div class="brief-head">
+      <div class="totem-square goose-tint"><img src="../../assets/totems/goose.svg" alt=""></div>
+      <div>
+        <div class="name">Goose</div>
+        <div class="role">The honking glass cannon</div>
+      </div>
+    </div>
+    <div class="row"><div class="k">Palette</div><div class="palette">
+      <span style="background: var(--goose-floor)" title="floor"></span>
+      <span style="background: var(--goose-core)" title="core"></span>
+      <span style="background: var(--goose-ink)" title="ink"></span>
+    </div></div>
+    <div class="row"><div class="k">Stats</div><div class="stats">
+      <div class="stat"><b>100</b>HP</div>
+      <div class="stat"><b>18</b>spd</div>
+    </div></div>
+    <div class="row"><div class="k">Silhouette</div><div>Long S-curve neck, slim head, oversized triangular beak. Tail is a stub. Reads from any angle as a goose.</div></div>
+    <div class="row"><div class="k">Proportions</div><div>Head 1.4× anatomically correct. Beak length 1.3×. Body keeps low-poly facets, ~12 polys per leg max.</div></div>
+    <div class="row"><div class="k">Texture</div><div>Flat shaded. No PBR. Slight cell-shaded rim only on hero feathers (cream + sun-yellow split).</div></div>
+    <div class="vibe" style="color: var(--goose-core)">Loud, fragile, chaotic-good. The friend who calls everyone before plans are made.</div>
+  </div>
+
+  <div class="brief">
+    <div class="brief-head">
+      <div class="totem-square buffalo-tint"><img src="../../assets/totems/buffalo.png" alt=""></div>
+      <div>
+        <div class="name">Buffalo</div>
+        <div class="role">The deliberate wall</div>
+      </div>
+    </div>
+    <div class="row"><div class="k">Palette</div><div class="palette">
+      <span style="background: var(--buffalo-floor)" title="floor"></span>
+      <span style="background: var(--buffalo-core)" title="core"></span>
+      <span style="background: var(--buffalo-ink)" title="ink"></span>
+    </div></div>
+    <div class="row"><div class="k">Stats</div><div class="stats">
+      <div class="stat"><b>160</b>HP</div>
+      <div class="stat"><b>12</b>spd</div>
+    </div></div>
+    <div class="row"><div class="k">Silhouette</div><div>Heavy blocky head, low-set. Curled horns wrap forward. Beard tuft. Body bulky, shoulders higher than hips.</div></div>
+    <div class="row"><div class="k">Proportions</div><div>Head 1.2× scale. Horns slightly oversized for silhouette read. Hooves chunky.</div></div>
+    <div class="row"><div class="k">Texture</div><div>Two-tone fur — deep umber back fading to warm earth flank. No specular.</div></div>
+    <div class="vibe" style="color: var(--buffalo-core)">Slow, sure, the load-bearing one. Doesn't speak much; what they say sticks.</div>
+  </div>
+
+  <div class="brief">
+    <div class="brief-head">
+      <div class="totem-square fox-tint"><img src="../../assets/totems/fox.svg" alt=""></div>
+      <div>
+        <div class="name">Fox</div>
+        <div class="role">The scout, on point</div>
+      </div>
+    </div>
+    <div class="row"><div class="k">Palette</div><div class="palette">
+      <span style="background: var(--fox-floor)" title="floor"></span>
+      <span style="background: var(--fox-core)" title="core"></span>
+      <span style="background: var(--fox-ink)" title="ink"></span>
+    </div></div>
+    <div class="row"><div class="k">Stats</div><div class="stats">
+      <div class="stat"><b>85</b>HP</div>
+      <div class="stat"><b>22</b>spd</div>
+    </div></div>
+    <div class="row"><div class="k">Silhouette</div><div>Pointed triangle ears, long narrow snout. Brushy tail (1.1× body length). Lean.</div></div>
+    <div class="row"><div class="k">Proportions</div><div>Head 1.15× normal. Ears oversized — the tell. Legs lean but not stick-thin.</div></div>
+    <div class="row"><div class="k">Texture</div><div>Burnt-orange dorsal, peach amber underside, charred-tip tail. White cheek patch optional.</div></div>
+    <div class="vibe" style="color: var(--fox-core)">Quick, observant, dry humor. Sees the wave coming before the timer says so.</div>
+  </div>
+
+  <div class="brief">
+    <div class="brief-head">
+      <div class="totem-square val-tint"><img src="../../assets/totems/val.svg" alt=""></div>
+      <div>
+        <div class="name">Val</div>
+        <div class="role">Companion · Australian Shepherd</div>
+      </div>
+    </div>
+    <div class="row"><div class="k">Palette</div><div class="palette">
+      <span style="background: var(--val-merle)" title="merle"></span>
+      <span style="background: var(--val-cream)" title="cream"></span>
+      <span style="background: var(--val-rust)" title="rust"></span>
+    </div></div>
+    <div class="row"><div class="k">Role</div><div>Shared NPC. Circles whichever hero is most pressured. He's never selectable.</div></div>
+    <div class="row"><div class="k">Silhouette</div><div>Floppy half-prick ears, blocky snout, double-coat fluff at the ruff. Bobbed tail (Aussie standard).</div></div>
+    <div class="row"><div class="k">Proportions</div><div>Head 1.2× normal. Paws chunky. Slight crouch — always alert, never standing flat.</div></div>
+    <div class="row"><div class="k">Texture</div><div>Blue-merle base with cream belly + chest blaze. Rust eyebrows + cheek patches. Heterochromia (one blue eye, one amber) is canon — it's how the boys know it's him.</div></div>
+    <div class="vibe" style="color: var(--val-merle)">Steady, watchful, doesn't pick favorites. Picks favorites.</div>
+  </div>
+
+  <div class="blender-prompt">
+<h3>Blender prompt template</h3>
+Subject: [Goose | Buffalo | Fox | Val]
+Style: stylized low-poly, faceted forms, flat-shaded, no PBR. ~600-1200 polys total.
+Pose: idle, slight forward lean, weight on front paws/feet.
+Camera: 3/4 hero shot, eye level. Single key light, warm (4500K). Optional rim 2-stop down, cool.
+Background: solid color from this brief's palette (use --core swatch). No environment.
+Proportions: per brief above. Read at 64px tall — silhouette must survive that downscale.
+Export: GLB, vertex colors only (no textures), Roblox-import-ready.
+  </div>
+
+</div>
+</div>
+</body>
+</html>

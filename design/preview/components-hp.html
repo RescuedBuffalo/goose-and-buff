@@ -1,0 +1,17 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>HP bars</title>
+<link rel="stylesheet" href="../colors_and_type.css">
+<style>
+  body { margin: 0; background: var(--night-0); color: var(--fg-1); padding: 24px; font-family: var(--font-body); display: flex; flex-direction: column; gap: 14px; }
+  .hp { display: flex; align-items: center; gap: 12px; }
+  .hp-name { font-family: var(--font-display); font-size: 14px; width: 70px; }
+  .hp-track { flex: 1; height: 14px; background: var(--night-2); border-radius: var(--radius-pill); border: var(--hairline); overflow: hidden; }
+  .hp-fill { height: 100%; border-radius: var(--radius-pill); box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.2); }
+  .hp-num { font-family: var(--font-body); font-weight: 800; font-variant-numeric: tabular-nums; font-size: 14px; width: 80px; text-align: right; color: var(--fg-2); }
+</style></head>
+<body>
+  <div class="hp"><div class="hp-name">Goose</div><div class="hp-track"><div class="hp-fill" style="width: 92%; background: var(--hp-full)"></div></div><div class="hp-num">92 / 100</div></div>
+  <div class="hp"><div class="hp-name">Buffalo</div><div class="hp-track"><div class="hp-fill" style="width: 55%; background: var(--hp-warn)"></div></div><div class="hp-num">88 / 160</div></div>
+  <div class="hp"><div class="hp-name">Fox</div><div class="hp-track"><div class="hp-fill" style="width: 18%; background: var(--hp-crit)"></div></div><div class="hp-num">15 / 85</div></div>
+  <div class="hp"><div class="hp-name">Core</div><div class="hp-track"><div class="hp-fill" style="width: 100%; background: var(--core-shield)"></div></div><div class="hp-num">1000 / 1000</div></div>
+</body></html>

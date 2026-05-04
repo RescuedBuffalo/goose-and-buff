@@ -1,0 +1,29 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>Hero totems</title>
+<link rel="stylesheet" href="../colors_and_type.css">
+<style>
+  body { margin: 0; background: var(--night-0); font-family: var(--font-body); color: var(--fg-1); }
+  .card { padding: 24px; display: flex; gap: 18px; }
+  .totem {
+    flex: 1; border-radius: var(--radius-3);
+    background: var(--night-1); border: var(--hairline);
+    box-shadow: var(--inset-warm);
+    padding: 16px; display: flex; flex-direction: column; align-items: center; gap: 10px;
+  }
+  .totem .swatch { width: 80px; height: 80px; border-radius: 50%; display: flex; align-items: center; justify-content: center; }
+  .totem img { width: 64px; height: 64px; }
+  .totem .name { font-family: var(--font-display); font-size: 18px; }
+  .totem .rgb { font-family: var(--font-mono); font-size: 11px; color: var(--fg-3); }
+  .goose-bg { background: var(--goose-floor); }
+  .buffalo-bg { background: var(--buffalo-floor); }
+  .fox-bg { background: var(--fox-floor); }
+  .val-bg { background: var(--val-cream); }
+</style></head>
+<body>
+<div class="card">
+  <div class="totem"><div class="swatch goose-bg"><img src="../assets/totems/goose.svg" alt=""></div><div class="name">Goose</div><div class="rgb">252 222 40</div></div>
+  <div class="totem"><div class="swatch buffalo-bg"><img src="../assets/totems/buffalo.png" alt=""></div><div class="name">Buffalo</div><div class="rgb">110 70 40</div></div>
+  <div class="totem"><div class="swatch fox-bg"><img src="../assets/totems/fox.svg" alt=""></div><div class="name">Fox</div><div class="rgb">248 130 30</div></div>
+  <div class="totem"><div class="swatch val-bg"><img src="../assets/totems/val.svg" alt=""></div><div class="name">Val</div><div class="rgb">94 110 130</div></div>
+</div>
+</body></html>
