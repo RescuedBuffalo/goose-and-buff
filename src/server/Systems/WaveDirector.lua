@@ -240,6 +240,26 @@ function WaveDirector.stop(self: WaveDirector)
 	self._paused = true
 end
 
+-- BUF-92: clear per-run state so the same director can drive another
+-- round. Stops the Heartbeat connection, zeroes the elapsed clock,
+-- rewinds to the first wave, and drops any active wave entries.
+-- Callbacks (onWave / onStateChanged) and resolvers persist so the
+-- caller doesn't have to re-wire them every round. Optionally swaps
+-- the schedule; pass nil to keep the existing one.
+function WaveDirector.reset(self: WaveDirector, schedule: { Wave }?)
+	self:stop()
+	self._elapsed = 0
+	self._nextIndex = 1
+	self._active = {}
+	if schedule then
+		self._schedule = schedule
+		self._allHeroes = collectHeroesFromSchedule(schedule)
+	end
+	-- Re-fire stateChanged so consumers (HUD broadcaster) clear any
+	-- composition lingering from the prior round.
+	fireStateChanged(self)
+end
+
 function WaveDirector.isFinished(self: WaveDirector): boolean
 	return self._nextIndex > #self._schedule
 end

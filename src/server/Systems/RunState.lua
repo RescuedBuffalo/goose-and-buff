@@ -1,16 +1,18 @@
 --!strict
 -- BUF-90: Track win/loss for a v0.1 run.
---   Loss: any sector core HP <= 0.
---   Win:  the WaveDirector has announced all waves AND the Enemies folder
---         is empty (every enemy has either been killed or reached its
---         core and despawned).
+--   Loss: any sector core HP <= 0 (bound via :bindCore).
+--   Win:  set externally via :setResult("win") once the round flow
+--         (BUF-92's RunController) has finished all rounds.
 --
 -- Fires "win" or "loss" exactly once. Subsequent transitions are no-ops.
+--
+-- BUF-92: the single-round win check (director:isFinished + Enemies
+-- empty) used to live here. With multi-round runs that condition is
+-- per-round, not per-run, so it moved into RunController. This module
+-- now does one thing: latch the first terminal result and notify.
 
 export type Result = "win" | "loss"
 export type ResultCallback = (Result) -> ()
-
-type Director = { isFinished: (Director) -> boolean }
 
 local RunState = {}
 RunState.__index = RunState
@@ -19,8 +21,6 @@ export type RunState = typeof(setmetatable(
 	{} :: {
 		_state: "running" | Result,
 		_callbacks: { ResultCallback },
-		_director: Director?,
-		_enemiesFolder: Folder?,
 	},
 	RunState
 ))
@@ -29,8 +29,6 @@ function RunState.new(): RunState
 	return setmetatable({
 		_state = "running",
 		_callbacks = {},
-		_director = nil,
-		_enemiesFolder = nil,
 	}, RunState)
 end
 
@@ -61,38 +59,11 @@ function RunState.bindCore(self: RunState, humanoid: Humanoid)
 	end)
 end
 
--- Public: re-evaluate the win condition. Called both internally on
--- Enemies.ChildRemoved AND externally (from Main's director:onStateChanged
--- hook) so a wave that spawns zero enemies — or an already-finished
--- director at bind time — can still trigger a win, since neither path
--- fires a ChildRemoved.
-function RunState.checkWin(self: RunState)
-	if self._state ~= "running" then
-		return
-	end
-	local director = self._director
-	local folder = self._enemiesFolder
-	if not director or not folder then
-		return
-	end
-	if not director:isFinished() then
-		return
-	end
-	if #folder:GetChildren() > 0 then
-		return
-	end
-	fire(self, "win")
-end
-
-function RunState.bindRun(self: RunState, director: Director, enemiesFolder: Folder)
-	self._director = director
-	self._enemiesFolder = enemiesFolder
-	enemiesFolder.ChildRemoved:Connect(function()
-		self:checkWin()
-	end)
-	-- Cover "already done at bind time" (e.g. an empty schedule) so we
-	-- don't depend on a future ChildRemoved that will never fire.
-	self:checkWin()
+-- BUF-92: external write path. RunController calls this after the
+-- final round's wave clears so we converge on the same onResult fan-out
+-- regardless of whether the run ended in a win or a loss.
+function RunState.setResult(self: RunState, result: Result)
+	fire(self, result)
 end
 
 function RunState.result(self: RunState): Result?
