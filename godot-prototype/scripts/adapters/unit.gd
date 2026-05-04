@@ -1,12 +1,20 @@
 extends Node2D
 ##
-## A deployed unit. Walks toward the nearest enemy (or the enemy entry
-## edge when none exists), engages on sight. Stats come from data/units.gd.
+## A deployed unit. Holds formation behind the leader (Buffalo) and only
+## breaks off to engage when an enemy enters its detection bubble.
+## Stats come from data/units.gd.
 
 # UnitsData is reachable via class_name from data/units.gd — no preload alias.
 const Sectors := preload("res://data/sectors.gd")
 
 const PIXELS_PER_STUD := 12.0
+# Detection radius around the unit. Enemies inside this are engaged;
+# otherwise the unit holds formation behind the leader. Ranged units get a
+# bigger bubble (their attack range exceeds the baseline).
+const BASE_DETECTION_RADIUS := 220.0
+# Distance under which a unit considers itself "in formation" and stops
+# moving — prevents jitter when the leader is stationary.
+const FORMATION_SLOP := 6.0
 
 @export var unit_id: String = "Calf"
 
@@ -17,12 +25,24 @@ var move_pixels_per_second: float = 0.0
 var attack_range_px: float = 0.0
 var attack_interval: float = 0.0
 var damage_amount: float = 0.0
+var detection_range_px: float = 0.0
 var _attack_cooldown: float = 0.0
 
-var enemies_group_path := "enemies"
+var leader: Node2D = null
+var formation_offset: Vector2 = Vector2.ZERO
+var _scripted_motion: bool = false  # disables AI while a tween moves us
 
 func configure(id: String) -> void:
 	unit_id = id
+
+func bind_leader(node: Node2D, offset: Vector2) -> void:
+	leader = node
+	formation_offset = offset
+
+func set_scripted_motion(active: bool) -> void:
+	# Called by main.gd while it tweens the unit back to the base on wave
+	# end. AI stays off until the tween releases us.
+	_scripted_motion = active
 
 func _ready() -> void:
 	unit_data = UnitsData.ALL[unit_id]
@@ -32,24 +52,30 @@ func _ready() -> void:
 	attack_range_px = float(unit_data.attackRange) * PIXELS_PER_STUD
 	attack_interval = float(unit_data.attackInterval)
 	damage_amount = float(unit_data.damage)
+	# A unit's detection bubble must at least cover its attack range, plus
+	# a buffer so it sees enemies before they're already on top of it.
+	detection_range_px = max(BASE_DETECTION_RADIUS, attack_range_px + 80.0)
 	add_to_group("units")
 	queue_redraw()
 
 func _physics_process(delta: float) -> void:
-	if hp <= 0.0:
+	if hp <= 0.0 or _scripted_motion:
 		return
 	_attack_cooldown = max(0.0, _attack_cooldown - delta)
-	var target := _find_nearest_enemy()
-	if target == null:
-		# No enemies — drift to the far end of the sector.
-		_advance_toward(Vector2(Sectors.ENEMY_ENTRY_X - 80, position.y), delta)
+	var target := _find_enemy_in_detection()
+	if target != null:
+		var dist := position.distance_to(target.position)
+		if dist > attack_range_px:
+			_advance_toward(target.position, delta)
+		elif _attack_cooldown <= 0.0:
+			_attack_cooldown = attack_interval
+			target.damage(damage_amount)
 		return
-	var dist := position.distance_to(target.position)
-	if dist > attack_range_px:
-		_advance_toward(target.position, delta)
-	elif _attack_cooldown <= 0.0:
-		_attack_cooldown = attack_interval
-		target.damage(damage_amount)
+	# No enemy in range — fall in behind the leader.
+	if leader != null and is_instance_valid(leader):
+		var anchor: Vector2 = leader.position + formation_offset
+		if position.distance_to(anchor) > FORMATION_SLOP:
+			_advance_toward(anchor, delta)
 
 func damage(amount: float) -> void:
 	hp = max(0.0, hp - amount)
@@ -64,9 +90,11 @@ func _advance_toward(target: Vector2, delta: float) -> void:
 	dir = dir.normalized()
 	position += dir * move_pixels_per_second * delta
 
-func _find_nearest_enemy() -> Node2D:
+func _find_enemy_in_detection() -> Node2D:
+	# Nearest enemy within the unit's detection bubble. Outside that, the
+	# unit ignores them and stays with the leader.
 	var best: Node2D = null
-	var best_d := INF
+	var best_d := detection_range_px
 	for n in get_tree().get_nodes_in_group("enemies"):
 		var enemy := n as Node2D
 		if enemy == null or not is_instance_valid(enemy):

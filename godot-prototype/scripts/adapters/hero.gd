@@ -12,6 +12,9 @@ var hero_data: Dictionary = Heroes.Buffalo
 var hp_max: float = 0.0
 var hp: float = 0.0
 var move_pixels_per_second: float = 0.0
+var _scripted_motion: bool = false  # disables input while a tween moves us
+
+const SPAWN_OFFSET := Vector2(60, 0)
 
 @onready var sprite: Sprite2D = $Sprite
 
@@ -20,10 +23,18 @@ func _ready() -> void:
 	hp = hp_max
 	move_pixels_per_second = float(hero_data.moveSpeed) * PIXELS_PER_STUD
 	GameState.set_hero_hp(hp, hp_max)
-	position = Sectors.SPAWN_PAD_CENTER + Vector2(60, 0)
+	position = spawn_position()
 	_load_sprite()
 
+func spawn_position() -> Vector2:
+	return Sectors.SPAWN_PAD_CENTER + SPAWN_OFFSET
+
+func set_scripted_motion(active: bool) -> void:
+	_scripted_motion = active
+
 func _physics_process(delta: float) -> void:
+	if _scripted_motion:
+		return
 	var dir := Vector2(
 		Input.get_axis("move_left", "move_right"),
 		Input.get_axis("move_up", "move_down"),

@@ -127,7 +127,19 @@ func _spawn_unit(unit_id: String, world_pos: Vector2) -> void:
 	var u: Node2D = UnitScene.instantiate()
 	u.configure(unit_id)
 	u.position = world_pos
+	# Each unit picks a stable formation slot relative to the leader so a
+	# growing army doesn't collapse onto a single point. Random offset is
+	# fine for v0; a tighter ring layout can come later.
+	var offset := _random_formation_offset()
+	u.bind_leader(hero, offset)
 	add_child(u)
+
+func _random_formation_offset() -> Vector2:
+	# Slot is biased behind/below the leader (negative x) so units flank
+	# the spawn pad rather than crowd Buffalo's nose.
+	var x := randf_range(-72.0, -16.0)
+	var y := randf_range(-56.0, 56.0)
+	return Vector2(x, y)
 
 func _place_or_upgrade_building(world_pos: Vector2) -> void:
 	if building_node != null and is_instance_valid(building_node):
@@ -211,12 +223,41 @@ func _on_round_started(_round_index: int) -> void:
 func _on_wave_started(_round_index: int, _composition: Dictionary) -> void:
 	GameState.set_phase(GameState.Phase.WAVE)
 
-func _on_wave_ended(_round_index: int, _victory: bool) -> void:
+func _on_wave_ended(_round_index: int, victory: bool) -> void:
 	GameState.set_phase(GameState.Phase.DEBRIEF)
 	# Sweep any survivors so the debrief is clean.
 	for n in get_tree().get_nodes_in_group("enemies"):
 		if is_instance_valid(n):
 			n.queue_free()
+	# A loss skips the reset — the run is ending, end screen takes over.
+	if victory:
+		_reset_to_base()
+
+const RESET_DURATION := 0.6
+
+func _reset_to_base() -> void:
+	# Tween Buffalo and any surviving units back to the spawn pad area.
+	# AI / input stays off on each entity for the duration of the tween.
+	var hero_target: Vector2 = hero.spawn_position()
+	_tween_back(hero, hero_target)
+	for n in get_tree().get_nodes_in_group("units"):
+		var u := n as Node2D
+		if u == null or not is_instance_valid(u):
+			continue
+		_tween_back(u, hero_target + u.formation_offset)
+
+func _tween_back(node: Node2D, target: Vector2) -> void:
+	# Helper extracted so each tween captures its own `node` by argument
+	# rather than via a loop-variable closure.
+	node.set_scripted_motion(true)
+	var t := create_tween()
+	t.tween_property(node, "position", target, RESET_DURATION) \
+		.set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+	t.tween_callback(_release_scripted_motion.bind(node))
+
+func _release_scripted_motion(node: Node) -> void:
+	if is_instance_valid(node):
+		node.set_scripted_motion(false)
 
 func _on_core_destroyed() -> void:
 	wave_director.note_core_destroyed()
