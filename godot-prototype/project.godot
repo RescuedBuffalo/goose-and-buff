@@ -23,7 +23,6 @@ config/features=PackedStringArray("4.6", "GL Compatibility")
 
 DesignTokens="*res://scripts/autoload/design_tokens.gd"
 GameState="*res://scripts/autoload/game_state.gd"
-MCPRuntime="*uid://c04xnqaehkk64"
 
 [display]
 
@@ -31,10 +30,6 @@ window/size/viewport_width=1280
 window/size/viewport_height=720
 window/stretch/mode="canvas_items"
 window/stretch/aspect="expand"
-
-[editor_plugins]
-
-enabled=PackedStringArray("res://addons/godot_mcp/plugin.cfg")
 
 [input]
 
