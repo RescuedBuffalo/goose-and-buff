@@ -1,0 +1,116 @@
+--!strict
+-- BUF-87: Player join → hero assignment → spawn in sector.
+-- First 3 players get Goose / Buffalo / Fox in order. 4th+ go to spectator.
+
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Workspace = game:GetService("Workspace")
+
+local Heroes = require(ReplicatedStorage.Data.Heroes)
+local Constants = require(ReplicatedStorage.Shared.Constants)
+
+Players.CharacterAutoLoads = false
+
+local heroByPlayer: { [Player]: string } = {}
+local takenHeroes: { [string]: boolean } = {}
+
+local function nextAvailableHero(): string?
+	for _, heroId in ipairs(Constants.HEROES) do
+		if not takenHeroes[heroId] then
+			return heroId
+		end
+	end
+	return nil
+end
+
+local function findSpawnPad(heroId: string): BasePart?
+	local sectors = Workspace:FindFirstChild("Sectors")
+	if not sectors then
+		return nil
+	end
+	local sector = sectors:FindFirstChild(heroId)
+	if not sector then
+		return nil
+	end
+	local pad = sector:FindFirstChild("SpawnPad")
+	if pad and pad:IsA("BasePart") then
+		return pad
+	end
+	return nil
+end
+
+local function findSpectatorPad(): BasePart?
+	local pad = Workspace:FindFirstChild("SpectatorZone")
+	if pad and pad:IsA("BasePart") then
+		return pad
+	end
+	return nil
+end
+
+local function teleportToPad(character: Model, pad: BasePart)
+	-- Spawn slightly above the pad so we don't intersect it.
+	local offset = CFrame.new(0, pad.Size.Y / 2 + 4, 0)
+	character:PivotTo(pad.CFrame * offset)
+end
+
+local function applyHero(player: Player, heroId: string)
+	local hero = Heroes[heroId]
+	if not hero then
+		warn(string.format("[Main] No hero data for %q", heroId))
+		return
+	end
+
+	heroByPlayer[player] = heroId
+	takenHeroes[heroId] = true
+
+	player.CharacterAdded:Connect(function(character: Model)
+		local humanoid = character:WaitForChild("Humanoid") :: Humanoid
+		humanoid.MaxHealth = hero.baseHealth
+		humanoid.Health = hero.baseHealth
+		humanoid.WalkSpeed = hero.moveSpeed
+		-- DisplayName on the Humanoid is what shows on the in-world nametag.
+		humanoid.DisplayName = hero.name
+
+		local pad = findSpawnPad(heroId)
+		if pad then
+			character:WaitForChild("HumanoidRootPart")
+			teleportToPad(character, pad)
+		else
+			warn(string.format("[Main] Missing Workspace.Sectors.%s.SpawnPad", heroId))
+		end
+	end)
+
+	player:LoadCharacter()
+end
+
+local function sendToSpectator(player: Player)
+	player.CharacterAdded:Connect(function(character: Model)
+		character:WaitForChild("Humanoid")
+		local pad = findSpectatorPad()
+		if pad then
+			character:WaitForChild("HumanoidRootPart")
+			teleportToPad(character, pad)
+		else
+			warn("[Main] Late joiner with no SpectatorZone — leaving at default spawn")
+		end
+	end)
+
+	player:LoadCharacter()
+end
+
+Players.PlayerAdded:Connect(function(player)
+	local heroId = nextAvailableHero()
+	if heroId then
+		applyHero(player, heroId)
+	else
+		sendToSpectator(player)
+	end
+end)
+
+Players.PlayerRemoving:Connect(function(player)
+	local heroId = heroByPlayer[player]
+	if heroId then
+		takenHeroes[heroId] = nil
+		heroByPlayer[player] = nil
+	end
+end)

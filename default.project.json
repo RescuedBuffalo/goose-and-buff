@@ -1,0 +1,12 @@
+{
+  "name": "goose-and-buff",
+  "tree": {
+    "$className": "DataModel",
+    "ServerScriptService": {
+      "$path": "src/server"
+    },
+    "ReplicatedStorage": {
+      "$path": "src/shared"
+    }
+  }
+}
