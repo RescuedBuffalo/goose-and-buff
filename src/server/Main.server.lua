@@ -9,6 +9,9 @@ local Workspace = game:GetService("Workspace")
 local Heroes = require(ReplicatedStorage.Data.Heroes)
 local Constants = require(ReplicatedStorage.Shared.Constants)
 
+-- We control the first spawn ourselves so the character never appears at the
+-- default SpawnLocation before being teleported into a sector. Respawns after
+-- death are handled by the Died hook below (delayed by Players.RespawnTime).
 Players.CharacterAutoLoads = false
 
 local heroByPlayer: { [Player]: string } = {}
@@ -53,6 +56,15 @@ local function teleportToPad(character: Model, pad: BasePart)
 	character:PivotTo(pad.CFrame * offset)
 end
 
+local function bindRespawn(player: Player, humanoid: Humanoid)
+	humanoid.Died:Once(function()
+		task.wait(Players.RespawnTime)
+		if player.Parent == Players then
+			player:LoadCharacter()
+		end
+	end)
+end
+
 local function applyHero(player: Player, heroId: string)
 	local hero = Heroes[heroId]
 	if not hero then
@@ -78,6 +90,8 @@ local function applyHero(player: Player, heroId: string)
 		else
 			warn(string.format("[Main] Missing Workspace.Sectors.%s.SpawnPad", heroId))
 		end
+
+		bindRespawn(player, humanoid)
 	end)
 
 	player:LoadCharacter()
@@ -85,7 +99,7 @@ end
 
 local function sendToSpectator(player: Player)
 	player.CharacterAdded:Connect(function(character: Model)
-		character:WaitForChild("Humanoid")
+		local humanoid = character:WaitForChild("Humanoid") :: Humanoid
 		local pad = findSpectatorPad()
 		if pad then
 			character:WaitForChild("HumanoidRootPart")
@@ -93,6 +107,8 @@ local function sendToSpectator(player: Player)
 		else
 			warn("[Main] Late joiner with no SpectatorZone — leaving at default spawn")
 		end
+
+		bindRespawn(player, humanoid)
 	end)
 
 	player:LoadCharacter()
