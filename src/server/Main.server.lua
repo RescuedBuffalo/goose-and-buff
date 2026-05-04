@@ -11,10 +11,40 @@ local Heroes = require(ReplicatedStorage.Data.Heroes)
 local Constants = require(ReplicatedStorage.Shared.Constants)
 local WorldBuilder = require(ServerScriptService.Adapters.WorldBuilder)
 local WaveSpawner = require(ServerScriptService.Adapters.WaveSpawner)
+local WaveDirector = require(ServerScriptService.Systems.WaveDirector)
 
 -- Build the arena before wiring player handlers so spawn pads and the
 -- spectator zone exist by the time anyone joins.
 WorldBuilder.build()
+
+-- BUF-89 wave composition. The WaveDirector schedule only carries
+-- (time, hero); the exact enemy type / count / formation per wave is a
+-- design knob and lives here until it's worth promoting to a data module.
+type WaveConfig = { enemyType: string, count: number, formation: string }
+local WAVE_CONFIGS: { [string]: WaveConfig } = {
+	Fox = { enemyType = "runner", count = 6, formation = "backline" },
+	Goose = { enemyType = "grunt", count = 4, formation = "loosePack" },
+	Buffalo = { enemyType = "tank", count = 2, formation = "tightPack" },
+}
+
+-- BUF-88 + BUF-89: stand up a Heartbeat-driven wave scheduler and hook each
+-- announced wave into the spawner. Round 1 is Fox @ 0s, Goose @ 12s,
+-- Buffalo @ 24s; the prep-phase pause and end-of-run cleanup belong to the
+-- run lifecycle (BUF-7).
+local director = WaveDirector.new()
+director:onWave(function(hero, _elapsed)
+	local cfg = WAVE_CONFIGS[hero]
+	if not cfg then
+		warn(string.format("[Main] No wave config for hero %q", hero))
+		return
+	end
+	WaveSpawner.spawn(hero, cfg.enemyType, cfg.count, cfg.formation)
+end)
+director:start()
+
+game:BindToClose(function()
+	director:stop()
+end)
 
 -- We control the first spawn ourselves so the character never appears at the
 -- default SpawnLocation before being teleported into a sector. Respawns after
@@ -152,13 +182,4 @@ Players.PlayerRemoving:Connect(function(player)
 		takenHeroes[heroId] = nil
 		heroByPlayer[player] = nil
 	end
-end)
-
--- BUF-89 smoke test: spawn one wave per sector after the world is built so
--- enemies walking to cores is visually verifiable in Studio. Remove when
--- the WaveDirector (BUF-88) is wired into WaveSpawner via the run lifecycle.
-task.delay(5, function()
-	WaveSpawner.spawn("Goose", "grunt", 4, "loosePack")
-	WaveSpawner.spawn("Buffalo", "tank", 2, "tightPack")
-	WaveSpawner.spawn("Fox", "runner", 6, "backline")
 end)
