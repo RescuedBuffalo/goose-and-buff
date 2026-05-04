@@ -1,5 +1,7 @@
 --!strict
 -- BUF-87: Player join → hero assignment → spawn in sector.
+-- BUF-91: Per-player StateUpdate broadcast so each client renders the
+-- right view of an active wave (first-hit composition vs. teammate badge).
 -- First 3 players get Goose / Buffalo / Fox in order. 4th+ go to spectator.
 
 local Players = game:GetService("Players")
@@ -8,6 +10,7 @@ local ServerScriptService = game:GetService("ServerScriptService")
 local Workspace = game:GetService("Workspace")
 
 local Heroes = require(ReplicatedStorage.Data.Heroes)
+local Waves = require(ReplicatedStorage.Data.Waves)
 local Constants = require(ReplicatedStorage.Shared.Constants)
 local WorldBuilder = require(ServerScriptService.Adapters.WorldBuilder)
 local WaveSpawner = require(ServerScriptService.Adapters.WaveSpawner)
@@ -29,23 +32,37 @@ if not (enemiesFolder and enemiesFolder:IsA("Folder")) then
 	enemiesFolder.Parent = Workspace
 end
 
--- BUF-89 wave composition. The WaveDirector schedule only carries
--- (time, hero); the exact enemy type / count / formation per wave is a
--- design knob and lives here until it's worth promoting to a data module.
-type WaveConfig = { enemyType: string, count: number, formation: string }
-local WAVE_CONFIGS: { [string]: WaveConfig } = {
-	Fox = { enemyType = "runner", count = 6, formation = "backline" },
-	Goose = { enemyType = "grunt", count = 4, formation = "loosePack" },
-	Buffalo = { enemyType = "tank", count = 2, formation = "tightPack" },
-}
+local takenHeroes: { [string]: boolean } = {}
+-- Guards the connect-then-iterate window: a player who joins between
+-- PlayerAdded:Connect and the GetPlayers() catch-up pass would otherwise
+-- be processed twice.
+local seenPlayers: { [Player]: boolean } = {}
+-- The (player -> heroId) registry lives in Combat (BUF-90), so the
+-- click-damage path can resolve the clicker's hero without coupling back
+-- to Main. BUF-91's WaveDirector resolver below also reads through Combat.
+
+-- BUF-91: replicate per-player wave state. Created here so any client
+-- :WaitForChild() resolves once Main has booted.
+local stateUpdate = Instance.new("RemoteEvent")
+stateUpdate.Name = Constants.REMOTES.StateUpdate
+stateUpdate.Parent = ReplicatedStorage
+
+local function findCoreHumanoid(heroId: string): Humanoid?
+	local sectors = Workspace:FindFirstChild("Sectors")
+	if not sectors then return nil end
+	local sector = sectors:FindFirstChild(heroId)
+	if not sector then return nil end
+	local core = sector:FindFirstChild("Core")
+	if not core then return nil end
+	local humanoid = core:FindFirstChildOfClass("Humanoid")
+	return humanoid
+end
 
 -- BUF-90: track win/loss and bind every core's HealthChanged into it.
 local runState = RunState.new()
 local sectorsFolder = Workspace:WaitForChild("Sectors")
 for _, heroId in ipairs(Constants.HEROES) do
-	local sector = sectorsFolder:FindFirstChild(heroId)
-	local core = sector and sector:FindFirstChild("Core")
-	local coreHumanoid = core and core:FindFirstChildOfClass("Humanoid")
+	local coreHumanoid = findCoreHumanoid(heroId)
 	if coreHumanoid then
 		runState:bindCore(coreHumanoid)
 	else
@@ -53,29 +70,83 @@ for _, heroId in ipairs(Constants.HEROES) do
 	end
 end
 
--- BUF-88 + BUF-89 + BUF-90: stand up the wave scheduler and route every
--- announced wave through the spawner; bind ClickDetectors to each spawned
--- enemy so a hero can click to damage it.
+-- BUF-88 + BUF-89 + BUF-90 + BUF-91: stand up the Heartbeat-driven scheduler,
+-- hand each announced wave to the spawner (binding ClickDetectors so heroes
+-- can damage enemies), and let WaveDirector compute per-player visibility.
+-- Wave compositions live in shared/Data/Waves.lua so the spawner and the
+-- HUD reveal panel read from the same source of truth. Prep-phase pause
+-- and end-of-run cleanup belong to the run lifecycle (BUF-7).
 local director = WaveDirector.new()
 director:onWave(function(hero, _elapsed)
-	local cfg = WAVE_CONFIGS[hero]
-	if not cfg then
-		warn(string.format("[Main] No wave config for hero %q", hero))
+	local wave = Waves.byHero[hero]
+	if not wave then
+		warn(string.format("[Main] No wave composition for hero %q", hero))
 		return
 	end
-	local models = WaveSpawner.spawn(hero, cfg.enemyType, cfg.count, cfg.formation)
-	for _, model in ipairs(models) do
-		local torso = model:FindFirstChild("Torso")
-		local humanoid = model:FindFirstChildOfClass("Humanoid")
-		if torso and torso:IsA("BasePart") and humanoid then
-			Combat.bindEnemyClicks(torso, humanoid)
+	for _, enemy in ipairs(wave.enemies) do
+		local models = WaveSpawner.spawn(hero, enemy.type, enemy.count, enemy.formation)
+		for _, model in ipairs(models) do
+			local torso = model:FindFirstChild("Torso")
+			local humanoid = model:FindFirstChildOfClass("Humanoid")
+			if torso and torso:IsA("BasePart") and humanoid then
+				Combat.bindEnemyClicks(torso, humanoid)
+			end
 		end
 	end
 end)
+
+-- BUF-91: feed WaveDirector the context it needs to compute per-player views.
+-- Hero lookup goes through Combat (BUF-90's single source of truth) so we
+-- don't keep a parallel registry in Main.
+director:setHeroResolver(function(player: Player): string?
+	return Combat.heroFor(player)
+end)
+director:setCoreInfoResolver(function(heroId: string)
+	local humanoid = findCoreHumanoid(heroId)
+	if not humanoid then return nil end
+	return { hp = humanoid.Health, maxHp = humanoid.MaxHealth }
+end)
+director:setHeroOccupancyResolver(function(heroId: string)
+	return takenHeroes[heroId] == true
+end)
+
+local function broadcastStateToAll()
+	for _, player in ipairs(Players:GetPlayers()) do
+		stateUpdate:FireClient(player, director:getVisibleStateForPlayer(player))
+	end
+end
+
+local function broadcastStateTo(player: Player)
+	if player.Parent ~= Players then return end
+	stateUpdate:FireClient(player, director:getVisibleStateForPlayer(player))
+end
+
+director:onStateChanged(broadcastStateToAll)
+
+-- Client-driven handshake: the join-time FireClient below is best-effort
+-- and is dropped if the client's CombatHud hasn't yet connected its
+-- OnClientEvent (slow joins, late StarterPlayerScripts boot). The HUD
+-- fires this event as soon as it's wired up, and we reply with a fresh
+-- snapshot — guarantees every client gets at least one state regardless
+-- of timing.
+stateUpdate.OnServerEvent:Connect(function(player: Player)
+	broadcastStateTo(player)
+end)
+
+-- Cores already exist (built above). Re-broadcast on HP change so teammate
+-- portraits track damage. We don't need to disconnect — cores live for the
+-- lifetime of the server.
+for _, heroId in ipairs(Constants.HEROES) do
+	local humanoid = findCoreHumanoid(heroId)
+	if humanoid then
+		humanoid.HealthChanged:Connect(broadcastStateToAll)
+	end
+end
+
 director:start()
 
--- Bind run win condition AFTER the director exists; cores are already
--- bound above. Result handler stops new waves, clears any in-flight
+-- BUF-90: bind run win condition AFTER the director exists; cores are
+-- already bound above. Result handler stops new waves, clears any in-flight
 -- enemies, and shows the banner.
 runState:bindRun(director, enemiesFolder :: Folder)
 runState:onResult(function(result)
@@ -94,15 +165,6 @@ end)
 -- default SpawnLocation before being teleported into a sector. Respawns after
 -- death are handled by the Died hook below (delayed by Players.RespawnTime).
 Players.CharacterAutoLoads = false
-
-local takenHeroes: { [string]: boolean } = {}
--- Guards the connect-then-iterate window: a player who joins between
--- PlayerAdded:Connect and the GetPlayers() catch-up pass would otherwise
--- be processed twice.
-local seenPlayers: { [Player]: boolean } = {}
--- The (player -> heroId) registry lives in Combat (BUF-90), so the
--- click-damage path can resolve the clicker's hero without coupling back
--- to Main. We use Combat.heroFor() on PlayerRemoving to free the slot.
 
 local function nextAvailableHero(): string?
 	for _, heroId in ipairs(Constants.HEROES) do
@@ -162,6 +224,10 @@ local function applyHero(player: Player, heroId: string)
 	takenHeroes[heroId] = true
 	Combat.bindPlayer(player, heroId)
 
+	-- BUF-91: send initial state now that we know this player's hero, so the
+	-- HUD can build its portraits before any wave fires.
+	broadcastStateTo(player)
+
 	player.CharacterAdded:Connect(function(character: Model)
 		local humanoid = character:WaitForChild("Humanoid") :: Humanoid
 		humanoid.MaxHealth = hero.baseHealth
@@ -185,6 +251,9 @@ local function applyHero(player: Player, heroId: string)
 end
 
 local function sendToSpectator(player: Player)
+	-- BUF-91: spectators get a state with no selfHeroId so the HUD stays hidden.
+	broadcastStateTo(player)
+
 	player.CharacterAdded:Connect(function(character: Model)
 		local humanoid = character:WaitForChild("Humanoid") :: Humanoid
 		local pad = findSpectatorPad()
@@ -227,5 +296,7 @@ Players.PlayerRemoving:Connect(function(player)
 	if heroId then
 		takenHeroes[heroId] = nil
 		Combat.unbindPlayer(player)
+		-- BUF-91: refresh remaining clients so the leaver's portrait drops out.
+		broadcastStateToAll()
 	end
 end)

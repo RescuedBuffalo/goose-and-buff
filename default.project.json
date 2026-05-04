@@ -7,6 +7,11 @@
     },
     "ReplicatedStorage": {
       "$path": "src/shared"
+    },
+    "StarterPlayer": {
+      "StarterPlayerScripts": {
+        "$path": "src/client"
+      }
     }
   }
 }
