@@ -25,6 +25,57 @@ local function makeAnchoredPart(name: string, props: { [string]: any }, parent: 
 	return p
 end
 
+-- BUF-90: world-space HP bar above a core. Updates on HealthChanged and
+-- shifts color green -> yellow -> red as health drops.
+local function attachCoreHpBar(heroId: string, hrp: BasePart, humanoid: Humanoid)
+	local billboard = Instance.new("BillboardGui")
+	billboard.Name = "HpBar"
+	billboard.Size = UDim2.new(0, 220, 0, 36)
+	billboard.StudsOffset = Vector3.new(0, hrp.Size.Y / 2 + 3, 0)
+	billboard.AlwaysOnTop = true
+	billboard.Parent = hrp
+
+	local bg = Instance.new("Frame")
+	bg.Size = UDim2.new(1, 0, 1, 0)
+	bg.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+	bg.BorderSizePixel = 0
+	bg.Parent = billboard
+
+	local fill = Instance.new("Frame")
+	fill.Name = "Fill"
+	fill.Size = UDim2.new(1, 0, 1, 0)
+	fill.BackgroundColor3 = Color3.fromRGB(80, 200, 80)
+	fill.BorderSizePixel = 0
+	fill.Parent = bg
+
+	local label = Instance.new("TextLabel")
+	label.Size = UDim2.new(1, 0, 1, 0)
+	label.BackgroundTransparency = 1
+	label.TextColor3 = Color3.new(1, 1, 1)
+	label.TextStrokeTransparency = 0
+	label.TextScaled = true
+	label.Font = Enum.Font.SourceSansBold
+	label.Parent = bg
+
+	local function update()
+		local maxH = humanoid.MaxHealth
+		local cur = math.max(0, humanoid.Health)
+		local pct = if maxH > 0 then cur / maxH else 0
+		fill.Size = UDim2.new(pct, 0, 1, 0)
+		if pct < 0.3 then
+			fill.BackgroundColor3 = Color3.fromRGB(220, 80, 80)
+		elseif pct < 0.6 then
+			fill.BackgroundColor3 = Color3.fromRGB(220, 200, 80)
+		else
+			fill.BackgroundColor3 = Color3.fromRGB(80, 200, 80)
+		end
+		label.Text = string.format("%s Core: %d / %d", heroId, cur, maxH)
+	end
+
+	update()
+	humanoid.HealthChanged:Connect(update)
+end
+
 local function buildSector(heroId: string, layout): Folder
 	local sector = Instance.new("Folder")
 	sector.Name = heroId
@@ -83,9 +134,11 @@ local function buildSector(heroId: string, layout): Folder
 
 	-- Contract: the Core uses Humanoid as an HP container (per BUF-86 ACs).
 	-- It does NOT fire Humanoid.Died — Roblox locks anchored, rig-less
-	-- Humanoids in FallingDown and rejects the Dead transition. BUF-4/BUF-5
-	-- should listen to Humanoid.HealthChanged and treat health <= 0 as
-	-- destruction.
+	-- Humanoids in FallingDown and rejects the Dead transition. BUF-90's
+	-- RunState listens to Humanoid.HealthChanged and treats health <= 0
+	-- as a run loss.
+
+	attachCoreHpBar(heroId, hrp, humanoid)
 
 	coreModel.Parent = sector
 	return sector
@@ -125,10 +178,44 @@ local function buildSpectator()
 end
 
 local function tearDown()
-	for _, name in ipairs({ "Sectors", "SpectatorZone" }) do
+	for _, name in ipairs({ "Sectors", "SpectatorZone", "RunResult" }) do
 		local existing = Workspace:FindFirstChild(name)
 		if existing then existing:Destroy() end
 	end
+end
+
+-- BUF-90: world-space VICTORY / DEFEAT banner above the arena. Replaces
+-- any prior result banner so a re-run can re-announce.
+function WorldBuilder.showResult(result: "win" | "loss")
+	local existing = Workspace:FindFirstChild("RunResult")
+	if existing then existing:Destroy() end
+
+	local part = Instance.new("Part")
+	part.Name = "RunResult"
+	part.Size = Vector3.new(40, 8, 1)
+	part.Position = Vector3.new(0, 30, 0)
+	part.Anchored = true
+	part.CanCollide = false
+	part.Transparency = 1
+	part.Parent = Workspace
+
+	local billboard = Instance.new("BillboardGui")
+	billboard.Size = UDim2.new(0, 600, 0, 200)
+	billboard.AlwaysOnTop = true
+	billboard.Parent = part
+
+	local label = Instance.new("TextLabel")
+	label.Size = UDim2.new(1, 0, 1, 0)
+	label.BackgroundTransparency = 0.2
+	label.BackgroundColor3 = if result == "win"
+		then Color3.fromRGB(60, 160, 60)
+		else Color3.fromRGB(160, 60, 60)
+	label.TextColor3 = Color3.new(1, 1, 1)
+	label.TextStrokeTransparency = 0
+	label.Text = if result == "win" then "VICTORY" else "DEFEAT"
+	label.TextScaled = true
+	label.Font = Enum.Font.SourceSansBold
+	label.Parent = billboard
 end
 
 function WorldBuilder.build()
