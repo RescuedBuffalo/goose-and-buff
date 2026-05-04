@@ -1,7 +1,12 @@
 extends Node2D
 ##
-## Draws the Buffalo sector: floor, spawn pad, core. Owns the core HP
+## Draws the playable sector: floor, spawn pad, core. Owns the core HP
 ## state and emits when it changes.
+##
+## Sector geometry is shared (`data/sectors.gd`); palette is driven by
+## the selected hero so picking Goose / Buffalo / Fox visibly retones the
+## arena. Multi-sector layouts (one per hero, side-by-side) are an M4
+## multiplayer concern — for solo we recolor the single sector.
 
 const Sectors := preload("res://data/sectors.gd")
 
@@ -10,11 +15,18 @@ signal core_destroyed()
 
 var core_hp: float = Sectors.CORE_HEALTH
 var core_hp_max: float = Sectors.CORE_HEALTH
+var hero_id: String = "Buffalo"
 
 func _ready() -> void:
 	add_to_group("sector")
 	GameState.core_hp = core_hp
 	GameState.core_hp_max = core_hp_max
+	queue_redraw()
+
+func set_hero(new_hero_id: String) -> void:
+	# Repaint with the new faction palette. Called by main.gd after the
+	# player locks in on the hero select screen.
+	hero_id = new_hero_id
 	queue_redraw()
 
 func damage_core(amount: float) -> void:
@@ -32,26 +44,29 @@ func reset_core() -> void:
 	queue_redraw()
 
 func _draw() -> void:
+	var floor_color := DesignTokens.floor_color(hero_id)
+	var core_color := DesignTokens.core_color(hero_id)
+	var ink_color := DesignTokens.ink_color(hero_id)
 	# Floor.
 	var floor_rect := Rect2(
 		Vector2(Sectors.SECTOR_LEFT, Sectors.SECTOR_TOP),
 		Vector2(Sectors.SECTOR_RIGHT - Sectors.SECTOR_LEFT,
 			Sectors.SECTOR_BOTTOM - Sectors.SECTOR_TOP),
 	)
-	draw_rect(floor_rect, DesignTokens.BUFFALO_FLOOR, true)
+	draw_rect(floor_rect, floor_color, true)
 	# Spawn pad.
 	var pad_rect := Rect2(
 		Sectors.SPAWN_PAD_CENTER - Sectors.SPAWN_PAD_SIZE * 0.5,
 		Sectors.SPAWN_PAD_SIZE,
 	)
 	draw_rect(pad_rect, DesignTokens.PARCHMENT_2, true)
-	draw_rect(pad_rect, DesignTokens.BUFFALO_INK, false, 2.0)
+	draw_rect(pad_rect, ink_color, false, 2.0)
 	# Core.
 	var core_rect := Rect2(
 		Sectors.CORE_CENTER - Sectors.CORE_SIZE * 0.5,
 		Sectors.CORE_SIZE,
 	)
-	draw_rect(core_rect, DesignTokens.BUFFALO_CORE, true)
+	draw_rect(core_rect, core_color, true)
 	draw_rect(core_rect, DesignTokens.NIGHT_0, false, 2.0)
 	# Core HP arc — a thin bar above the core.
 	var bar_y := Sectors.CORE_CENTER.y - Sectors.CORE_SIZE.y * 0.5 - 12.0

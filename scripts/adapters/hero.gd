@@ -1,12 +1,31 @@
 extends Node2D
 ##
-## Buffalo character. WASD movement, clamped to the sector. Stat values
-## come from data/heroes.gd; the totem PNG is the placeholder sprite.
+## The player character. Identity (Goose / Buffalo / Fox) is set by
+## main.gd before the scene enters the tree via `set_hero(hero_id)`.
+## WASD movement, clamped to the sector. Stat values come from
+## data/heroes.gd; the totem image is the placeholder sprite.
 
 const Heroes := preload("res://data/heroes.gd")
 const Sectors := preload("res://data/sectors.gd")
 
 const PIXELS_PER_STUD := 12.0  # roughly maps Roblox moveSpeed to pixels/s
+
+# Per-hero totem assets. Buffalo is a PNG; Goose / Fox are SVG. Both load
+# through Texture2D so the rest of the file doesn't care.
+const TOTEM_PATHS := {
+	"Buffalo": "res://assets/totems/buffalo.png",
+	"Goose": "res://assets/totems/goose.svg",
+	"Fox": "res://assets/totems/fox.svg",
+}
+
+# Each totem source has a different native resolution; tune the scale so the
+# rendered size matches across heroes (Buffalo's PNG is ~240x200, the SVGs
+# import at ~96px square).
+const TOTEM_SCALE := {
+	"Buffalo": Vector2(0.45, 0.45),
+	"Goose": Vector2(0.65, 0.65),
+	"Fox": Vector2(0.65, 0.65),
+}
 
 var hero_data: Dictionary = Heroes.Buffalo
 var hp_max: float = 0.0
@@ -17,6 +36,13 @@ var _scripted_motion: bool = false  # disables input while a tween moves us
 const SPAWN_OFFSET := Vector2(60, 0)
 
 @onready var sprite: Sprite2D = $Sprite
+
+func set_hero(hero_id: String) -> void:
+	# Call before the node enters the tree; _ready() picks up the new dict.
+	# Falls back to Buffalo on an unknown id rather than crashing — the
+	# select screen only ever sends a canonical id, so a fallback here is
+	# defensive, not load-bearing.
+	hero_data = Heroes.ALL.get(hero_id, Heroes.Buffalo)
 
 func _ready() -> void:
 	hp_max = float(hero_data.baseHealth)
@@ -57,25 +83,25 @@ func reset_hp() -> void:
 	GameState.set_hero_hp(hp, hp_max)
 
 func reset_position() -> void:
-	# Snap Buffalo back to the spawn pad. Called by main._start_run on a
+	# Snap the hero back to the spawn pad. Called by main._start_run on a
 	# fresh run / restart so each opening is identical regardless of where
 	# the player was standing when the previous run ended.
 	_scripted_motion = false
 	position = spawn_position()
 
 func _load_sprite() -> void:
-	# The shipped buffalo asset is a PNG. The other totems are SVG; Godot
-	# imports both natively. Sprite is scaled down from the source 240×200.
-	var tex: Texture2D = load("res://assets/totems/buffalo.png")
+	var path: String = TOTEM_PATHS.get(hero_data.id, TOTEM_PATHS.Buffalo)
+	var tex: Texture2D = load(path)
 	if tex:
 		sprite.texture = tex
-		sprite.scale = Vector2(0.45, 0.45)
+		sprite.scale = TOTEM_SCALE.get(hero_data.id, Vector2(0.5, 0.5))
 		sprite.modulate = Color(1, 1, 1, 1)
 	else:
-		# Fallback: a flat parchment circle so the hero is still visible.
+		# Fallback: a flat parchment circle in the hero's core color so the
+		# character stays visible even if asset import is mid-flight.
 		sprite.texture = null
 		queue_redraw()
 
 func _draw() -> void:
 	if sprite.texture == null:
-		draw_circle(Vector2.ZERO, 24.0, DesignTokens.BUFFALO_CORE)
+		draw_circle(Vector2.ZERO, 24.0, DesignTokens.core_color(hero_data.id))
