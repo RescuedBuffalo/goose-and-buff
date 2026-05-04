@@ -10,19 +10,35 @@ local Workspace = game:GetService("Workspace")
 local Heroes = require(ReplicatedStorage.Data.Heroes)
 local Constants = require(ReplicatedStorage.Shared.Constants)
 local WorldBuilder = require(ServerScriptService.Adapters.WorldBuilder)
+local WaveSpawner = require(ServerScriptService.Adapters.WaveSpawner)
 local WaveDirector = require(ServerScriptService.Systems.WaveDirector)
 
 -- Build the arena before wiring player handlers so spawn pads and the
 -- spectator zone exist by the time anyone joins.
 WorldBuilder.build()
 
--- BUF-88: stand up a Heartbeat-driven wave scheduler. The full hand-off to a
--- run lifecycle (prep phase pause, end-of-run cleanup) is BUF-7; for now the
--- callback prints the schedule so we can verify Fox @ 0s / Goose @ 12s /
--- Buffalo @ 24s in real seconds from Studio's output window.
+-- BUF-89 wave composition. The WaveDirector schedule only carries
+-- (time, hero); the exact enemy type / count / formation per wave is a
+-- design knob and lives here until it's worth promoting to a data module.
+type WaveConfig = { enemyType: string, count: number, formation: string }
+local WAVE_CONFIGS: { [string]: WaveConfig } = {
+	Fox = { enemyType = "runner", count = 6, formation = "backline" },
+	Goose = { enemyType = "grunt", count = 4, formation = "loosePack" },
+	Buffalo = { enemyType = "tank", count = 2, formation = "tightPack" },
+}
+
+-- BUF-88 + BUF-89: stand up a Heartbeat-driven wave scheduler and hook each
+-- announced wave into the spawner. Round 1 is Fox @ 0s, Goose @ 12s,
+-- Buffalo @ 24s; the prep-phase pause and end-of-run cleanup belong to the
+-- run lifecycle (BUF-7).
 local director = WaveDirector.new()
-director:onWave(function(hero, elapsed)
-	print(string.format("[WaveDirector] t=%.2fs wave -> %s", elapsed, hero))
+director:onWave(function(hero, _elapsed)
+	local cfg = WAVE_CONFIGS[hero]
+	if not cfg then
+		warn(string.format("[Main] No wave config for hero %q", hero))
+		return
+	end
+	WaveSpawner.spawn(hero, cfg.enemyType, cfg.count, cfg.formation)
 end)
 director:start()
 
