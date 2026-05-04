@@ -10,9 +10,10 @@
 --   tightPack: bunched in a narrow line near the lane center
 --   backline:  scattered AND pushed farther back from the core
 --
--- Cleanup: on Humanoid.Died OR on reaching the core, the enemy model is
--- destroyed. Core damage is a later issue; for now reaching the core is
--- just a despawn so they don't pile up on top of it.
+-- Cleanup:
+--   on Humanoid.Died:        model is destroyed
+--   on reaching the core:    core's Humanoid takes spec.damage, model
+--                            is destroyed (BUF-90 added the damage step)
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Workspace = game:GetService("Workspace")
@@ -26,6 +27,7 @@ type EnemySpec = {
 	name: string,
 	health: number,
 	walkSpeed: number,
+	damage: number,
 	size: Vector3,
 	color: Color3,
 }
@@ -75,17 +77,14 @@ local function offsetFor(formation: string?, index: number, count: number): Vect
 	)
 end
 
-local function getCorePosition(heroId: string): Vector3?
+local function getCoreModel(heroId: string): Model?
 	local sectorsFolder = Workspace:FindFirstChild("Sectors")
 	if not sectorsFolder then return nil end
 	local sectorFolder = sectorsFolder:FindFirstChild(heroId)
 	if not sectorFolder then return nil end
 	local core = sectorFolder:FindFirstChild("Core")
 	if not core or not core:IsA("Model") then return nil end
-	if core.PrimaryPart then
-		return core.PrimaryPart.Position
-	end
-	return nil
+	return core
 end
 
 local CORE_APPROACH_BUFFER = 2
@@ -141,6 +140,10 @@ local function buildEnemyModel(spec: EnemySpec, footPosition: Vector3): Model
 	hrp.Transparency = 1
 	hrp.Anchored = false
 	hrp.CanCollide = false
+	-- HRP overlaps the Torso. CanQuery=false so a player's mouse raycast
+	-- (and the ClickDetector pick) lands on the visible Torso, not the
+	-- invisible root.
+	hrp.CanQuery = false
 	hrp.Massless = true
 	hrp.Position = torso.Position
 	hrp.Parent = model
@@ -168,10 +171,19 @@ local function buildEnemyModel(spec: EnemySpec, footPosition: Vector3): Model
 	return model
 end
 
--- Drive the enemy toward `corePos`. Humanoid:MoveTo has an 8s internal
--- timeout, so re-issue when MoveToFinished reports failure. Stop and clean
--- up on success or if the model has already been despawned (death path).
-local function navigate(model: Model, humanoid: Humanoid, corePos: Vector3)
+-- Drive the enemy toward `target`. Humanoid:MoveTo has an 8s internal
+-- timeout, so re-issue when MoveToFinished reports failure. On a successful
+-- reach, deal `damage` to the core's Humanoid and despawn. The core
+-- humanoid may already be dead by the time we arrive (RunState fires
+-- "loss" the moment any core hits 0), in which case we skip the damage
+-- step and just despawn.
+local function navigate(
+	model: Model,
+	humanoid: Humanoid,
+	target: Vector3,
+	coreHumanoid: Humanoid?,
+	damage: number
+)
 	local connection: RBXScriptConnection?
 	connection = humanoid.MoveToFinished:Connect(function(reached: boolean)
 		if not model.Parent or humanoid.Health <= 0 then
@@ -180,12 +192,15 @@ local function navigate(model: Model, humanoid: Humanoid, corePos: Vector3)
 		end
 		if reached then
 			if connection then connection:Disconnect() end
+			if coreHumanoid and coreHumanoid.Parent and coreHumanoid.Health > 0 then
+				coreHumanoid:TakeDamage(damage)
+			end
 			model:Destroy()
 			return
 		end
-		humanoid:MoveTo(corePos)
+		humanoid:MoveTo(target)
 	end)
-	humanoid:MoveTo(corePos)
+	humanoid:MoveTo(target)
 end
 
 function WaveSpawner.spawn(heroId: string, enemyType: string, count: number, formation: string?): { Model }
@@ -199,12 +214,13 @@ function WaveSpawner.spawn(heroId: string, enemyType: string, count: number, for
 		warn(string.format("[WaveSpawner] Unknown enemyType %q", enemyType))
 		return {}
 	end
-	local corePos = getCorePosition(heroId)
-	if not corePos then
+	local coreModel = getCoreModel(heroId)
+	if not coreModel or not coreModel.PrimaryPart then
 		warn(string.format("[WaveSpawner] No Core in sector %q (build the world first)", heroId))
 		return {}
 	end
-	local target = approachTargetFor(corePos)
+	local target = approachTargetFor(coreModel.PrimaryPart.Position)
+	local coreHumanoid = coreModel:FindFirstChildOfClass("Humanoid")
 
 	local container = getEnemiesContainer()
 	local anchor = spawnAnchorFor(sector, formation)
@@ -222,7 +238,7 @@ function WaveSpawner.spawn(heroId: string, enemyType: string, count: number, for
 			model:Destroy()
 		end)
 
-		task.spawn(navigate, model, humanoid, target)
+		task.spawn(navigate, model, humanoid, target, coreHumanoid, spec.damage)
 		table.insert(spawned, model)
 	end
 

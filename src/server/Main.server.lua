@@ -12,10 +12,22 @@ local Constants = require(ReplicatedStorage.Shared.Constants)
 local WorldBuilder = require(ServerScriptService.Adapters.WorldBuilder)
 local WaveSpawner = require(ServerScriptService.Adapters.WaveSpawner)
 local WaveDirector = require(ServerScriptService.Systems.WaveDirector)
+local Combat = require(ServerScriptService.Systems.Combat)
+local RunState = require(ServerScriptService.Systems.RunState)
 
 -- Build the arena before wiring player handlers so spawn pads and the
 -- spectator zone exist by the time anyone joins.
 WorldBuilder.build()
+
+-- BUF-90: pre-create the Enemies folder so RunState can listen for
+-- ChildRemoved from t=0. Without this, the folder appears lazily on the
+-- first spawn and a listener attached at startup would miss it.
+local enemiesFolder = Workspace:FindFirstChild("Enemies")
+if not (enemiesFolder and enemiesFolder:IsA("Folder")) then
+	enemiesFolder = Instance.new("Folder")
+	enemiesFolder.Name = "Enemies"
+	enemiesFolder.Parent = Workspace
+end
 
 -- BUF-89 wave composition. The WaveDirector schedule only carries
 -- (time, hero); the exact enemy type / count / formation per wave is a
@@ -27,10 +39,23 @@ local WAVE_CONFIGS: { [string]: WaveConfig } = {
 	Buffalo = { enemyType = "tank", count = 2, formation = "tightPack" },
 }
 
--- BUF-88 + BUF-89: stand up a Heartbeat-driven wave scheduler and hook each
--- announced wave into the spawner. Round 1 is Fox @ 0s, Goose @ 12s,
--- Buffalo @ 24s; the prep-phase pause and end-of-run cleanup belong to the
--- run lifecycle (BUF-7).
+-- BUF-90: track win/loss and bind every core's HealthChanged into it.
+local runState = RunState.new()
+local sectorsFolder = Workspace:WaitForChild("Sectors")
+for _, heroId in ipairs(Constants.HEROES) do
+	local sector = sectorsFolder:FindFirstChild(heroId)
+	local core = sector and sector:FindFirstChild("Core")
+	local coreHumanoid = core and core:FindFirstChildOfClass("Humanoid")
+	if coreHumanoid then
+		runState:bindCore(coreHumanoid)
+	else
+		warn(string.format("[Main] No Core humanoid for %q — RunState won't see its loss", heroId))
+	end
+end
+
+-- BUF-88 + BUF-89 + BUF-90: stand up the wave scheduler and route every
+-- announced wave through the spawner; bind ClickDetectors to each spawned
+-- enemy so a hero can click to damage it.
 local director = WaveDirector.new()
 director:onWave(function(hero, _elapsed)
 	local cfg = WAVE_CONFIGS[hero]
@@ -38,9 +63,28 @@ director:onWave(function(hero, _elapsed)
 		warn(string.format("[Main] No wave config for hero %q", hero))
 		return
 	end
-	WaveSpawner.spawn(hero, cfg.enemyType, cfg.count, cfg.formation)
+	local models = WaveSpawner.spawn(hero, cfg.enemyType, cfg.count, cfg.formation)
+	for _, model in ipairs(models) do
+		local torso = model:FindFirstChild("Torso")
+		local humanoid = model:FindFirstChildOfClass("Humanoid")
+		if torso and torso:IsA("BasePart") and humanoid then
+			Combat.bindEnemyClicks(torso, humanoid)
+		end
+	end
 end)
 director:start()
+
+-- Bind run win condition AFTER the director exists; cores are already
+-- bound above. Result handler stops new waves, clears any in-flight
+-- enemies, and shows the banner.
+runState:bindRun(director, enemiesFolder :: Folder)
+runState:onResult(function(result)
+	director:stop()
+	for _, child in ipairs((enemiesFolder :: Folder):GetChildren()) do
+		child:Destroy()
+	end
+	WorldBuilder.showResult(result)
+end)
 
 game:BindToClose(function()
 	director:stop()
@@ -51,12 +95,14 @@ end)
 -- death are handled by the Died hook below (delayed by Players.RespawnTime).
 Players.CharacterAutoLoads = false
 
-local heroByPlayer: { [Player]: string } = {}
 local takenHeroes: { [string]: boolean } = {}
 -- Guards the connect-then-iterate window: a player who joins between
 -- PlayerAdded:Connect and the GetPlayers() catch-up pass would otherwise
 -- be processed twice.
 local seenPlayers: { [Player]: boolean } = {}
+-- The (player -> heroId) registry lives in Combat (BUF-90), so the
+-- click-damage path can resolve the clicker's hero without coupling back
+-- to Main. We use Combat.heroFor() on PlayerRemoving to free the slot.
 
 local function nextAvailableHero(): string?
 	for _, heroId in ipairs(Constants.HEROES) do
@@ -113,8 +159,8 @@ local function applyHero(player: Player, heroId: string)
 		return
 	end
 
-	heroByPlayer[player] = heroId
 	takenHeroes[heroId] = true
+	Combat.bindPlayer(player, heroId)
 
 	player.CharacterAdded:Connect(function(character: Model)
 		local humanoid = character:WaitForChild("Humanoid") :: Humanoid
@@ -177,9 +223,9 @@ end
 
 Players.PlayerRemoving:Connect(function(player)
 	seenPlayers[player] = nil
-	local heroId = heroByPlayer[player]
+	local heroId = Combat.heroFor(player)
 	if heroId then
 		takenHeroes[heroId] = nil
-		heroByPlayer[player] = nil
+		Combat.unbindPlayer(player)
 	end
 end)
