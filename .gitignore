@@ -1,16 +1,40 @@
-# Roblox / Rojo build artifacts
+# Godot 4 — editor and import caches
+.godot/
+.import/
+
+# Per-developer Godot tooling — godot-mcp helper plugin is installed
+# locally for live editor control during AI-assisted iteration.
+/addons/godot_mcp/
+
+# Exported builds
+build/
+exports/
+*.pck
+*.exe
+*.app
+*.dmg
+*.zip
+
+# OS / IDE
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.swp
+
+# User save data (don't ship these)
+saves/
+user_data/
+
+# Roblox leftovers (in case any survive)
 *.rbxl
 *.rbxlx
 *.rbxm
 *.rbxmx
-*.rbxl.lock
-*.rbxlx.lock
+sourcemap.json
+Packages/
+ServerPackages/
+DevPackages/
 
-# Aftman tool installs
+# Aftman tool installs (legacy Roblox toolchain)
 .aftman/
-
-# Editor
-.vscode/
-.idea/
-*.swp
-.DS_Store

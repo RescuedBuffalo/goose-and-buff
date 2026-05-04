@@ -1,0 +1,24 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>Semantic colors</title>
+<link rel="stylesheet" href="../colors_and_type.css">
+<style>
+  body { margin: 0; background: var(--night-0); font-family: var(--font-body); color: var(--fg-1); padding: 20px; }
+  .grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+  .chip { background: var(--night-1); border: var(--hairline); border-radius: var(--radius-2); padding: 12px; }
+  .chip .dot { width: 100%; height: 28px; border-radius: 6px; margin-bottom: 8px; }
+  .chip .name { font-family: var(--font-display); font-size: 13px; }
+  .chip .desc { font-size: 10px; color: var(--fg-3); margin-top: 2px; }
+  .chip .var { font-family: var(--font-mono); font-size: 9px; color: var(--fg-3); margin-top: 4px; }
+</style></head>
+<body>
+  <div class="grid">
+    <div class="chip"><div class="dot" style="background: var(--hp-full)"></div><div class="name">mossy green</div><div class="desc">alive</div><div class="var">--hp-full</div></div>
+    <div class="chip"><div class="dot" style="background: var(--hp-warn)"></div><div class="name">honey</div><div class="desc">bruised</div><div class="var">--hp-warn</div></div>
+    <div class="chip"><div class="dot" style="background: var(--hp-crit)"></div><div class="name">clay red</div><div class="desc">critical</div><div class="var">--hp-crit</div></div>
+    <div class="chip"><div class="dot" style="background: var(--core-shield)"></div><div class="name">glacier blue</div><div class="desc">shield up</div><div class="var">--core-shield</div></div>
+    <div class="chip"><div class="dot" style="background: var(--core-down)"></div><div class="name">core down</div><div class="desc">destroyed</div><div class="var">--core-down</div></div>
+    <div class="chip"><div class="dot" style="background: var(--xp-glow)"></div><div class="name">twilight violet</div><div class="desc">xp / level</div><div class="var">--xp-glow</div></div>
+    <div class="chip"><div class="dot" style="background: var(--gold-coin)"></div><div class="name">gold</div><div class="desc">coins / loot</div><div class="var">--gold-coin</div></div>
+    <div class="chip"><div class="dot" style="background: var(--divider)"></div><div class="name">divider slate</div><div class="desc">sector wall</div><div class="var">--divider</div></div>
+  </div>
+</body></html>

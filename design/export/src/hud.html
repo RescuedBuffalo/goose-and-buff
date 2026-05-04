@@ -1,0 +1,215 @@
+<!doctype html>
+<html><head>
+<meta charset="utf-8">
+<title>HUD UI Kit · The Long Watch</title>
+<link rel="stylesheet" href="colors_and_type.css">
+<template id="__bundler_thumbnail" data-bg-color="#15100a">
+  <svg viewBox="0 0 1200 800" xmlns="http://www.w3.org/2000/svg">
+    <rect width="1200" height="800" fill="#15100a"/>
+    <!-- three sectors -->
+    <g transform="translate(120 320)">
+      <rect width="300" height="380" rx="12" fill="rgb(255 248 190)"/>
+      <rect x="320" width="300" height="380" rx="12" fill="rgb(150 100 70)"/>
+      <rect x="640" width="300" height="380" rx="12" fill="rgb(255 185 100)"/>
+      <!-- core dots -->
+      <rect x="138" y="180" width="24" height="24" rx="3" fill="rgb(252 222 40)"/>
+      <rect x="458" y="180" width="24" height="24" rx="3" fill="rgb(110 70 40)"/>
+      <rect x="778" y="180" width="24" height="24" rx="3" fill="rgb(248 130 30)"/>
+    </g>
+    <text x="600" y="180" text-anchor="middle" font-family="serif" font-size="72" font-weight="700" fill="rgb(245 232 208)">The Long Watch</text>
+    <text x="600" y="230" text-anchor="middle" font-family="sans-serif" font-size="22" letter-spacing="6" fill="rgb(160 150 138)">HUD · UI KIT</text>
+  </svg>
+</template>
+<style>
+  body { margin: 0; background: var(--night-0); font-family: var(--font-body); color: var(--fg-1); min-height: 100vh; }
+  .stage {
+    /* Mock 16:9 game viewport with HUD overlay */
+    position: relative;
+    width: 1280px; height: 720px;
+    margin: 0 auto;
+    background:
+      radial-gradient(ellipse at center, rgb(40 30 20) 0%, rgb(15 10 8) 70%),
+      var(--night-0);
+    overflow: hidden;
+  }
+  /* Faux 3-sector floor — quick mood, not a real arena */
+  .arena { position: absolute; inset: 30% 5% 12% 5%; display: flex; gap: 4px; transform: perspective(900px) rotateX(38deg); }
+  .arena .sector { flex: 1; border-radius: 4px; box-shadow: inset 0 -20px 60px rgb(0 0 0 / 0.4); }
+  .arena .goose { background: var(--goose-floor); }
+  .arena .buffalo { background: var(--buffalo-floor); }
+  .arena .fox { background: var(--fox-floor); }
+  .core {
+    position: absolute; bottom: 30%; width: 22px; height: 22px; border-radius: 4px;
+    box-shadow: 0 0 32px currentColor;
+  }
+
+  /* HUD safe zone: 24px from edges */
+  .hud { position: absolute; inset: 24px; pointer-events: none; }
+  .hud > * { pointer-events: auto; }
+
+  /* Top-left: hero badge stack */
+  .hero-stack { position: absolute; top: 0; left: 0; display: flex; flex-direction: column; gap: 8px; }
+
+  /* Top-right: wave + timer */
+  .wave-pill {
+    position: absolute; top: 0; right: 0;
+    display: flex; align-items: center; gap: 14px;
+    background: rgb(18 17 22 / 0.78); backdrop-filter: blur(8px);
+    border: var(--hairline-warm); border-radius: var(--radius-3);
+    padding: 10px 16px; box-shadow: var(--shadow-2);
+  }
+  .wave-pill .eyebrow { font-weight: 700; font-size: 10px; letter-spacing: 0.18em; text-transform: uppercase; color: var(--fox-core); }
+  .wave-pill .title { font-family: var(--font-display); font-size: 18px; line-height: 1; }
+  .wave-pill .timer { font-family: var(--font-mono); font-size: 22px; color: var(--fox-core); font-variant-numeric: tabular-nums; }
+
+  /* Bottom-center: Val status */
+  .val-strip {
+    position: absolute; bottom: 0; left: 50%; transform: translateX(-50%);
+    display: flex; align-items: center; gap: 10px;
+    background: rgb(28 26 33 / 0.85); border: var(--hairline);
+    border-radius: var(--radius-pill); padding: 8px 16px 8px 8px;
+    box-shadow: var(--shadow-2), var(--inset-warm);
+  }
+  .val-strip .puck {
+    width: 36px; height: 36px; border-radius: 50%;
+    background: var(--val-cream); display: grid; place-items: center;
+  }
+  .val-strip img { width: 30px; height: 30px; }
+  .val-strip .name { font-family: var(--font-display); font-size: 14px; }
+  .val-strip .status { font-size: 12px; color: var(--fg-3); }
+
+  /* Bottom-left: ability rail */
+  .abilities { position: absolute; bottom: 0; left: 0; display: flex; gap: 6px; }
+  .ability {
+    width: 52px; height: 52px; border-radius: var(--radius-2);
+    background: var(--night-1); border: var(--hairline);
+    display: grid; place-items: center; box-shadow: var(--shadow-1), var(--inset-warm);
+    position: relative;
+  }
+  .ability .key {
+    position: absolute; top: -8px; left: -8px;
+    background: var(--night-2); border: var(--hairline-strong);
+    width: 18px; height: 18px; border-radius: 4px;
+    display: grid; place-items: center;
+    font-family: var(--font-mono); font-size: 10px; color: var(--fg-2);
+  }
+  .ability svg { stroke: var(--fox-core); fill: none; stroke-width: 1.75; stroke-linecap: round; stroke-linejoin: round; }
+  .ability.cd { opacity: 0.5; }
+  .ability.cd .cd-num { font-family: var(--font-mono); font-size: 16px; color: var(--fg-2); }
+
+  /* Hero badge component */
+  .badge {
+    display: flex; align-items: center; gap: 10px; min-width: 220px;
+    background: rgb(28 26 33 / 0.9); border: var(--hairline);
+    border-radius: var(--radius-3); padding: 8px 14px 8px 8px;
+    box-shadow: var(--shadow-1), var(--inset-warm);
+  }
+  .badge .totem-puck { width: 38px; height: 38px; border-radius: var(--radius-2); display: grid; place-items: center; flex-shrink: 0; }
+  .badge .totem-puck img { width: 30px; height: 30px; }
+  .badge .col { flex: 1; min-width: 0; }
+  .badge .name { font-family: var(--font-display); font-size: 16px; line-height: 1; }
+  .badge .hp-row { display: flex; align-items: center; gap: 8px; margin-top: 4px; }
+  .badge .hp-track { flex: 1; height: 8px; background: var(--night-2); border-radius: var(--radius-pill); overflow: hidden; border: var(--hairline); }
+  .badge .hp-fill { height: 100%; }
+  .badge .hp-num { font-family: var(--font-body); font-weight: 800; font-variant-numeric: tabular-nums; font-size: 11px; color: var(--fg-2); white-space: nowrap; }
+
+  /* Goose / Buffalo / Fox tints */
+  .badge.goose .totem-puck { background: var(--goose-floor); }
+  .badge.buffalo .totem-puck { background: var(--buffalo-floor); }
+  .badge.fox .totem-puck { background: var(--fox-floor); }
+
+  .docs { max-width: 1280px; margin: 28px auto; padding: 0 24px 60px; color: var(--fg-2); }
+  .docs h1 { font-family: var(--font-display); color: var(--fg-1); font-size: 32px; margin: 0 0 6px; }
+  .docs p { font-size: 15px; line-height: 1.6; }
+  .docs code { background: var(--night-1); padding: 1px 6px; border-radius: 4px; font-size: 12px; }
+</style>
+</head>
+<body>
+
+<div class="stage">
+  <!-- Faux arena (mood only) -->
+  <div class="arena">
+    <div class="sector goose"><div class="core" style="background: var(--goose-core); color: var(--goose-core); left: 50%; transform: translateX(-50%);"></div></div>
+    <div class="sector buffalo"><div class="core" style="background: var(--buffalo-core); color: var(--buffalo-core); left: 50%; transform: translateX(-50%);"></div></div>
+    <div class="sector fox"><div class="core" style="background: var(--fox-core); color: var(--fox-core); left: 50%; transform: translateX(-50%);"></div></div>
+  </div>
+
+  <div class="hud">
+    <!-- Top-left: hero badges -->
+    <div class="hero-stack">
+      <div class="badge goose">
+        <div class="totem-puck"><img src="assets/totems/goose.svg" alt=""></div>
+        <div class="col">
+          <div class="name">Goose</div>
+          <div class="hp-row">
+            <div class="hp-track"><div class="hp-fill" style="width: 92%; background: var(--hp-full)"></div></div>
+            <div class="hp-num">92 / 100</div>
+          </div>
+        </div>
+      </div>
+      <div class="badge buffalo">
+        <div class="totem-puck"><img src="assets/totems/buffalo.png" alt=""></div>
+        <div class="col">
+          <div class="name">Buffalo</div>
+          <div class="hp-row">
+            <div class="hp-track"><div class="hp-fill" style="width: 55%; background: var(--hp-warn)"></div></div>
+            <div class="hp-num">88 / 160</div>
+          </div>
+        </div>
+      </div>
+      <div class="badge fox">
+        <div class="totem-puck"><img src="assets/totems/fox.svg" alt=""></div>
+        <div class="col">
+          <div class="name">Fox</div>
+          <div class="hp-row">
+            <div class="hp-track"><div class="hp-fill" style="width: 18%; background: var(--hp-crit)"></div></div>
+            <div class="hp-num">15 / 85</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Top-right: wave -->
+    <div class="wave-pill">
+      <div>
+        <div class="eyebrow">Wave 3 · Fox's turn</div>
+        <div class="title">Hold the right flank.</div>
+      </div>
+      <div class="timer">0:24</div>
+    </div>
+
+    <!-- Bottom-center: Val -->
+    <div class="val-strip">
+      <div class="puck"><img src="assets/totems/val.svg" alt=""></div>
+      <div>
+        <div class="name">Val</div>
+        <div class="status">circling Fox · ready in 0:06</div>
+      </div>
+    </div>
+
+    <!-- Bottom-left: abilities -->
+    <div class="abilities">
+      <div class="ability"><div class="key">Q</div>
+        <svg width="22" height="22" viewBox="0 0 24 24"><path d="M3 12 L21 12 M14 6 L21 12 L14 18"/></svg>
+      </div>
+      <div class="ability cd"><div class="key">E</div>
+        <span class="cd-num">3</span>
+      </div>
+      <div class="ability"><div class="key">F</div>
+        <svg width="22" height="22" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 3 L12 6 M12 18 L12 21 M3 12 L6 12 M18 12 L21 12"/></svg>
+      </div>
+      <div class="ability cd" style="opacity: 0.4"><div class="key">R</div>
+        <span class="cd-num">14</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="docs">
+  <h1>HUD spec</h1>
+  <p>This is the canonical 1280×720 HUD layout for <strong>The Long Watch</strong>. All HUD elements respect a <code>--space-5</code> (24px) inset from the viewport. Hero badges stack top-left in canonical order (Goose, Buffalo, Fox) per <code>Constants.HEROES</code>. Wave banner sits top-right, peaking at <code>--shadow-2</code>. Val strip is bottom-center; abilities rail bottom-left.</p>
+  <p>Component sources: <code>HeroBadge.jsx</code>, <code>WavePill.jsx</code>, <code>ValStrip.jsx</code>, <code>AbilityRail.jsx</code>. The faux arena tiles behind are illustrative only — real geometry is built by <code>WorldBuilder.lua</code>.</p>
+</div>
+
+</body>
+</html>

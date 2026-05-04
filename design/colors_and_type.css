@@ -1,0 +1,188 @@
+/* ───────────────────────────────────────────────────────────────────────────
+   The Long Watch Design System — Foundations
+   Colors derived from src/shared/Data/Sectors.lua (the canonical palette
+   used to render the in-Roblox arena). Type and semantic vars layered on
+   top to support both Roblox UI specs and Blender brief documents.
+   ─────────────────────────────────────────────────────────────────────── */
+
+@import url("https://fonts.googleapis.com/css2?family=Young+Serif&family=Nunito:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;700&display=swap");
+
+:root {
+  /* ─── Hero totems ─────────────────────────────────────────────────────
+     Source of truth: Sectors.lua (RGB values copied verbatim).
+     Each hero gets a floor (soft, ambient) and a core (saturated, wayfinding). */
+
+  --goose-floor: rgb(255 248 190);       /* cream — Goose sector */
+  --goose-core:  rgb(252 222 40);        /* sun-yellow — Goose core/spawn */
+  --goose-ink:   rgb(120 88 12);         /* deep amber — text on Goose surfaces */
+
+  --buffalo-floor: rgb(150 100 70);      /* warm earth — Buffalo sector */
+  --buffalo-core:  rgb(110 70 40);       /* deep umber — Buffalo core/spawn */
+  --buffalo-ink:   rgb(245 230 210);     /* parchment — text on Buffalo surfaces */
+
+  --fox-floor: rgb(255 185 100);         /* peach amber — Fox sector */
+  --fox-core:  rgb(248 130 30);          /* vivid orange — Fox core/spawn */
+  --fox-ink:   rgb(60 20 5);             /* charred — text on Fox surfaces */
+
+  /* Val (the shared Australian Shepherd companion). Not yet in code; brand-only. */
+  --val-merle:  rgb(94 110 130);         /* blue-merle slate */
+  --val-cream:  rgb(238 226 200);        /* belly cream */
+  --val-rust:   rgb(170 92 56);          /* tan markings */
+
+  /* ─── Neutrals — dark-but-cozy (Wytchwood-leaning) ──────────────────── */
+  --night-0: rgb(18 17 22);              /* near-black, deep dusk */
+  --night-1: rgb(28 26 33);              /* card / panel base */
+  --night-2: rgb(40 37 47);              /* raised surface */
+  --night-3: rgb(58 53 66);              /* hover / divider */
+  --night-4: rgb(82 75 92);              /* muted ink */
+  --divider: rgb(60 60 60);              /* matches Sectors.dividerColor */
+
+  --parchment-0: rgb(252 244 226);       /* page background, warm */
+  --parchment-1: rgb(245 232 208);       /* card on parchment */
+  --parchment-2: rgb(232 215 184);       /* recessed on parchment */
+  --parchment-ink: rgb(46 32 22);        /* primary ink on parchment */
+
+  /* ─── Semantic — game state ─────────────────────────────────────────── */
+  --hp-full:     rgb(122 178 96);        /* mossy green — alive */
+  --hp-warn:     rgb(232 180 70);        /* honey — bruised */
+  --hp-crit:     rgb(206 76 64);         /* clay red — critical */
+  --core-shield: rgb(120 195 220);       /* glacier blue — shield up */
+  --core-down:   rgb(120 50 50);         /* core destroyed */
+  --xp-glow:     rgb(196 170 255);       /* twilight violet — xp/level */
+  --gold-coin:   rgb(244 196 84);        /* coins/rewards */
+
+  /* Foreground / background semantic hooks */
+  --fg-1: var(--parchment-0);            /* primary text (on dark) */
+  --fg-2: rgb(214 204 188);              /* secondary text */
+  --fg-3: rgb(160 150 138);              /* tertiary / hint */
+  --fg-on-light: var(--parchment-ink);   /* primary text on parchment */
+  --bg-app: var(--night-0);              /* default app/HUD background */
+  --bg-card: var(--night-1);
+  --bg-raised: var(--night-2);
+
+  /* ─── Type families ─────────────────────────────────────────────────── */
+  --font-display: "Young Serif", "Recoleta", "Iowan Old Style", Georgia, serif;
+  --font-body:    "Nunito", "Avenir Next", system-ui, -apple-system, sans-serif;
+  --font-mono:    "JetBrains Mono", "Fira Code", ui-monospace, "SF Mono", monospace;
+
+  /* ─── Type scale (Roblox UI legibility floor: 14px @ 1080p, larger preferred) ── */
+  --fs-xs: 12px;
+  --fs-sm: 14px;
+  --fs-md: 16px;
+  --fs-lg: 20px;
+  --fs-xl: 26px;
+  --fs-2xl: 34px;
+  --fs-3xl: 46px;
+  --fs-4xl: 64px;
+  --fs-display: 88px;
+
+  --lh-tight: 1.05;
+  --lh-snug: 1.2;
+  --lh-body: 1.5;
+  --lh-loose: 1.7;
+
+  --tracking-display: -0.01em;
+  --tracking-eyebrow: 0.14em;          /* small caps eyebrow labels */
+
+  /* ─── Spacing — multiples of 4 ──────────────────────────────────────── */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+  --space-7: 48px;
+  --space-8: 64px;
+  --space-9: 96px;
+
+  /* ─── Radii — gentle, never pill, never sharp ───────────────────────── */
+  --radius-1: 4px;
+  --radius-2: 8px;
+  --radius-3: 14px;     /* default card */
+  --radius-4: 22px;     /* hero card / dialog */
+  --radius-pill: 999px;
+
+  /* ─── Shadows — soft, warm-tinted; never neutral grey ───────────────── */
+  --shadow-1: 0 1px 0 rgb(0 0 0 / 0.25), 0 2px 6px rgb(20 10 0 / 0.25);
+  --shadow-2: 0 2px 0 rgb(0 0 0 / 0.30), 0 8px 18px rgb(20 10 0 / 0.35);
+  --shadow-3: 0 4px 0 rgb(0 0 0 / 0.35), 0 18px 40px rgb(20 10 0 / 0.45);
+  /* Inner glow for "totem-lit" panels (e.g., Goose-themed HUD strip) */
+  --inset-warm: inset 0 1px 0 rgb(255 240 200 / 0.10), inset 0 -2px 0 rgb(0 0 0 / 0.25);
+
+  /* ─── Borders ───────────────────────────────────────────────────────── */
+  --hairline: 1px solid rgb(255 255 255 / 0.06);
+  --hairline-strong: 1px solid rgb(255 255 255 / 0.12);
+  --hairline-warm: 1px solid rgb(255 220 160 / 0.18);
+
+  /* ─── Motion ────────────────────────────────────────────────────────── */
+  --ease-out: cubic-bezier(0.22, 0.61, 0.36, 1);     /* gentle settle */
+  --ease-pounce: cubic-bezier(0.34, 1.56, 0.64, 1);  /* fox/goose pounce */
+  --ease-buffalo: cubic-bezier(0.4, 0, 0.2, 1);      /* heavier weight */
+  --dur-fast: 120ms;
+  --dur-base: 220ms;
+  --dur-slow: 420ms;
+}
+
+/* ─── Semantic element styles ───────────────────────────────────────────── */
+.h-display {
+  font-family: var(--font-display);
+  font-size: var(--fs-display);
+  line-height: var(--lh-tight);
+  letter-spacing: var(--tracking-display);
+  color: var(--fg-1);
+}
+.h1 {
+  font-family: var(--font-display);
+  font-size: var(--fs-3xl);
+  line-height: var(--lh-tight);
+  color: var(--fg-1);
+}
+.h2 {
+  font-family: var(--font-display);
+  font-size: var(--fs-2xl);
+  line-height: var(--lh-snug);
+  color: var(--fg-1);
+}
+.h3 {
+  font-family: var(--font-body);
+  font-weight: 800;
+  font-size: var(--fs-xl);
+  line-height: var(--lh-snug);
+  color: var(--fg-1);
+}
+.eyebrow {
+  font-family: var(--font-body);
+  font-weight: 700;
+  font-size: var(--fs-xs);
+  letter-spacing: var(--tracking-eyebrow);
+  text-transform: uppercase;
+  color: var(--fg-3);
+}
+.p, p {
+  font-family: var(--font-body);
+  font-size: var(--fs-md);
+  line-height: var(--lh-body);
+  color: var(--fg-2);
+  text-wrap: pretty;
+}
+.lead {
+  font-family: var(--font-body);
+  font-size: var(--fs-lg);
+  line-height: var(--lh-body);
+  color: var(--fg-1);
+  text-wrap: pretty;
+}
+.small, small {
+  font-size: var(--fs-sm);
+  color: var(--fg-3);
+}
+.mono, code, kbd, pre {
+  font-family: var(--font-mono);
+  font-size: 0.92em;
+  font-feature-settings: "ss01", "cv02";
+}
+.numeric {
+  font-family: var(--font-body);
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum", "ss01";
+}

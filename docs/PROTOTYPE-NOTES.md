@@ -7,7 +7,7 @@ the card mechanic feel good, does Godot's workflow sustain.
 
 1. Install Godot 4 (4.3+ recommended, GL Compatibility renderer is selected
    in `project.godot`).
-2. Open `godot-prototype/project.godot` in Godot. Let the editor process
+2. Open `project.godot` (at repo root) in Godot. Let the editor process
    the texture imports on first open — the totem PNG and SVGs aren't
    pre-baked. The hero falls back to a flat circle until imports finish;
    restart the scene and the sprite appears.

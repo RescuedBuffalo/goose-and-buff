@@ -1,0 +1,20 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>Radii</title>
+<link rel="stylesheet" href="../colors_and_type.css">
+<style>
+  body { margin: 0; background: var(--night-0); color: var(--fg-1); padding: 22px; font-family: var(--font-body); }
+  .row { display: flex; gap: 14px; align-items: flex-end; }
+  .item { text-align: center; flex: 1; }
+  .box { background: var(--night-2); border: var(--hairline); height: 76px; margin-bottom: 8px; box-shadow: var(--inset-warm); }
+  .name { font-family: var(--font-display); font-size: 14px; }
+  .v { font-family: var(--font-mono); font-size: 10px; color: var(--fg-3); }
+</style></head>
+<body>
+  <div class="row">
+    <div class="item"><div class="box" style="border-radius: var(--radius-1)"></div><div class="name">radius-1</div><div class="v">4px</div></div>
+    <div class="item"><div class="box" style="border-radius: var(--radius-2)"></div><div class="name">radius-2</div><div class="v">8px · chip</div></div>
+    <div class="item"><div class="box" style="border-radius: var(--radius-3)"></div><div class="name">radius-3</div><div class="v">14px · card</div></div>
+    <div class="item"><div class="box" style="border-radius: var(--radius-4)"></div><div class="name">radius-4</div><div class="v">22px · dialog</div></div>
+    <div class="item"><div class="box" style="border-radius: var(--radius-pill)"></div><div class="name">pill</div><div class="v">999px</div></div>
+  </div>
+</body></html>

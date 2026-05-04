@@ -1,0 +1,36 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>Buttons</title>
+<link rel="stylesheet" href="../colors_and_type.css">
+<style>
+  body { margin: 0; background: var(--night-0); color: var(--fg-1); padding: 24px; font-family: var(--font-body); display: flex; flex-direction: column; gap: 14px; }
+  .row { display: flex; gap: 12px; align-items: center; }
+  .btn {
+    font-family: var(--font-body); font-weight: 800; font-size: 14px;
+    padding: 10px 18px; border-radius: var(--radius-2); border: none; cursor: pointer;
+    transition: transform var(--dur-fast) var(--ease-out), background var(--dur-fast) var(--ease-out);
+    box-shadow: var(--shadow-1);
+  }
+  .btn-primary { background: var(--fox-core); color: white; }
+  .btn-secondary { background: var(--night-2); color: var(--fg-1); border: var(--hairline-strong); }
+  .btn-ghost { background: transparent; color: var(--fg-2); box-shadow: none; }
+  .btn-hero-goose { background: var(--goose-core); color: var(--goose-ink); }
+  .btn-hero-buffalo { background: var(--buffalo-core); color: var(--buffalo-ink); }
+  .btn[disabled] { opacity: 0.4; cursor: not-allowed; }
+  .label { font-family: var(--font-mono); font-size: 10px; color: var(--fg-3); width: 80px; }
+  .pressed { transform: translateY(1px); box-shadow: var(--inset-warm); filter: brightness(0.92); }
+</style></head>
+<body>
+  <div class="row"><div class="label">primary</div>
+    <button class="btn btn-primary">Start a run</button>
+    <button class="btn btn-primary pressed">Start a run</button>
+    <button class="btn btn-primary" disabled>Start a run</button>
+  </div>
+  <div class="row"><div class="label">secondary</div>
+    <button class="btn btn-secondary">Settings</button>
+    <button class="btn btn-ghost">Cancel</button>
+  </div>
+  <div class="row"><div class="label">hero</div>
+    <button class="btn btn-hero-goose">Pick Goose</button>
+    <button class="btn btn-hero-buffalo">Pick Buffalo</button>
+  </div>
+</body></html>
