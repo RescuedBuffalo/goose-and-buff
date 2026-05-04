@@ -10,10 +10,25 @@ local Workspace = game:GetService("Workspace")
 local Heroes = require(ReplicatedStorage.Data.Heroes)
 local Constants = require(ReplicatedStorage.Shared.Constants)
 local WorldBuilder = require(ServerScriptService.Adapters.WorldBuilder)
+local WaveDirector = require(ServerScriptService.Systems.WaveDirector)
 
 -- Build the arena before wiring player handlers so spawn pads and the
 -- spectator zone exist by the time anyone joins.
 WorldBuilder.build()
+
+-- BUF-88: stand up a Heartbeat-driven wave scheduler. The full hand-off to a
+-- run lifecycle (prep phase pause, end-of-run cleanup) is BUF-7; for now the
+-- callback prints the schedule so we can verify Fox @ 0s / Goose @ 12s /
+-- Buffalo @ 24s in real seconds from Studio's output window.
+local director = WaveDirector.new()
+director:onWave(function(hero, elapsed)
+	print(string.format("[WaveDirector] t=%.2fs wave -> %s", elapsed, hero))
+end)
+director:start()
+
+game:BindToClose(function()
+	director:stop()
+end)
 
 -- We control the first spawn ourselves so the character never appears at the
 -- default SpawnLocation before being teleported into a sector. Respawns after
