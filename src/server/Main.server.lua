@@ -10,6 +10,7 @@ local Workspace = game:GetService("Workspace")
 local Heroes = require(ReplicatedStorage.Data.Heroes)
 local Constants = require(ReplicatedStorage.Shared.Constants)
 local WorldBuilder = require(ServerScriptService.Adapters.WorldBuilder)
+local WaveSpawner = require(ServerScriptService.Adapters.WaveSpawner)
 
 -- Build the arena before wiring player handlers so spawn pads and the
 -- spectator zone exist by the time anyone joins.
@@ -151,4 +152,13 @@ Players.PlayerRemoving:Connect(function(player)
 		takenHeroes[heroId] = nil
 		heroByPlayer[player] = nil
 	end
+end)
+
+-- BUF-89 smoke test: spawn one wave per sector after the world is built so
+-- enemies walking to cores is visually verifiable in Studio. Remove when
+-- the WaveDirector (BUF-88) is wired into WaveSpawner via the run lifecycle.
+task.delay(5, function()
+	WaveSpawner.spawn("Goose", "grunt", 4, "loosePack")
+	WaveSpawner.spawn("Buffalo", "tank", 2, "tightPack")
+	WaveSpawner.spawn("Fox", "runner", 6, "backline")
 end)
