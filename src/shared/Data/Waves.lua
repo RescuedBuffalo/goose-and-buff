@@ -1,11 +1,14 @@
 --!strict
--- Pure data: wave composition per targeted hero. Read by WaveDirector when a
--- scheduled wave fires. Composition is the "secret" payload BUF-91 reveals
--- only to the first-hit player; teammates see the redacted view.
+-- Pure data: wave composition per targeted hero. Single source of truth
+-- for both BUF-89 (Adapters.WaveSpawner.spawn(hero, type, count, formation))
+-- and BUF-91 (HUD reveal panel — name, enemy types, counts, formations).
 --
 -- Shape per entry:
 --   name      : human-readable wave name shown in the reveal panel
---   enemies   : ordered list of { type, count, formation }
+--   enemies   : ordered list of { type, count, formation } where `type`
+--               keys into shared/Waves/Enemies.lua and `formation` is one
+--               of WaveSpawner's Formation strings ("loosePack",
+--               "tightPack", "backline").
 --
 -- For v0.1 every hero has exactly one round-1 composition. Multi-round
 -- variants belong to BUF-7 once the run lifecycle exists.
@@ -27,22 +30,19 @@ Waves.byHero = {
 	Fox = {
 		name = "Recon Probe",
 		enemies = {
-			{ type = "Scout", count = 6, formation = "Cluster" },
-			{ type = "Drone", count = 2, formation = "Wedge" },
+			{ type = "runner", count = 6, formation = "backline" },
 		},
 	},
 	Goose = {
 		name = "Sky Hunters",
 		enemies = {
-			{ type = "Drone", count = 4, formation = "Wedge" },
-			{ type = "Scout", count = 3, formation = "Cluster" },
+			{ type = "grunt", count = 4, formation = "loosePack" },
 		},
 	},
 	Buffalo = {
 		name = "Heavy Charge",
 		enemies = {
-			{ type = "Brute", count = 2, formation = "Line" },
-			{ type = "Scout", count = 4, formation = "Cluster" },
+			{ type = "tank", count = 2, formation = "tightPack" },
 		},
 	},
 } :: { [string]: WaveComposition }

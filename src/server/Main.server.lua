@@ -10,8 +10,10 @@ local ServerScriptService = game:GetService("ServerScriptService")
 local Workspace = game:GetService("Workspace")
 
 local Heroes = require(ReplicatedStorage.Data.Heroes)
+local Waves = require(ReplicatedStorage.Data.Waves)
 local Constants = require(ReplicatedStorage.Shared.Constants)
 local WorldBuilder = require(ServerScriptService.Adapters.WorldBuilder)
+local WaveSpawner = require(ServerScriptService.Adapters.WaveSpawner)
 local WaveDirector = require(ServerScriptService.Systems.WaveDirector)
 
 -- Build the arena before wiring player handlers so spawn pads and the
@@ -42,13 +44,21 @@ local function findCoreHumanoid(heroId: string): Humanoid?
 	return humanoid
 end
 
--- BUF-88: stand up a Heartbeat-driven wave scheduler. The full hand-off to a
--- run lifecycle (prep phase pause, end-of-run cleanup) is BUF-7; for now the
--- callback prints the schedule so we can verify Fox @ 0s / Goose @ 12s /
--- Buffalo @ 24s in real seconds from Studio's output window.
+-- BUF-88 + BUF-89 + BUF-91: stand up the Heartbeat-driven scheduler, hand each
+-- announced wave to the spawner, and let WaveDirector compute per-player
+-- visibility. Wave compositions live in shared/Data/Waves.lua so the spawner
+-- and the HUD reveal panel read from the same source of truth. The prep-phase
+-- pause and end-of-run cleanup belong to the run lifecycle (BUF-7).
 local director = WaveDirector.new()
-director:onWave(function(hero, elapsed)
-	print(string.format("[WaveDirector] t=%.2fs wave -> %s", elapsed, hero))
+director:onWave(function(hero, _elapsed)
+	local wave = Waves.byHero[hero]
+	if not wave then
+		warn(string.format("[Main] No wave composition for hero %q", hero))
+		return
+	end
+	for _, enemy in ipairs(wave.enemies) do
+		WaveSpawner.spawn(hero, enemy.type, enemy.count, enemy.formation)
+	end
 end)
 
 -- BUF-91: feed WaveDirector the context it needs to compute per-player views.

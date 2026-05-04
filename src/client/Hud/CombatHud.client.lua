@@ -14,6 +14,16 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Constants = require(ReplicatedStorage.Shared.Constants)
 local Sectors = require(ReplicatedStorage.Data.Sectors)
+local Enemies = require(ReplicatedStorage.Waves.Enemies)
+
+-- Spawner code keys (loosePack / tightPack / backline) read poorly in the
+-- reveal panel — map them to player-facing labels here. Anything not in
+-- the table falls back to the raw string.
+local FORMATION_LABELS: { [string]: string } = {
+	loosePack = "Loose pack",
+	tightPack = "Tight pack",
+	backline = "Backline",
+}
 
 local LocalPlayer = Players.LocalPlayer
 
@@ -136,6 +146,9 @@ local function renderEnemyRow(comp: any, index: number)
 	count.Text = "×" .. tostring(comp.count)
 	count.Parent = row
 
+	local enemySpec = Enemies[comp.type]
+	local enemyLabel = if enemySpec then enemySpec.name else comp.type
+
 	local typeLabel = Instance.new("TextLabel")
 	typeLabel.Name = "Type"
 	typeLabel.BackgroundTransparency = 1
@@ -145,7 +158,7 @@ local function renderEnemyRow(comp: any, index: number)
 	typeLabel.TextSize = 15
 	typeLabel.TextColor3 = TEXT
 	typeLabel.TextXAlignment = Enum.TextXAlignment.Left
-	typeLabel.Text = comp.type
+	typeLabel.Text = enemyLabel
 	typeLabel.Parent = row
 
 	local formation = Instance.new("TextLabel")
@@ -157,7 +170,7 @@ local function renderEnemyRow(comp: any, index: number)
 	formation.TextSize = 13
 	formation.TextColor3 = TEXT_DIM
 	formation.TextXAlignment = Enum.TextXAlignment.Right
-	formation.Text = comp.formation
+	formation.Text = FORMATION_LABELS[comp.formation] or comp.formation
 	formation.Parent = row
 end
 
