@@ -184,7 +184,9 @@ local function tearDown()
 	end
 end
 
--- BUF-90: world-space VICTORY / DEFEAT banner above the arena. Replaces
+-- BUF-90 / BUF-92: world-space banner above the arena, mirroring the
+-- run end screen the client renders. Copy matches BUF-92's spec: "RUN
+-- COMPLETE — VICTORY" on win, "RUN ENDED — DEFEAT" on loss. Replaces
 -- any prior result banner so a re-run can re-announce.
 function WorldBuilder.showResult(result: "win" | "loss")
 	local existing = Workspace:FindFirstChild("RunResult")
@@ -212,7 +214,9 @@ function WorldBuilder.showResult(result: "win" | "loss")
 		else Color3.fromRGB(160, 60, 60)
 	label.TextColor3 = Color3.new(1, 1, 1)
 	label.TextStrokeTransparency = 0
-	label.Text = if result == "win" then "VICTORY" else "DEFEAT"
+	label.Text = if result == "win"
+		then "RUN COMPLETE — VICTORY"
+		else "RUN ENDED — DEFEAT"
 	label.TextScaled = true
 	label.Font = Enum.Font.SourceSansBold
 	label.Parent = billboard

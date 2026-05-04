@@ -2,6 +2,9 @@
 -- BUF-87: Player join → hero assignment → spawn in sector.
 -- BUF-91: Per-player StateUpdate broadcast so each client renders the
 -- right view of an active wave (first-hit composition vs. teammate badge).
+-- BUF-92: Round flow (prep → wave → debrief, ×TOTAL_ROUNDS) and end-of-run
+-- screen, driven by RunController. RunUpdate carries phase/round/result;
+-- RestartRequest is the v0.1 respawn-only "Restart" button.
 -- First 3 players get Goose / Buffalo / Fox in order. 4th+ go to spectator.
 
 local Players = game:GetService("Players")
@@ -17,6 +20,7 @@ local WaveSpawner = require(ServerScriptService.Adapters.WaveSpawner)
 local WaveDirector = require(ServerScriptService.Systems.WaveDirector)
 local Combat = require(ServerScriptService.Systems.Combat)
 local RunState = require(ServerScriptService.Systems.RunState)
+local RunController = require(ServerScriptService.Systems.RunController)
 
 -- Build the arena before wiring player handlers so spawn pads and the
 -- spectator zone exist by the time anyone joins.
@@ -47,6 +51,20 @@ local stateUpdate = Instance.new("RemoteEvent")
 stateUpdate.Name = Constants.REMOTES.StateUpdate
 stateUpdate.Parent = ReplicatedStorage
 
+-- BUF-92: replicate run-level phase/round/result. Separate from
+-- StateUpdate because the cadence is different — RunUpdate fires only
+-- on phase transitions, not on every wave activation.
+local runUpdate = Instance.new("RemoteEvent")
+runUpdate.Name = Constants.REMOTES.RunUpdate
+runUpdate.Parent = ReplicatedStorage
+
+-- BUF-92: client → server when the player clicks Restart on the end
+-- screen. v0.1 just respawns the player; the lodge / true run restart
+-- comes in v0.2.
+local restartRequest = Instance.new("RemoteEvent")
+restartRequest.Name = Constants.REMOTES.RestartRequest
+restartRequest.Parent = ReplicatedStorage
+
 local function findCoreHumanoid(heroId: string): Humanoid?
 	local sectors = Workspace:FindFirstChild("Sectors")
 	if not sectors then return nil end
@@ -70,12 +88,12 @@ for _, heroId in ipairs(Constants.HEROES) do
 	end
 end
 
--- BUF-88 + BUF-89 + BUF-90 + BUF-91: stand up the Heartbeat-driven scheduler,
--- hand each announced wave to the spawner (binding ClickDetectors so heroes
--- can damage enemies), and let WaveDirector compute per-player visibility.
--- Wave compositions live in shared/Data/Waves.lua so the spawner and the
--- HUD reveal panel read from the same source of truth. Prep-phase pause
--- and end-of-run cleanup belong to the run lifecycle (BUF-7).
+-- BUF-88 + BUF-89 + BUF-90 + BUF-91 + BUF-92: stand up the Heartbeat-driven
+-- scheduler, hand each announced wave to the spawner (binding ClickDetectors
+-- so heroes can damage enemies), and let WaveDirector compute per-player
+-- visibility. Wave compositions live in shared/Data/Waves.lua so the
+-- spawner and the HUD reveal panel read from the same source of truth.
+-- The director is reused across rounds via :reset(), driven by RunController.
 local director = WaveDirector.new()
 director:onWave(function(hero, _elapsed)
 	local wave = Waves.byHero[hero]
@@ -122,13 +140,10 @@ local function broadcastStateTo(player: Player)
 end
 
 -- onStateChanged fires when waves activate or expire. Re-broadcast for
--- BUF-91's HUD AND let RunState re-evaluate the win condition (BUF-90),
--- since a wave that spawns zero enemies fires no ChildRemoved and would
--- otherwise leave the run stuck on "running".
-director:onStateChanged(function()
-	broadcastStateToAll()
-	runState:checkWin()
-end)
+-- BUF-91's HUD. (The first-round single-shot win check that used to live
+-- here moved into RunController in BUF-92 — multi-round runs decide
+-- "round cleared" per round, not per run.)
+director:onStateChanged(broadcastStateToAll)
 
 -- Client-driven handshake: the join-time FireClient below is best-effort
 -- and is dropped if the client's CombatHud hasn't yet connected its
@@ -150,12 +165,51 @@ for _, heroId in ipairs(Constants.HEROES) do
 	end
 end
 
-director:start()
+-- BUF-92: round-flow controller. Drives prep → wave → debrief, fires
+-- "win" via RunState after the final round clears, and converts a "loss"
+-- (any core down) into a "defeat" phase update.
+local controller = RunController.new()
+controller:bindDirector(director)
+controller:bindEnemiesFolder(enemiesFolder :: Folder)
+controller:bindRunState(runState)
 
--- BUF-90: bind run win condition AFTER the director exists; cores are
--- already bound above. Result handler stops new waves, clears any in-flight
--- enemies, and shows the banner.
-runState:bindRun(director, enemiesFolder :: Folder)
+local latestStatus: RunController.RunStatus? = nil
+
+local function broadcastStatusToAll()
+	local status = latestStatus
+	if not status then return end
+	for _, player in ipairs(Players:GetPlayers()) do
+		runUpdate:FireClient(player, status)
+	end
+end
+
+local function broadcastStatusTo(player: Player)
+	local status = latestStatus
+	if not status then return end
+	if player.Parent ~= Players then return end
+	runUpdate:FireClient(player, status)
+end
+
+controller:onStatusChanged(function(status)
+	latestStatus = status
+	broadcastStatusToAll()
+end)
+
+-- Client-driven handshake mirrors the StateUpdate pattern above: late
+-- listeners ask for a snapshot once they're wired.
+runUpdate.OnServerEvent:Connect(function(player: Player)
+	broadcastStatusTo(player)
+end)
+
+-- BUF-92: each round that enters the wave phase rebroadcasts state so
+-- teammate "IN COMBAT" badges and the reveal panel reflect the new
+-- round, even if no listener fired between rounds.
+controller:onRoundStart(function(_roundIdx)
+	broadcastStateToAll()
+end)
+
+-- BUF-90 + BUF-92: result handler stops the director, clears any
+-- in-flight enemies, and shows the world banner. Fires once per run.
 runState:onResult(function(result)
 	director:stop()
 	for _, child in ipairs((enemiesFolder :: Folder):GetChildren()) do
@@ -164,8 +218,22 @@ runState:onResult(function(result)
 	WorldBuilder.showResult(result)
 end)
 
+controller:start()
+
+-- BUF-92: respawn-only Restart button for v0.1. Lodge / true restart
+-- comes in v0.2. We accept the request only after the run has resolved
+-- so a stray click mid-run can't pop a defender out of position.
+restartRequest.OnServerEvent:Connect(function(player: Player)
+	if runState:result() == nil then
+		return
+	end
+	if player.Parent ~= Players then return end
+	player:LoadCharacter()
+end)
+
 game:BindToClose(function()
 	director:stop()
+	controller:stop()
 end)
 
 -- We control the first spawn ourselves so the character never appears at the
@@ -231,9 +299,11 @@ local function applyHero(player: Player, heroId: string)
 	takenHeroes[heroId] = true
 	Combat.bindPlayer(player, heroId)
 
-	-- BUF-91: send initial state now that we know this player's hero, so the
-	-- HUD can build its portraits before any wave fires.
+	-- BUF-91 + BUF-92: send initial state and run status now that we know
+	-- this player's hero, so the HUD can build its portraits + phase
+	-- banner before any wave fires.
 	broadcastStateTo(player)
+	broadcastStatusTo(player)
 
 	player.CharacterAdded:Connect(function(character: Model)
 		local humanoid = character:WaitForChild("Humanoid") :: Humanoid
@@ -258,8 +328,11 @@ local function applyHero(player: Player, heroId: string)
 end
 
 local function sendToSpectator(player: Player)
-	-- BUF-91: spectators get a state with no selfHeroId so the HUD stays hidden.
+	-- BUF-91 + BUF-92: spectators get state with no selfHeroId (HUD stays
+	-- hidden) but still receive the current run status so the end screen
+	-- announces victory/defeat to them too.
 	broadcastStateTo(player)
+	broadcastStatusTo(player)
 
 	player.CharacterAdded:Connect(function(character: Model)
 		local humanoid = character:WaitForChild("Humanoid") :: Humanoid
