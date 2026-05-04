@@ -83,6 +83,11 @@ func _wire_signals() -> void:
 
 func _start_run() -> void:
 	GameState.reset()
+	# Republish world-owned state into GameState — GameState.reset() zeroed
+	# core/hero HP, and the sector/hero set their values during _ready, so
+	# without this the HUD would show 0/0 until the first damage tick.
+	sector.reset_core()
+	hero.reset_hp()
 	economy.reset()
 	card_system.reset()
 	wave_director.reset()
@@ -228,7 +233,7 @@ func _on_run_ended() -> void:
 	end_screen.show_defeat()
 
 func _on_restart_requested() -> void:
-	# Clear units, enemies, building, then restart the run cleanly.
+	# Clear transient nodes; _start_run re-publishes core/hero HP itself.
 	for n in get_tree().get_nodes_in_group("units"):
 		if is_instance_valid(n): n.queue_free()
 	for n in get_tree().get_nodes_in_group("enemies"):
@@ -237,8 +242,4 @@ func _on_restart_requested() -> void:
 		building_node.queue_free()
 		building_node = null
 	end_screen.visible = false
-	sector.reset_core()
-	# Reset hero hp.
-	hero.hp = hero.hp_max
-	GameState.set_hero_hp(hero.hp, hero.hp_max)
 	_start_run()

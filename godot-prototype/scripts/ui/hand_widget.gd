@@ -43,19 +43,22 @@ func _on_hand_changed(hand: Array) -> void:
 	_rebuild.call_deferred()
 
 func _on_play_rejected(_card_id: String, _reason: String) -> void:
-	# v0: silent rejection. The user sees the cost stay visible because the
-	# card returns to the hand.
-	pass
+	# Card stays in hand logically — snap the dragged widget back to its
+	# slot so the visual matches the model.
+	_rebuild.call_deferred()
 
 func _rebuild() -> void:
 	for child in get_children():
 		child.queue_free()
 	if _hand_ids.is_empty():
 		return
-	var card_w := CardWidget.CARD_SIZE.x
-	var total_w := _hand_ids.size() * card_w + max(0, _hand_ids.size() - 1) * CARD_GAP
-	var start_x := (size.x - total_w) * 0.5
-	var y := size.y - CardWidget.CARD_SIZE.y - HAND_BOTTOM_PADDING
+	# Explicit float typing — max() on ints would otherwise leave total_w
+	# untyped, which Godot's static checker rejects.
+	var card_w: float = CardWidget.CARD_SIZE.x
+	var gap_count: float = float(max(0, _hand_ids.size() - 1))
+	var total_w: float = float(_hand_ids.size()) * card_w + gap_count * CARD_GAP
+	var start_x: float = (size.x - total_w) * 0.5
+	var y: float = size.y - CardWidget.CARD_SIZE.y - HAND_BOTTOM_PADDING
 	for i in _hand_ids.size():
 		var card_id: String = _hand_ids[i]
 		var widget: Control = CardScene.instantiate()

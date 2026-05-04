@@ -39,6 +39,12 @@ func damage(amount: float) -> void:
 	hp = max(0.0, hp - amount)
 	GameState.set_hero_hp(hp, hp_max)
 
+func reset_hp() -> void:
+	# Re-applies hero HP to GameState. Called from main._start_run after
+	# GameState.reset() so the HUD reads the right values on first frame.
+	hp = hp_max
+	GameState.set_hero_hp(hp, hp_max)
+
 func _load_sprite() -> void:
 	# The shipped buffalo asset is a PNG. The other totems are SVG; Godot
 	# imports both natively. Sprite is scaled down from the source 240×200.

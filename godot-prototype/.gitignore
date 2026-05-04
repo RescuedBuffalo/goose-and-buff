@@ -1,0 +1,9 @@
+# Godot 4+ generated cache. Imports and uid files are tracked (they're
+# load-bearing references), but the .godot/ directory is per-machine.
+.godot/
+
+# Godot exports (we don't ship distributables from this repo).
+/build/
+/exports/
+*.exe
+*.pck
