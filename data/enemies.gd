@@ -11,7 +11,8 @@ const GruntMelee := {
 	"name": "Grunt",
 	"health": 30.0,
 	"damage": 6.0,
-	"attackRange": 32.0,   # 3 studs
+	"attackRange": 32.0,   # 3 studs — vs units
+	"coreRange": 32.0,     # 3 studs — must reach core to deal damage
 	"attackInterval": 1.0,
 	"moveSpeed": 70.0,
 	"size": Vector2(28, 28),
@@ -20,13 +21,15 @@ const GruntMelee := {
 	"preferred_range": 0.0,
 }
 
-# Fragile skirmisher — attacks at distance, retreats when units close in.
+# Fragile skirmisher — attacks units at distance, retreats when units close in.
+# coreRange kept at melee contact so it must walk up to deal core damage.
 const GruntRanged := {
 	"id": "GruntRanged",
 	"name": "Ranged Grunt",
 	"health": 22.0,
 	"damage": 8.0,
-	"attackRange": 235.0,  # 22 studs
+	"attackRange": 235.0,  # 22 studs — vs units
+	"coreRange": 32.0,     # 3 studs — must reach core to deal damage
 	"attackInterval": 1.4,
 	"moveSpeed": 65.0,
 	"size": Vector2(20, 20),
@@ -41,7 +44,8 @@ const Bruiser := {
 	"name": "Bruiser",
 	"health": 120.0,
 	"damage": 18.0,
-	"attackRange": 43.0,   # 4 studs
+	"attackRange": 43.0,   # 4 studs — vs units
+	"coreRange": 43.0,     # 4 studs — vs core
 	"attackInterval": 1.5,
 	"moveSpeed": 40.0,
 	"size": Vector2(40, 40),

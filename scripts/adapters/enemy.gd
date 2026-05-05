@@ -35,18 +35,20 @@ func _physics_process(delta: float) -> void:
 	if _engaged_unit == null or not is_instance_valid(_engaged_unit):
 		_engaged_unit = _find_engageable_unit()
 	if _engaged_unit != null and is_instance_valid(_engaged_unit):
-		_engage_target(_engaged_unit.position, delta, func(): _engaged_unit.damage(float(data.damage)))
+		_engage_target(_engaged_unit.position, delta, float(data.attackRange), func(): _engaged_unit.damage(float(data.damage)))
 		return
-	# Otherwise march on the core.
+	# Otherwise march on the core. Ranged archetypes must walk to coreRange
+	# (melee contact) before core damage triggers — they cannot fire from afar.
 	var core_pos: Vector2 = Sectors.CORE_CENTER
-	_engage_target(core_pos, delta, func(): reached_core.emit(self))
+	var core_range := float(data.get("coreRange", data.attackRange))
+	_engage_target(core_pos, delta, core_range, func(): reached_core.emit(self))
 
 # Handle movement and attack toward a single target position.
-# on_attack is called (once per interval) when in attack range.
-func _engage_target(target_pos: Vector2, delta: float, on_attack: Callable) -> void:
+# range overrides which distance triggers attack (unit range vs. core range).
+# on_attack is called (once per interval) when within range.
+func _engage_target(target_pos: Vector2, delta: float, range: float, on_attack: Callable) -> void:
 	var dist := position.distance_to(target_pos)
-	var attack_range := float(data.attackRange)
-	if dist <= attack_range:
+	if dist <= range:
 		if _attack_cooldown <= 0.0:
 			_attack_cooldown = float(data.attackInterval)
 			on_attack.call()
