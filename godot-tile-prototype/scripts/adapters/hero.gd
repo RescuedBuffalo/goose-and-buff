@@ -169,8 +169,11 @@ func _load_sprite() -> void:
 	if tex != null:
 		sprite.texture = tex
 		sprite.scale = TOTEM_SCALE.get(hero_data.id, Vector2(0.35, 0.35))
-		# Lift the totem so its feet sit roughly on the tile's south point.
-		sprite.position = Vector2(0, -28)
+		# Center the placeholder portrait on the tile. The earlier (0, -28)
+		# lift made the sprite render above the tile center, which broke
+		# click-to-move intuition — clicks were resolving to the tile under
+		# the sprite's body, not the tile under its feet.
+		sprite.position = Vector2.ZERO
 	else:
 		sprite.texture = null
 		queue_redraw()
@@ -179,7 +182,7 @@ func _draw() -> void:
 	if sprite != null and sprite.texture != null and not is_downed:
 		return
 	var fill: Color = Color(0.5, 0.1, 0.1) if is_downed else DesignTokens.core_color(hero_data.id)
-	draw_circle(Vector2(0, -10), 18.0, fill)
+	draw_circle(Vector2.ZERO, 18.0, fill)
 	if is_downed:
-		draw_line(Vector2(-10, -20), Vector2(10, 0), Color(1, 0.1, 0.1, 0.9), 3.0)
+		draw_line(Vector2(-10, -10), Vector2(10, 10), Color(1, 0.1, 0.1, 0.9), 3.0)
 		draw_line(Vector2(-10, 0), Vector2(10, -20), Color(1, 0.1, 0.1, 0.9), 3.0)

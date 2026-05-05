@@ -151,17 +151,15 @@ func _unhandled_input(event: InputEvent) -> void:
 	var mb: InputEventMouseButton = event
 	if mb.button_index != MOUSE_BUTTON_LEFT or not mb.pressed:
 		return
-	# Hand owns its own click handling for drag-pickup; we only listen for
-	# clicks that fall through to the world layer (Control.MOUSE_FILTER_PASS
-	# on the hand only consumes events on its rectangle).
 	if hero == null or not is_instance_valid(hero):
 		return
 	if wave_director == null:
 		return
-	# Get the world-space mouse position once and route to the hero's tile
-	# pathfinder via the sector.
-	var world_pos: Vector2 = get_global_mouse_position()
-	var tile: Vector2i = sector.world_to_tile(world_pos)
+	# Use the event's own position rather than `get_global_mouse_position()` —
+	# the cursor and event positions agree for real OS clicks, but synthesized
+	# events (Input.parse_input_event from tooling/tests) don't move the OS
+	# cursor, so reading the event keeps automated tests honest.
+	var tile: Vector2i = sector.world_to_tile(mb.position)
 	if not Sectors.is_tile_in_grid(tile):
 		return
 	hero.walk_to(tile)
