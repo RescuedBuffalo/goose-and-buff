@@ -312,8 +312,14 @@ func _on_enemy_reached_core(enemy: Node2D) -> void:
 	wave_director.note_enemy_killed()
 	enemy.queue_free()
 
-func _on_wave_started(_round_index: int, _composition: Dictionary) -> void:
-	pass  # HUD reacts to the day_night phase; nothing extra needed here.
+func _on_wave_started(round_index: int, composition: Dictionary) -> void:
+	# Voice rule: archetype banner is the ALL-CAPS shout, e.g.
+	#   "NIGHT 1 — PROBE"
+	#   "NIGHT 3 — A BIG ONE INCOMING"
+	# The HUD's NIGHT phase-change banner is suppressed so this is
+	# the single banner the player sees at night-start.
+	var shout: String = "NIGHT %d — %s" % [round_index, str(composition.get("banner", "RAID"))]
+	hud.show_banner(shout, 2.5)
 
 func _on_wave_ended(_round_index: int) -> void:
 	# Sweep any wolves still on the board — dawn ended the night, the

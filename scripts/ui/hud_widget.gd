@@ -45,13 +45,15 @@ func _on_phase_changed(phase: int, day_index: int) -> void:
 	_phase = phase
 	_day_index = day_index
 	# Phase-change banners stay short and warm — sentence case, no shouts.
+	# The NIGHT case is intentionally absent: the wave-start path raises
+	# its own ALL-CAPS archetype shout via show_banner (e.g. "NIGHT 3 —
+	# A BIG ONE INCOMING"), and a duplicate sentence-case banner here
+	# would just flicker underneath it.
 	match phase:
 		DayNight.PHASE_DAY:
 			show_banner("Day %d — gather and prepare." % day_index, 2.0)
 		DayNight.PHASE_DUSK:
 			show_banner("The light is going.", 2.0)
-		DayNight.PHASE_NIGHT:
-			show_banner("Night %d — hold the line." % day_index, 2.5)
 		DayNight.PHASE_DAWN:
 			show_banner("We held.", 2.0)
 
