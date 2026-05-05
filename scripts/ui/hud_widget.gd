@@ -67,6 +67,11 @@ func _on_wave_started(round_index: int, _composition: Dictionary) -> void:
 	_wave_banner_timeout = 2.4
 	queue_redraw()
 
+func show_banner(text: String, duration: float) -> void:
+	_wave_banner = text
+	_wave_banner_timeout = duration
+	queue_redraw()
+
 func _on_wave_ended(_idx: int, victory: bool) -> void:
 	# Param prefixed with `_` would normally signal "unused", but a leading-
 	# underscore name still shadows the class member `_round_index` under 4.6.
@@ -83,8 +88,11 @@ func _draw() -> void:
 	# Hero HP. Label is the picked hero — written in full per voice rules.
 	var hp := GameState.hero_hp
 	var hp_max := GameState.hero_hp_max
+	var hero_downed: bool = hp <= 0.0 and hp_max > 0.0
 	_draw_label(GameState.hero_id, Vector2(24, 16), DesignTokens.FG_3, DesignTokens.FS_XS)
-	_draw_label("%d / %d" % [int(hp), int(hp_max)], Vector2(24, 36), DesignTokens.FG_1, DesignTokens.FS_LG, true)
+	var hp_text: String = "Downed" if hero_downed else "%d / %d" % [int(hp), int(hp_max)]
+	var hp_text_color: Color = DesignTokens.HP_CRIT if hero_downed else DesignTokens.FG_1
+	_draw_label(hp_text, Vector2(24, 36), hp_text_color, DesignTokens.FS_LG, true)
 	var hp_ratio: float = 0.0 if hp_max == 0.0 else hp / hp_max
 	draw_rect(Rect2(110, 44, 160, 6), DesignTokens.NIGHT_3, true)
 	draw_rect(Rect2(110, 44, 160 * hp_ratio, 6), DesignTokens.hp_color(hp_ratio), true)
