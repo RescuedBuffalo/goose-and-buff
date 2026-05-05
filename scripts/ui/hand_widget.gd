@@ -6,11 +6,9 @@ extends Control
 
 const CardScene := preload("res://scenes/ui/card.tscn")
 const CardWidget := preload("res://scripts/ui/card_widget.gd")
-const Cards := preload("res://data/cards.gd")
 const Sectors := preload("res://data/sectors.gd")
 
 signal play_requested(card_id: String, position: Vector2)
-signal ability_targeting_started(card_id: String)
 
 const CARD_GAP := 16.0
 const HAND_BOTTOM_PADDING := 24.0
@@ -80,9 +78,9 @@ func _gui_input(event: InputEvent) -> void:
 
 func _try_pick_up(local_pos: Vector2) -> void:
 	for child in get_children():
-		var widget: Control = child
-		if not widget is Control:
+		if not (child is Control):
 			continue
+		var widget: Control = child
 		var rect := Rect2(widget.position, widget.custom_minimum_size)
 		if rect.has_point(local_pos):
 			_drag_widget = widget
@@ -100,9 +98,6 @@ func _try_drop(local_pos: Vector2) -> void:
 	# cards the drop position becomes the cast target; for unit / building
 	# cards it's the spawn point. Out-of-bounds drops snap back to the hand.
 	if Sectors.is_inside_sector(global_drop):
-		var card: Dictionary = Cards.get_card(_drag_card_id)
-		if card.kind == "ability":
-			ability_targeting_started.emit(_drag_card_id)
 		play_requested.emit(_drag_card_id, global_drop)
 	else:
 		_rebuild()

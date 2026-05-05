@@ -47,11 +47,11 @@ func _physics_process(delta: float) -> void:
 	_engage_target(core_pos, delta, core_range, func(): reached_core.emit(self))
 
 # Handle movement and attack toward a single target position.
-# range overrides which distance triggers attack (unit range vs. core range).
+# attack_range overrides which distance triggers attack (unit range vs. core range).
 # on_attack is called (once per interval) when within range.
-func _engage_target(target_pos: Vector2, delta: float, range: float, on_attack: Callable) -> void:
+func _engage_target(target_pos: Vector2, delta: float, attack_range: float, on_attack: Callable) -> void:
 	var dist := position.distance_to(target_pos)
-	if dist <= range:
+	if dist <= attack_range:
 		if _attack_cooldown <= 0.0:
 			_attack_cooldown = float(data.attackInterval)
 			on_attack.call()
