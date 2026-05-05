@@ -36,6 +36,10 @@ var _wave_banner_timeout: float = 0.0
 # back rounds don't repeat the same imperative.
 var _wave_voice_index: int = 0
 const _WAVE_HEADLINES := ["Hold steady.", "Stay sharp."]
+# Last wave outcome — drives debrief copy. Defaults to true so the very first
+# debrief (before any wave has run) reads as a neutral breath rather than a
+# loss. Updated in _on_wave_ended.
+var _last_wave_victory: bool = true
 
 func _ready() -> void:
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -68,6 +72,9 @@ func _on_coin_changed(new_balance: int) -> void:
 func _on_round_started(round_index: int) -> void:
 	_round_index = round_index
 	_phase_label = "Prep"
+	# A new round starts only after a victory; clear the loss flag so the
+	# WavePill stops showing defeat copy on the next debrief.
+	_last_wave_victory = true
 	queue_redraw()
 
 func _on_prep_timer_changed(seconds_left: float) -> void:
@@ -97,6 +104,7 @@ func show_banner(text: String, duration: float) -> void:
 func _on_wave_ended(_idx: int, victory: bool) -> void:
 	# Param prefixed with `_` would normally signal "unused", but a leading-
 	# underscore name still shadows the class member `_round_index` under 4.6.
+	_last_wave_victory = victory
 	_wave_banner = "We held." if victory else "The line broke."
 	_wave_banner_timeout = 3.0
 	queue_redraw()
@@ -109,6 +117,7 @@ func _draw() -> void:
 	_draw_val_strip()
 	_draw_low_core_chip()
 	_draw_retreat_hint()
+	_draw_balance_chip()
 	_draw_wave_shout()
 
 # ─── HeroBadge ────────────────────────────────────────────────────────────
@@ -241,7 +250,9 @@ func _wave_pill_headline() -> String:
 			return "Your core's hurting."
 		return _WAVE_HEADLINES[_wave_voice_index]
 	if _phase_label == "Debrief":
-		return "Catch your breath."
+		# Loss-state copy stays up for the full DEBRIEF_DURATION so the pill
+		# matches the wave-shout splash. Verbatim from hi-fi v3 §5D.
+		return "Catch your breath." if _last_wave_victory else "The line broke."
 	return "Hold the line."
 
 func _wave_pill_timer() -> String:
@@ -338,6 +349,32 @@ func _draw_retreat_hint() -> void:
 		_draw_label(hint,
 			Vector2(size.x - SAFE_INSET - w, SAFE_INSET + 64.0 + 8.0 + 50.0 + 8.0),
 			DesignTokens.FG_3, DesignTokens.FS_SM)
+
+# ─── Balance chip ────────────────────────────────────────────────────────
+
+func _draw_balance_chip() -> void:
+	# Coin balance — sits next to the HeroBadge so the player can read it
+	# while reading their own state. Hi-fi v3 doesn't enumerate the chip
+	# but the gameplay needs it: cards have costs and the player can't
+	# spend without knowing the balance. Voice rule: sentence-case label,
+	# numeric value in tabular form, gold-coin tint on the number.
+	var chip_w := 124.0
+	var chip_h := 44.0
+	# To the right of the HeroBadge (badge ends at SAFE_INSET + BADGE_SIZE.x),
+	# matched vertically so the row reads as one band.
+	var origin := Vector2(SAFE_INSET + BADGE_SIZE.x + 12.0, SAFE_INSET + 10.0)
+	var rect := Rect2(origin, Vector2(chip_w, chip_h))
+	var bg := Color(DesignTokens.NIGHT_1.r, DesignTokens.NIGHT_1.g, DesignTokens.NIGHT_1.b, 0.88)
+	draw_rect(rect, bg, true)
+	# Hairline tinted with the gold token at low alpha — picks up the coin
+	# motif without screaming for attention.
+	var border := Color(DesignTokens.GOLD_COIN.r, DesignTokens.GOLD_COIN.g,
+		DesignTokens.GOLD_COIN.b, 0.45)
+	draw_rect(rect, border, false, 1.0)
+	_draw_label("BALANCE", origin + Vector2(12.0, 4.0),
+		DesignTokens.FG_3, DesignTokens.FS_XS)
+	_draw_label("%d coin" % _coin, origin + Vector2(12.0, 18.0),
+		DesignTokens.GOLD_COIN, DesignTokens.FS_LG)
 
 # ─── Wave shout overlay ──────────────────────────────────────────────────
 
