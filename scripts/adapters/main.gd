@@ -8,6 +8,7 @@ extends Node2D
 ## changes. The wiring stays in this single file.
 
 const Sectors := preload("res://data/sectors.gd")
+const Heroes := preload("res://data/heroes.gd")
 # Logic classes (Economy, CardSystem, WaveDirector, AbilityResolver) and the
 # data classes that have a class_name are reachable as globals — no need to
 # alias them via const here.
@@ -21,6 +22,7 @@ const HandScene := preload("res://scenes/ui/hand.tscn")
 const HudScene := preload("res://scenes/ui/hud.tscn")
 const EndScene := preload("res://scenes/ui/end_screen.tscn")
 const HeroSelectScene := preload("res://scenes/ui/hero_select.tscn")
+const AbilityRailScene := preload("res://scenes/ui/ability_rail.tscn")
 
 # Logic
 var economy
@@ -34,7 +36,12 @@ var hand
 var hud
 var end_screen
 var hero_select
+var ability_rail
 var building_node: Node = null  # at most one in v0
+# Signature ability cooldown — counted down each frame in _process while a
+# wave is live. Zero means "ready to cast".
+var _signature_cd_remaining: float = 0.0
+var _signature_cd_max: float = 0.0
 # Hero is rebuilt fresh each run so a different pick can swap sprite +
 # stats. Keeping it nullable lets _start_run handle both first launch
 # (no hero yet) and post-restart (old hero already freed).
@@ -71,6 +78,8 @@ func _build_ui() -> void:
 	ui_layer.add_child(end_screen)
 	hero_select = HeroSelectScene.instantiate()
 	ui_layer.add_child(hero_select)
+	ability_rail = AbilityRailScene.instantiate()
+	ui_layer.add_child(ability_rail)
 
 func _wire_signals() -> void:
 	hud.bind(economy, wave_director, sector)
@@ -96,6 +105,8 @@ func _open_hero_select() -> void:
 	end_screen.visible = false
 	hud.visible = false
 	hand.visible = false
+	if ability_rail != null:
+		ability_rail.visible = false
 	hero_select.open()
 
 func _on_hero_selected(hero_id: String) -> void:
@@ -106,6 +117,8 @@ func _on_hero_selected(hero_id: String) -> void:
 	_spawn_hero(hero_id)
 	hud.visible = true
 	hand.visible = true
+	ability_rail.visible = true
+	ability_rail.set_hero(hero_id)
 	_start_run()
 
 func _spawn_hero(hero_id: String) -> void:
@@ -130,6 +143,7 @@ func _start_run() -> void:
 	wave_director.reset()
 	card_system.start_round()
 	GameState.set_phase(GameState.Phase.PREP)
+	_reset_signature_cooldown()
 
 func _process(delta: float) -> void:
 	# Don't tick the run while the hero select is up — otherwise the prep
@@ -146,6 +160,9 @@ func _process(delta: float) -> void:
 	# setter short-circuits when the value is unchanged, so polling every
 	# frame is fine.
 	GameState.set_retreat(Input.is_action_pressed("toggle_retreat"))
+	_tick_signature_cooldown(delta)
+	if Input.is_action_just_pressed("cast_signature"):
+		_try_cast_signature()
 
 func _on_play_requested(card_id: String, world_pos: Vector2) -> void:
 	card_system.play_card_at(card_id, world_pos, _current_phase_name(), economy.balance)
@@ -199,6 +216,65 @@ func _place_or_upgrade_building(world_pos: Vector2) -> void:
 	b.position = world_pos
 	add_child(b)
 	building_node = b
+
+func _try_cast_signature() -> void:
+	# Q-cast: gate on phase, hero alive, and cooldown ready. Mouse position
+	# becomes the cast target — same convention as the card-drop flow.
+	if not wave_director.is_wave_phase():
+		return
+	if hero == null or not is_instance_valid(hero) or hero.is_downed:
+		return
+	if _signature_cd_remaining > 0.0:
+		return
+	var hero_def: Dictionary = Heroes.ALL.get(GameState.hero_id, Heroes.Buffalo)
+	var ability_id: String = hero_def.get("signatureAbilityId", "")
+	if ability_id.is_empty():
+		return
+	var target := get_global_mouse_position()
+	# Clamp the target inside the sector so a Q while the mouse is over the
+	# HUD or hand strip still resolves at a sensible point in the arena.
+	target.x = clamp(target.x, float(Sectors.SECTOR_LEFT), float(Sectors.SECTOR_RIGHT))
+	target.y = clamp(target.y, float(Sectors.SECTOR_TOP), float(Sectors.SECTOR_BOTTOM))
+	_show_cast_pulse(hero.position)
+	_resolve_ability(ability_id, target)
+	var cooldown: float = float(hero_def.get("signatureCooldown", 5.0))
+	_signature_cd_max = cooldown
+	_signature_cd_remaining = cooldown
+	GameState.set_signature_cooldown(_signature_cd_remaining, _signature_cd_max)
+
+func _tick_signature_cooldown(delta: float) -> void:
+	if _signature_cd_remaining <= 0.0:
+		return
+	_signature_cd_remaining = max(0.0, _signature_cd_remaining - delta)
+	GameState.set_signature_cooldown(_signature_cd_remaining, _signature_cd_max)
+
+func _reset_signature_cooldown() -> void:
+	_signature_cd_remaining = 0.0
+	_signature_cd_max = 0.0
+	GameState.set_signature_cooldown(0.0, 0.0)
+
+func _show_cast_pulse(at: Vector2) -> void:
+	# Brief radial flash centered on the caster — sells the input even before
+	# the ability's own AoE visual lands. Sound stub TODO when audio comes in.
+	var pulse := Polygon2D.new()
+	const SEGMENTS := 24
+	const START_RADIUS := 18.0
+	var pts := PackedVector2Array()
+	for i in range(SEGMENTS):
+		var a := TAU * float(i) / float(SEGMENTS)
+		pts.append(Vector2(cos(a), sin(a)) * START_RADIUS)
+	pulse.polygon = pts
+	pulse.position = at
+	var accent := DesignTokens.core_color(GameState.hero_id)
+	pulse.color = Color(accent.r, accent.g, accent.b, 0.55)
+	pulse.z_index = 6
+	add_child(pulse)
+	var t := create_tween()
+	t.set_parallel(true)
+	t.tween_property(pulse, "scale", Vector2(2.4, 2.4), 0.28) \
+		.set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+	t.tween_property(pulse, "modulate:a", 0.0, 0.28)
+	t.chain().tween_callback(pulse.queue_free)
 
 func _resolve_ability(ability_id: String, target_pos: Vector2) -> void:
 	if hero == null or not is_instance_valid(hero) or hero.is_downed:
@@ -379,6 +455,7 @@ func _on_wave_ended(_round_index: int, victory: bool) -> void:
 	for n in get_tree().get_nodes_in_group("enemies"):
 		if is_instance_valid(n):
 			n.queue_free()
+	_reset_signature_cooldown()
 	# A loss skips the reset — the run is ending, end screen takes over.
 	if victory:
 		_reset_to_base()
