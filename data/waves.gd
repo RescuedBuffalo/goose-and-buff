@@ -1,23 +1,35 @@
 class_name WavesData extends RefCounted
 ##
-## Wave compositions per round. v0 prototype is single-player Buffalo only
-## with a fixed 3-round loop. Each round is one wave of 8 GruntMelee.
+## Wave compositions per round. 3-round fixed loop; each round escalates
+## the archetype mix per BUF-108.
+##   Wave 1 — pure GruntMelee
+##   Wave 2 — GruntMelee + GruntRanged
+##   Wave 3 — all three archetypes, including a pair of Bruisers
 
 const ROUNDS := [
 	{
 		"index": 1,
 		"name": "Probe",
-		"enemies": [{"type": "GruntMelee", "count": 8, "spawn_interval": 0.7}],
+		"enemies": [
+			{"type": "GruntMelee", "count": 8, "spawn_interval": 0.7},
+		],
 	},
 	{
 		"index": 2,
 		"name": "Pressure",
-		"enemies": [{"type": "GruntMelee", "count": 8, "spawn_interval": 0.55}],
+		"enemies": [
+			{"type": "GruntMelee",  "count": 6, "spawn_interval": 0.55},
+			{"type": "GruntRanged", "count": 4, "spawn_interval": 0.65},
+		],
 	},
 	{
 		"index": 3,
-		"name": "Heavy charge",
-		"enemies": [{"type": "GruntMelee", "count": 8, "spawn_interval": 0.4}],
+		"name": "Heavy Charge",
+		"enemies": [
+			{"type": "GruntMelee",  "count": 5, "spawn_interval": 0.45},
+			{"type": "GruntRanged", "count": 3, "spawn_interval": 0.6},
+			{"type": "Bruiser",     "count": 2, "spawn_interval": 1.5},
+		],
 	},
 ]
 

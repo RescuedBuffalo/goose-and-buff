@@ -35,23 +35,34 @@ func _physics_process(delta: float) -> void:
 	if _engaged_unit == null or not is_instance_valid(_engaged_unit):
 		_engaged_unit = _find_engageable_unit()
 	if _engaged_unit != null and is_instance_valid(_engaged_unit):
-		var d := position.distance_to(_engaged_unit.position)
-		if d <= float(data.attackRange):
-			if _attack_cooldown <= 0.0:
-				_attack_cooldown = float(data.attackInterval)
-				_engaged_unit.damage(float(data.damage))
-			return
-		_advance_toward(_engaged_unit.position, delta)
+		_engage_target(_engaged_unit.position, delta, func(): _engaged_unit.damage(float(data.damage)))
 		return
 	# Otherwise march on the core.
 	var core_pos: Vector2 = Sectors.CORE_CENTER
-	var dist_to_core := position.distance_to(core_pos)
-	if dist_to_core <= float(data.attackRange):
+	_engage_target(core_pos, delta, func(): reached_core.emit(self))
+
+# Handle movement and attack toward a single target position.
+# on_attack is called (once per interval) when in attack range.
+func _engage_target(target_pos: Vector2, delta: float, on_attack: Callable) -> void:
+	var dist := position.distance_to(target_pos)
+	var attack_range := float(data.attackRange)
+	if dist <= attack_range:
 		if _attack_cooldown <= 0.0:
 			_attack_cooldown = float(data.attackInterval)
-			reached_core.emit(self)
+			on_attack.call()
+		# Ranged enemies keep a preferred stand-off distance; back away if
+		# the target has closed inside it.
+		if data.get("keep_distance", false):
+			var preferred := float(data.get("preferred_range", 0.0))
+			if dist < preferred:
+				_retreat_from(target_pos, delta)
 		return
-	_advance_toward(core_pos, delta)
+	_advance_toward(target_pos, delta)
+
+func _retreat_from(target_pos: Vector2, delta: float) -> void:
+	var dir := (position - target_pos).normalized()
+	position += dir * float(data.moveSpeed) * delta
+	position.y = clamp(position.y, Sectors.SECTOR_TOP + 16, Sectors.SECTOR_BOTTOM - 16)
 
 func damage(amount: float) -> void:
 	hp = max(0.0, hp - amount)
