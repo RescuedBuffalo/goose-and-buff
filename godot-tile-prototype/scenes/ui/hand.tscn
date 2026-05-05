@@ -1,0 +1,14 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/ui/hand_widget.gd" id="1"]
+
+[node name="Hand" type="Control"]
+script = ExtResource("1")
+anchor_left = 0.0
+anchor_top = 1.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_top = -320.0
+offset_right = 0.0
+offset_bottom = 0.0
+mouse_filter = 1
