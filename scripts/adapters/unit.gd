@@ -118,10 +118,10 @@ func _find_enemy_in_detection() -> Node2D:
 	return best
 
 func _draw() -> void:
-	var color := _color_for_archetype()
+	var fill := _fill_for_unit()
 	var size := _size_for_archetype()
 	var rect := Rect2(-size * 0.5, size)
-	draw_rect(rect, color, true)
+	draw_rect(rect, fill, true)
 	# Outline in the faction ink color.
 	draw_rect(rect, DesignTokens.ink_color(unit_data.faction), false, 2.0)
 	# HP bar above the unit.
@@ -131,15 +131,17 @@ func _draw() -> void:
 	draw_rect(Rect2(-bar_w * 0.5, bar_y, bar_w, 3.0), DesignTokens.NIGHT_3, true)
 	draw_rect(Rect2(-bar_w * 0.5, bar_y, bar_w * hp_ratio, 3.0), DesignTokens.hp_color(hp_ratio), true)
 
-func _color_for_archetype() -> Color:
-	# Heavy uses the unit's faction core so Longhorn / Swan / Badger each
-	# read distinctly. Light + ranged stay on parchment so the archetype
-	# silhouette still reads at a glance across factions.
+func _fill_for_unit() -> Color:
+	# v0.1 "skin": faction picks the palette, archetype picks the shade —
+	# light = floor (lightest), ranged = midtone lerp, heavy = core (darkest).
+	# Real meshes/sprites land in the visual-polish issue.
+	var floor_c := DesignTokens.floor_color(unit_data.faction)
+	var core_c := DesignTokens.core_color(unit_data.faction)
 	match unit_data.archetype:
-		"light": return DesignTokens.PARCHMENT_1
-		"ranged": return DesignTokens.PARCHMENT_2
-		"heavy": return DesignTokens.core_color(unit_data.faction)
-		_: return DesignTokens.PARCHMENT_0
+		"light": return floor_c
+		"ranged": return floor_c.lerp(core_c, 0.5)
+		"heavy": return core_c
+		_: return floor_c
 
 func _size_for_archetype() -> Vector2:
 	match unit_data.archetype:
