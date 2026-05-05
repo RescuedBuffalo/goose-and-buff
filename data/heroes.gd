@@ -23,7 +23,7 @@ const Goose := {
 	"name": "Goose",
 	"role": "Aggression / IGL",
 	"flavor": "Loud, fast, gets there first. Calls the shots when it counts.",
-	"signatureAbility": "Goose pounce",
+	"signatureAbility": "Dive",
 	"baseHealth": 100,
 	"moveSpeed": 18,
 }

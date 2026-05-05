@@ -125,7 +125,7 @@ func _start_run() -> void:
 	hero.reset_hp()
 	hero.reset_position()
 	economy.reset()
-	card_system.reset()
+	card_system.reset(GameState.hero_id)
 	wave_director.reset()
 	card_system.start_round()
 	GameState.set_phase(GameState.Phase.PREP)
@@ -206,6 +206,9 @@ func _resolve_ability(ability_id: String, target_pos: Vector2) -> void:
 			"damage_in_capsule":
 				_apply_capsule_damage(fx)
 				_show_charge_line(fx.from, fx.to, fx.width)
+			"damage_in_cone":
+				_apply_cone_damage(fx)
+				_show_dive_cone(fx.from, fx.direction, fx.length, fx.half_angle)
 
 func _apply_capsule_damage(fx: Dictionary) -> void:
 	var from: Vector2 = fx.from
@@ -228,6 +231,48 @@ func _point_in_capsule(p: Vector2, a: Vector2, b: Vector2, radius: float) -> boo
 	var t: float = clamp((p - a).dot(ab) / ab_len_sq, 0.0, 1.0)
 	var nearest: Vector2 = a + ab * t
 	return p.distance_to(nearest) <= radius
+
+func _apply_cone_damage(fx: Dictionary) -> void:
+	var apex: Vector2 = fx.from
+	var dir: Vector2 = fx.direction
+	var length: float = float(fx.length)
+	var half_angle: float = float(fx.half_angle)
+	var cos_threshold := cos(half_angle)
+	for n in get_tree().get_nodes_in_group("enemies"):
+		var e := n as Node2D
+		if e == null or not is_instance_valid(e):
+			continue
+		var to_enemy := e.position - apex
+		var dist := to_enemy.length()
+		if dist <= 0.0001 or dist > length:
+			continue
+		# Inside the cone if the angle between dir and (enemy - apex) is
+		# under half_angle. Compare cosines so we don't pay for an arccos.
+		if to_enemy.normalized().dot(dir) < cos_threshold:
+			continue
+		e.damage(float(fx.damage))
+		if is_instance_valid(e):
+			e.apply_knockback(dir, float(fx.knockback))
+
+func _show_dive_cone(apex: Vector2, dir: Vector2, length: float, half_angle: float) -> void:
+	# A faction-tinted fan that fades out — same lifetime as the charge line.
+	var poly := Polygon2D.new()
+	var points := PackedVector2Array()
+	points.append(apex)
+	const SEGMENTS := 12
+	var start := dir.rotated(-half_angle)
+	for i in range(SEGMENTS + 1):
+		var t := float(i) / float(SEGMENTS)
+		var v := start.rotated(half_angle * 2.0 * t)
+		points.append(apex + v * length)
+	poly.polygon = points
+	var accent := DesignTokens.core_color(GameState.hero_id)
+	poly.color = Color(accent.r, accent.g, accent.b, 0.5)
+	poly.z_index = 5
+	add_child(poly)
+	var tween := create_tween()
+	tween.tween_property(poly, "modulate:a", 0.0, 0.45)
+	tween.tween_callback(poly.queue_free)
 
 func _show_charge_line(from: Vector2, to: Vector2, width: float) -> void:
 	var line := Line2D.new()

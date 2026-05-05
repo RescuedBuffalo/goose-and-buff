@@ -4,9 +4,13 @@ class_name AbilityResolver extends RefCounted
 ## and a targeting payload, return a list of effects. Adapters apply the
 ## effects to the scene tree. Mirror of Roblox AbilityResolver.resolve().
 ##
-## Effects shape:
+## Effect shapes:
 ##   { "kind": "damage_in_capsule", "from": Vector2, "to": Vector2,
-##     "width": float, "damage": float, "knockback": float }
+##     "width": float, "damage": float, "knockback": float,
+##     "direction": Vector2 }
+##   { "kind": "damage_in_cone", "from": Vector2, "direction": Vector2,
+##     "length": float, "half_angle": float (radians),
+##     "damage": float, "knockback": float }
 
 const Cards := preload("res://data/cards.gd")
 
@@ -14,6 +18,8 @@ static func resolve(ability_id: String, caster_pos: Vector2, target_pos: Vector2
 	match ability_id:
 		"BuffaloCharge":
 			return _resolve_buffalo_charge(caster_pos, target_pos)
+		"Dive":
+			return _resolve_dive(caster_pos, target_pos)
 		_:
 			return []
 
@@ -32,4 +38,20 @@ static func _resolve_buffalo_charge(caster_pos: Vector2, target_pos: Vector2) ->
 		"damage": float(payload.damage),
 		"knockback": float(payload.knockback),
 		"direction": dir,
+	}]
+
+static func _resolve_dive(caster_pos: Vector2, target_pos: Vector2) -> Array:
+	var card: Dictionary = Cards.get_card("card.dive")
+	var payload: Dictionary = card.payload
+	var dir := (target_pos - caster_pos).normalized()
+	if dir == Vector2.ZERO:
+		dir = Vector2.RIGHT
+	return [{
+		"kind": "damage_in_cone",
+		"from": caster_pos,
+		"direction": dir,
+		"length": float(payload.length),
+		"half_angle": deg_to_rad(float(payload.half_angle_deg)),
+		"damage": float(payload.damage),
+		"knockback": float(payload.knockback),
 	}]
