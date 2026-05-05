@@ -152,8 +152,12 @@ func damage_core(amount: float) -> void:
 		core_destroyed.emit()
 
 func reset_core() -> void:
+	# Restore both current AND max — main._start_run calls GameState.reset()
+	# which zeros core_hp_max, so just rewriting core_hp here would leave the
+	# HUD reading "1000 / 0" with a 0/0 ratio that pegs the bar to crit color.
 	core_hp = core_hp_max
 	GameState.core_hp = core_hp
+	GameState.core_hp_max = core_hp_max
 	core_hp_changed.emit(core_hp, core_hp_max)
 	queue_redraw()
 
