@@ -1,13 +1,16 @@
 extends Control
 ##
-## Win/loss screen. Three buttons: "Try again" (same hero, fresh run),
-## "Visit the lodge" (open meta-progression UI), and "Change hero" (back to
-## hero select). Copy follows the voice rules from README.md (sentence case,
-## no emoji, warm but not ironic).
+## Win/loss screen. Two buttons: "Try again" (same hero, fresh run) and
+## "Back to the lodge" (the warm room — heroes get re-picked there). Copy
+## follows the voice rules from README.md (sentence case, no emoji, warm
+## but not ironic).
+##
+## A "+N tokens earned for the lodge." line surfaces when meta-progression
+## (BUF-113) granted currency for the just-finished run. Hidden when the
+## grant is zero so the screen stays quiet on edge cases.
 
 signal restart_requested()
-signal change_hero_requested()
-signal lodge_requested()
+signal back_to_lodge_requested()
 
 var _is_victory: bool = true
 var _tokens_earned: int = 0
@@ -34,9 +37,7 @@ func _gui_input(event: InputEvent) -> void:
 		if _restart_rect().has_point(event.position):
 			restart_requested.emit()
 		elif _lodge_rect().has_point(event.position):
-			lodge_requested.emit()
-		elif _change_rect().has_point(event.position):
-			change_hero_requested.emit()
+			back_to_lodge_requested.emit()
 
 func _draw() -> void:
 	# Curtain.
@@ -61,12 +62,11 @@ func _draw() -> void:
 		var reward_w := font.get_string_size(reward, HORIZONTAL_ALIGNMENT_CENTER, -1, DesignTokens.FS_MD).x
 		draw_string(font, Vector2((size.x - reward_w) * 0.5, size.y * 0.36 + 92),
 			reward, HORIZONTAL_ALIGNMENT_CENTER, -1, DesignTokens.FS_MD, DesignTokens.GOLD_COIN)
-	# Buttons. Primary keeps the player in the run with the same hero; lodge
-	# is the meta-progression detour; secondary returns to hero select.
+	# Buttons. Primary keeps the player in the run with the same hero;
+	# secondary returns to the warm room.
 	var accent := DesignTokens.core_color(GameState.hero_id)
 	_draw_button(_restart_rect(), "Try again", accent, font, true)
-	_draw_button(_lodge_rect(), "Visit the lodge", accent, font, false)
-	_draw_button(_change_rect(), "Change hero", accent, font, false)
+	_draw_button(_lodge_rect(), "Back to the lodge", accent, font, false)
 
 func _draw_button(rect: Rect2, label: String, accent: Color, font: Font, primary: bool) -> void:
 	draw_rect(rect, DesignTokens.NIGHT_2, true)
@@ -85,8 +85,3 @@ func _lodge_rect() -> Rect2:
 	var w := 240.0
 	var h := 48.0
 	return Rect2((size.x - w) * 0.5, size.y * 0.6 + 72, w, h)
-
-func _change_rect() -> Rect2:
-	var w := 240.0
-	var h := 48.0
-	return Rect2((size.x - w) * 0.5, size.y * 0.6 + 132, w, h)
