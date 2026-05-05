@@ -5,7 +5,7 @@ extends Control
 ## README.md (sentence case, no emoji, warm but not ironic).
 
 signal restart_requested()
-signal change_hero_requested()
+signal back_to_lodge_requested()
 
 var _is_victory: bool = true
 
@@ -29,7 +29,7 @@ func _gui_input(event: InputEvent) -> void:
 		if _restart_rect().has_point(event.position):
 			restart_requested.emit()
 		elif _change_rect().has_point(event.position):
-			change_hero_requested.emit()
+			back_to_lodge_requested.emit()
 
 func _draw() -> void:
 	# Curtain.
@@ -48,7 +48,7 @@ func _draw() -> void:
 	# secondary returns to hero select for a fresh pick.
 	var accent := DesignTokens.core_color(GameState.hero_id)
 	_draw_button(_restart_rect(), "Try again", accent, font, true)
-	_draw_button(_change_rect(), "Change hero", accent, font, false)
+	_draw_button(_change_rect(), "Back to the lodge", accent, font, false)
 
 func _draw_button(rect: Rect2, label: String, accent: Color, font: Font, primary: bool) -> void:
 	draw_rect(rect, DesignTokens.NIGHT_2, true)

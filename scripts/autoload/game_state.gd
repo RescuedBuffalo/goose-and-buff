@@ -9,7 +9,7 @@ signal hero_hp_changed(current: float, maximum: float)
 signal retreat_changed(active: bool)
 signal signature_cooldown_changed(remaining: float, maximum: float)
 
-enum Phase { PREP, WAVE, DEBRIEF, RUN_COMPLETE, RUN_ENDED }
+enum Phase { LODGE, PREP, WAVE, DEBRIEF, RUN_COMPLETE, RUN_ENDED }
 
 var phase: int = Phase.PREP
 var round_index: int = 1
@@ -67,6 +67,7 @@ func set_signature_cooldown(remaining: float, maximum: float) -> void:
 
 static func phase_name(p: int) -> String:
 	match p:
+		Phase.LODGE: return "lodge"
 		Phase.PREP: return "prep"
 		Phase.WAVE: return "wave"
 		Phase.DEBRIEF: return "debrief"
