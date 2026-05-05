@@ -16,6 +16,7 @@ const Heroes := preload("res://data/heroes.gd")
 const Items := preload("res://data/items.gd")
 const Resources := preload("res://data/resources.gd")
 const DayNight := preload("res://data/day_night.gd")
+const Waves := preload("res://data/waves.gd")
 const DayNightCycleClass := preload("res://scripts/logic/day_night_cycle.gd")
 const WaveDirectorGate := preload("res://scripts/adapters/wave_director_gate.gd")
 const LightingAdapterScript := preload("res://scripts/adapters/lighting_adapter.gd")
@@ -188,9 +189,13 @@ func _start_run() -> void:
 	end_screen.visible = false
 	hud.visible = true
 	inventory_hud.visible = true
+	# Cards are dormant in the survival rebuild, so the active starter
+	# inventory is what BUF-115 cares about under "deck composition" —
+	# once cards return this is the natural place to log them too.
 	telemetry.start_run({
 		"hero_id": GameState.hero_id,
 		"max_nights": DayNight.MAX_NIGHTS,
+		"deck_composition": STARTER_ITEMS.duplicate(true),
 	})
 
 func _process(delta: float) -> void:
@@ -344,7 +349,10 @@ func _on_enemy_due(enemy_type: String, slot_index: int) -> void:
 	var entry_tiles: Array[Vector2i] = Sectors.ENEMY_ENTRY_TILES
 	var entry_tile: Vector2i = entry_tiles[slot_index % entry_tiles.size()]
 	var e: Node2D = EnemyScene.instantiate()
-	e.configure(enemy_type)
+	# Stamp the current round's stat scale so a Night-3 wolf hits harder
+	# than a Night-1 wolf even when the same archetype shows up. Tunables
+	# live in data/waves.gd (BUF-115).
+	e.configure(enemy_type, Waves.stat_scale_for(wave_director.round_index))
 	e.attach_sector(sector)
 	e.died.connect(_on_enemy_died.bind(enemy_type))
 	e.reached_core.connect(_on_enemy_reached_core)
