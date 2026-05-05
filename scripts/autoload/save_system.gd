@@ -45,8 +45,11 @@ func _load_or_create() -> Dictionary:
 	return _coerce(parsed)
 
 func save() -> void:
-	# Atomic write: serialize to .tmp, then rename. A crash mid-write
-	# leaves the previous save.json untouched.
+	# Atomic write: serialize to .tmp, then rename over save.json. Godot's
+	# DirAccess.rename overwrites the target atomically on both POSIX
+	# (rename(2)) and Windows (MoveFileEx + MOVEFILE_REPLACE_EXISTING), so a
+	# crash anywhere in this function leaves either the old or the new save
+	# intact — never a partial file or a missing one.
 	var f := FileAccess.open(SAVE_PATH_TMP, FileAccess.WRITE)
 	if f == null:
 		push_error("SaveSystem: could not open %s for write" % SAVE_PATH_TMP)
@@ -57,11 +60,9 @@ func save() -> void:
 	if dir == null:
 		push_error("SaveSystem: could not open user:// to finalize save")
 		return
-	if dir.file_exists("save.json"):
-		dir.remove("save.json")
 	var err := dir.rename("save.json.tmp", "save.json")
 	if err != OK:
-		push_error("SaveSystem: rename save.json.tmp → save.json failed (err %d)" % err)
+		push_error("SaveSystem: rename save.json.tmp → save.json failed (err %d) — previous save preserved" % err)
 
 func reset() -> void:
 	data = _fresh()
@@ -106,8 +107,13 @@ func _coerce(loaded: Dictionary) -> Dictionary:
 			base[key] = loaded[key]
 	if typeof(base.hero_progression) != TYPE_DICTIONARY:
 		base.hero_progression = _default_hero_progression()
+	# Each hero block must itself be a dict — guard against a corrupted save
+	# like {"Goose": 1} that would otherwise crash record_run_end on the
+	# next run. Replace any malformed block with defaults rather than
+	# refusing to load the whole save.
 	for hid in HERO_IDS:
-		if not base.hero_progression.has(hid):
+		var block: Variant = base.hero_progression.get(hid, null)
+		if typeof(block) != TYPE_DICTIONARY:
 			base.hero_progression[hid] = _default_hero_block()
 	base.version = SCHEMA_VERSION
 	return base
