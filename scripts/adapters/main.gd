@@ -9,6 +9,7 @@ extends Node2D
 
 const Sectors := preload("res://data/sectors.gd")
 const Heroes := preload("res://data/heroes.gd")
+const Cards := preload("res://data/cards.gd")
 # Logic classes (Economy, CardSystem, WaveDirector, AbilityResolver) and the
 # data classes that have a class_name are reachable as globals — no need to
 # alias them via const here.
@@ -42,6 +43,13 @@ var building_node: Node = null  # at most one in v0
 # wave is live. Zero means "ready to cast".
 var _signature_cd_remaining: float = 0.0
 var _signature_cd_max: float = 0.0
+# Aim ghost-line shown while an ability card is being dragged. Owned here
+# (not by the hand widget) because it lives in the world layer alongside
+# the hero, and only main has the hero reference. Null when no drag is
+# active or the active drag is a non-ability card.
+var _aim_line: Line2D = null
+var _aim_target: Vector2 = Vector2.ZERO
+var _aim_card_id: String = ""
 # Hero is rebuilt fresh each run so a different pick can swap sprite +
 # stats. Keeping it nullable lets _start_run handle both first launch
 # (no hero yet) and post-restart (old hero already freed).
@@ -85,6 +93,9 @@ func _wire_signals() -> void:
 	hud.bind(economy, wave_director, sector)
 	hand.bind(card_system)
 	hand.play_requested.connect(_on_play_requested)
+	hand.drag_started.connect(_on_drag_started)
+	hand.drag_moved.connect(_on_drag_moved)
+	hand.drag_ended.connect(_on_drag_ended)
 	card_system.card_played.connect(_on_card_played)
 	wave_director.enemy_due.connect(_on_enemy_due)
 	wave_director.run_complete.connect(_on_run_complete)
@@ -165,9 +176,69 @@ func _process(delta: float) -> void:
 	_tick_signature_cooldown(delta)
 	if Input.is_action_just_pressed("cast_signature"):
 		_try_cast_signature()
+	# Hero can WASD while the player is dragging an ability card with the
+	# mouse — refresh the aim line each frame so the start point tracks them.
+	if _aim_line != null:
+		_update_aim_line()
 
 func _on_play_requested(card_id: String, world_pos: Vector2) -> void:
 	card_system.play_card_at(card_id, world_pos, _current_phase_name(), economy.balance)
+
+func _on_drag_started(card_id: String, world_pos: Vector2) -> void:
+	var card: Dictionary = Cards.get_card(card_id)
+	if card.is_empty():
+		return
+	match card.kind:
+		"unit", "building", "resource":
+			# All non-ability kinds just require any drop inside the sector;
+			# the highlight reads as "anywhere on the floor is legal".
+			sector.set_deploy_highlight(true)
+		"ability":
+			_aim_card_id = card_id
+			_aim_target = world_pos
+			_spawn_aim_line()
+
+func _on_drag_moved(_card_id: String, world_pos: Vector2) -> void:
+	_aim_target = world_pos
+	_update_aim_line()
+
+func _on_drag_ended() -> void:
+	# Both indicators clear regardless of which kind opened them — cheap and
+	# avoids leaving stragglers if the card kind ever changes mid-drag.
+	sector.set_deploy_highlight(false)
+	_clear_aim_line()
+
+func _spawn_aim_line() -> void:
+	_clear_aim_line()
+	if hero == null or not is_instance_valid(hero):
+		return
+	_aim_line = Line2D.new()
+	_aim_line.width = 6.0
+	var accent := DesignTokens.core_color(GameState.hero_id)
+	_aim_line.default_color = Color(accent.r, accent.g, accent.b, 0.55)
+	# Above sector + units but below the dragged card (which lives on a
+	# CanvasLayer, so always above world content regardless of z_index).
+	_aim_line.z_index = 4
+	add_child(_aim_line)
+	_update_aim_line()
+
+func _update_aim_line() -> void:
+	if _aim_line == null or hero == null or not is_instance_valid(hero):
+		return
+	# Clamp the endpoint to the sector so the line stops at a sensible point
+	# when the drag wanders into the HUD or hand strip.
+	var endpoint := _aim_target
+	endpoint.x = clamp(endpoint.x, float(Sectors.SECTOR_LEFT), float(Sectors.SECTOR_RIGHT))
+	endpoint.y = clamp(endpoint.y, float(Sectors.SECTOR_TOP), float(Sectors.SECTOR_BOTTOM))
+	_aim_line.clear_points()
+	_aim_line.add_point(hero.position)
+	_aim_line.add_point(endpoint)
+
+func _clear_aim_line() -> void:
+	_aim_card_id = ""
+	if _aim_line != null and is_instance_valid(_aim_line):
+		_aim_line.queue_free()
+	_aim_line = null
 
 func _current_phase_name() -> String:
 	if wave_director.is_prep_phase():
@@ -544,3 +615,8 @@ func _clear_run_transients() -> void:
 	if building_node != null and is_instance_valid(building_node):
 		building_node.queue_free()
 		building_node = null
+	# Belt-and-suspenders for the drag indicators: if the player got to the
+	# end screen mid-drag (rare), clear them before the next run wires up.
+	if sector != null and is_instance_valid(sector):
+		sector.set_deploy_highlight(false)
+	_clear_aim_line()
