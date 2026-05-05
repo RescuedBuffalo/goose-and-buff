@@ -4,6 +4,10 @@
 
 [node name="Hud" type="Control"]
 script = ExtResource("1")
+anchor_left = 0.0
+anchor_top = 0.0
 anchor_right = 1.0
-anchor_bottom = 1.0
+anchor_bottom = 0.0
+offset_top = 0.0
+offset_bottom = 144.0
 mouse_filter = 2

@@ -10,7 +10,9 @@ design/**/*.import
 
 # Per-developer Godot tooling — godot-mcp helper plugin is installed
 # locally for live editor control during AI-assisted iteration.
-/addons/godot_mcp/
+# Match any nested project (top-down prototype at root, tile prototype
+# at godot-tile-prototype/, future siblings).
+**/addons/godot_mcp/
 
 # Claude Code workspace — agent state, worktrees, hooks. Per-clone.
 .claude/

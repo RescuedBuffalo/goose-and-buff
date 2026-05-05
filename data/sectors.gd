@@ -1,35 +1,51 @@
 class_name SectorsData extends RefCounted
 ##
-## Sector geometry for v0. The original Sectors.lua is in 3D Roblox studs;
-## here we translate to a 2D viewport. The width/depth ratio is preserved.
+## Sector geometry for the tile rebuild. All coordinates are tile-space
+## Vector2i. The adapter (sector.gd) owns the TileMap and converts tile
+## coords to screen pixels via map_to_local(). The original top-down
+## prototype stored pixel anchors here directly — that's what changed.
 ##
-## Layout in viewport pixels (1920×1080, with the bottom 320px reserved for
-## the hand band — Val strip + ability rail + cards): the playable sector
-## is 1920×616 above the hand.
-##   - spawn pad on the left
-##   - core to the right of the spawn pad
-##   - enemy entry beyond the core's far edge (right edge of the screen)
+## Tile layout for v0 (Buffalo single-sector):
+##   16 wide × 12 tall, isometric DIAMOND_DOWN.
+##   Spawn pad on the low-x side; core anchored mid-grid on the high-x
+##   side; enemies enter from the high-x edge and walk toward the core.
+##
+## Hero / unit pathfinding treats every floor tile as walkable. The core
+## tile is the only blocker — enemies stop at adjacent tiles and attack.
 
-const SECTOR_LEFT := 0
-const SECTOR_RIGHT := 1920
-const SECTOR_TOP := 144
-const SECTOR_BOTTOM := 760
-const HAND_TOP := SECTOR_BOTTOM
+# ── Tile grid geometry ────────────────────────────────────────────────────
+const TILE_GRID_SIZE := Vector2i(16, 12)
+const TILE_PIXELS := Vector2i(64, 32)  # standard isometric ratio (2:1)
 
-# Pixel anchors inside the sector. Lay everything out around the vertical
-# midline (y = 452) so the hero, spawn pad and core read on a common axis.
-const SPAWN_PAD_CENTER := Vector2(240, 452)
-const SPAWN_PAD_SIZE := Vector2(140, 140)
-const CORE_CENTER := Vector2(1620, 452)
-const CORE_SIZE := Vector2(96, 96)
+# Special tiles. Tile coords (x, y) → adapter converts via map_to_local().
+const SPAWN_TILE := Vector2i(1, 6)
+const CORE_TILE := Vector2i(14, 6)
+const ENEMY_ENTRY_TILES: Array[Vector2i] = [
+	Vector2i(15, 5),
+	Vector2i(15, 6),
+	Vector2i(15, 7),
+]
+
+# Building (Production Node) snap target. Sits adjacent to the spawn pad
+# so the resource trickle stays behind the line. Drop-targeting still goes
+# anywhere; this is the visual anchor used when no drop position is given.
+const PRODUCTION_NODE_DEFAULT_TILE := Vector2i(2, 6)
+
+# Core HP — same value as the top-down prototype. The tile rebuild changes
+# the rendering, not the balance.
 const CORE_HEALTH := 1000.0
 
-# Enemies spawn off-screen and walk left toward the core. The entry x must
-# sit past SECTOR_RIGHT (1920) so grunt-sized sprites (≤40 px) are fully
-# off-camera at spawn — otherwise they pop in mid-air on wave start.
-const ENEMY_ENTRY_X := 2000
-const ENEMY_TARGET := CORE_CENTER
+# ── Hand band reserve ─────────────────────────────────────────────────────
+# Bottom 320 px of the 1080 viewport hosts the card hand. Sector tiles paint
+# above this band; the camera respects it via the WORLD_OFFSET below.
+const HAND_BAND_HEIGHT := 320
 
+# Where the TileMap origin sits in viewport pixels. Centered horizontally;
+# pulled up from vertical center so the diamond bounding box (which is taller
+# than tall when 16w×12t) sits above the hand band.
+const WORLD_OFFSET := Vector2(960.0, 280.0)
+
+# ── Hero palette keys ─────────────────────────────────────────────────────
 const Buffalo := {
 	"id": "Buffalo",
 	"floor_color_key": "Buffalo",
@@ -54,6 +70,19 @@ const BY_HERO := {
 	"Fox": Fox,
 }
 
-static func is_inside_sector(point: Vector2) -> bool:
-	return (point.x >= SECTOR_LEFT and point.x <= SECTOR_RIGHT
-		and point.y >= SECTOR_TOP and point.y <= SECTOR_BOTTOM)
+# ── Helpers ───────────────────────────────────────────────────────────────
+static func is_tile_in_grid(tile: Vector2i) -> bool:
+	return (tile.x >= 0 and tile.x < TILE_GRID_SIZE.x
+		and tile.y >= 0 and tile.y < TILE_GRID_SIZE.y)
+
+static func is_tile_blocked(tile: Vector2i) -> bool:
+	# Core tile is the one fixed obstacle. Enemies stop adjacent to it.
+	return tile == CORE_TILE
+
+static func all_floor_tiles() -> Array[Vector2i]:
+	# Used by the adapter to paint the floor cells once at sector build.
+	var out: Array[Vector2i] = []
+	for x in TILE_GRID_SIZE.x:
+		for y in TILE_GRID_SIZE.y:
+			out.append(Vector2i(x, y))
+	return out

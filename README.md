@@ -4,26 +4,26 @@ A private 3-player co-op roguelite for Aidan, Goose, and Beau. Animal-totem hero
 
 ## Where things live
 
-- **Game code** lives in the Godot project at the repo root. Open `project.godot` in Godot 4 to run.
+- **Game code** lives in the Godot project at the repo root. Open `project.godot` in Godot 4 to run. The current build is the **isometric tile rebuild** — see [`docs/PROTOTYPE-NOTES.md`](docs/PROTOTYPE-NOTES.md) for the Phase 1 status and what's stubbed.
 - **Design docs**: [`docs/VISION.md`](docs/VISION.md) for pillars and philosophy. [`docs/v0.1-SPEC.md`](docs/v0.1-SPEC.md) for what shipped in the v0.1 prototype + what's next.
 - **Design system**: `design/` (the Long Watch design system bundle). Source of truth for colors, type, voice. `colors_and_type.css` mirrors the in-engine `DesignTokens` autoload 1:1. Read `design/README.md` before doing UI work.
+- **Top-down v0.1 prototype** (archived for reference): [`archive/godot-top-down/`](archive/godot-top-down/) — the flat-arena Buffalo wave-defense build that the tile rebuild replaced. Standalone Godot project; run by opening its own `project.godot`.
 - **Roblox-era source** (archived for history): `archive/roblox/`.
 - **Active work**: [Linear — buffalo-and-goose](https://linear.app/buffalo-studios/project/buffalo-and-goose-593efd9062a8). Milestones M1 (Solo loop) → M2 (30-min depth) → M3 (Visual polish + audio) → M4 (Multiplayer).
 
 ## Project layout
 
 ```
-project.godot
-addons/                         (none in v0.1)
+project.godot                   (tile rebuild — canonical)
 scenes/
     main.tscn                   root scene
-    sector.tscn                 the playable arena
-    hero.tscn                   playable character
-    unit.tscn                   AI-controlled deployed unit (polymorphic on archetype)
-    building.tscn               production / utility structures
+    sector.tscn                 isometric TileMapLayer + AStarGrid2D
+    hero.tscn                   playable character (tile-pathfinds)
+    unit.tscn                   AI-controlled deployed unit
+    building.tscn               production node
     enemy.tscn                  enemy (polymorphic on archetype)
     ui/
-        hand.tscn               card hand display
+        hand.tscn               card hand display, tile-snap drop targeting
         card.tscn               single card
         hud.tscn                HP / coin / timer / wave / phase
         end_screen.tscn         victory / defeat
@@ -35,6 +35,8 @@ scripts/
         economy.gd              coin generation + spending
     adapters/                   bridge logic to scene tree
         main.gd                 the boot-and-wire script
+        sector.gd               TileMapLayer + AStarGrid2D, tile <-> world helpers
+        hero.gd, unit.gd, enemy.gd, building.gd
     autoload/                   project-wide singletons
         design_tokens.gd        colors, fonts, sizes, motion
         game_state.gd           current run state
@@ -42,14 +44,15 @@ data/                           plain-data resources, no logic
     heroes.gd
     units.gd                    9 themed units across 3 factions
     cards.gd                    starter decks per hero
-    sectors.gd                  arena layout + canonical hero palette
+    sectors.gd                  tile-grid geometry + canonical hero palette
     waves.gd                    wave compositions + enemy archetypes
     enemies.gd                  enemy stats
 assets/
     totems/                     hero/Val totem marks (SVG / PNG)
-    cards/                      card art (placeholder gradients in v0.1)
-    backgrounds/                sector + Lodge backgrounds (M3)
     fonts/                      Young Serif / Nunito / JetBrains Mono (M3)
+archive/
+    godot-top-down/             v0.1 flat-arena prototype, pre-tile-pivot
+    roblox/                     Roblox-era source
 ```
 
 ## Architecture rules (load-bearing)
@@ -116,3 +119,5 @@ These apply to every string the player sees in-game:
 ## History
 
 This project pivoted from Roblox → Godot in May 2026 to support a hand-drawn 2D illustrated aesthetic (Hades / Spiritfarer / Root references). The Roblox-era source has been canceled in Linear; the architectural discipline carried over and the data and pure-logic patterns ported cleanly.
+
+In May 2026 the Godot build pivoted again — from a flat top-down arena to an **isometric tile grid** to support seasonal terrain, exploration, and survival mechanics planned for Phase 2+. The v0.1 top-down build is preserved at [`archive/godot-top-down/`](archive/godot-top-down/) so the before/after comparison stays cheap. The pure-logic and data layers ported verbatim through the tile pivot — see [`docs/PROTOTYPE-NOTES.md`](docs/PROTOTYPE-NOTES.md).

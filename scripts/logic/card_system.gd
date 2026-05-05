@@ -18,15 +18,8 @@ var deck: Array = []
 var hand: Array = []
 var discard: Array = []
 
-func reset(hero_id: String = "Buffalo", deck_override: Array = []) -> void:
-	# `deck_override` lets the adapter pass a meta-progression-modified deck
-	# in (starter deck with unlocked cards swapped). When empty, fall back to
-	# the bare starter deck so the logic stays usable from tests / fresh runs
-	# without an autoload bound.
-	if deck_override.is_empty():
-		deck = Cards.build_starter_deck(hero_id)
-	else:
-		deck = deck_override.duplicate()
+func reset(hero_id: String = "Buffalo") -> void:
+	deck = Cards.build_starter_deck(hero_id)
 	hand = []
 	discard = []
 	_shuffle(deck)
