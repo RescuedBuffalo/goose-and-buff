@@ -1,12 +1,9 @@
 extends Node2D
 ##
-## Boot script for the survival rebuild. Builds logic modules, instantiates
-## scene-tree adapters, seeds the hand-crafted starter world, and wires
-## signals between them.
-##
-## The wave-defense build had main wire a card hand and a phase button;
-## the survival rebuild swaps both for the day/night cycle (auto phases)
-## plus an inventory bar + build overlay (replaces the card hand).
+## Boot script for the survival rebuild + M2. Builds logic modules,
+## instantiates scene-tree adapters, generates the procgen world from
+## the run config (BUF-144), applies effective_stats from the lodge
+## upgrade tree (BUF-147), and wires signals between everything.
 ##
 ## Pure logic + data layers stay verbatim from their files. Only the
 ## adapter wiring lives here.
@@ -17,13 +14,21 @@ const Items := preload("res://data/items.gd")
 const Resources := preload("res://data/resources.gd")
 const DayNight := preload("res://data/day_night.gd")
 const Waves := preload("res://data/waves.gd")
+const Weapons := preload("res://data/weapons.gd")
+const RunEconomy := preload("res://data/run_economy.gd")
 const DayNightCycleClass := preload("res://scripts/logic/day_night_cycle.gd")
+const StatSystemClass := preload("res://scripts/logic/stat_system.gd")
+const WorldGeneratorClass := preload("res://scripts/logic/world_generator.gd")
 const WaveDirectorGate := preload("res://scripts/adapters/wave_director_gate.gd")
 const LightingAdapterScript := preload("res://scripts/adapters/lighting_adapter.gd")
 const InventoryHudScript := preload("res://scripts/adapters/inventory_hud.gd")
 const BuildOverlayScript := preload("res://scripts/adapters/build_overlay.gd")
 const CombatVisualsScript := preload("res://scripts/adapters/combat_visuals.gd")
 const TelemetryIoScript := preload("res://scripts/adapters/telemetry_io.gd")
+const WorldBuilderScript := preload("res://scripts/adapters/world_builder.gd")
+const DebugOverlayScript := preload("res://scripts/adapters/debug_overlay.gd")
+const DebugPanelScript := preload("res://scripts/adapters/debug_panel.gd")
+const ProjectileScene := preload("res://scenes/projectile.tscn")
 
 const SectorScene := preload("res://scenes/sector.tscn")
 const HeroScene := preload("res://scenes/hero.tscn")
@@ -39,6 +44,8 @@ const LODGE_SCENE_PATH := "res://scenes/lodge/lodge.tscn"
 # without a beat, victory/defeat reads as a tab switch rather than a
 # story moment. The end-screen scrim covers the world during the wait.
 const RUN_END_TO_LODGE_DELAY_SECONDS := 1.6
+# Where dump_world() writes the WorldDef JSON during F3 debug mode.
+const DEBUG_DUMP_DIR := "user://debug"
 
 # Logic modules. Constructed once per run, reset between runs.
 var day_night = null
@@ -60,31 +67,47 @@ var build_overlay
 var combat_visuals
 var lighting
 var telemetry_io = null
+var world_builder = null
+var debug_overlay = null
+var debug_panel = null
 
-# Run-end stat tally — pushed onto the end-screen on victory/defeat,
-# and serialized into the save file (BUF-142) before the lodge loads.
+# Run state.
 var _resources_gathered: int = 0
 var _enemies_felled: int = 0
 var _nights_survived: int = 0
 var _run_started_msec: int = 0
+var _run_seed: int = 0
+var _world_def: Dictionary = {}
+var _effective_stats: Dictionary = {}
+var _starter_items: Array = []
+var _embers_awarded_this_run: int = 0
 
 const DEFAULT_HERO_ID := "Buffalo"
 
-# Starter inventory — gives the player a hand axe and one wall stack so
-# they can immediately do something on Day 1 without hunting for tools.
-const STARTER_ITEMS: Array = [
-	{"id": "hand_axe", "count": 1},
-	{"id": "wood_wall", "count": 4},
-]
-
 func _ready() -> void:
 	randomize()
-	GameState.set_hero(DEFAULT_HERO_ID)
+	# Hero + seed come from GameState (set by the run-start screen via
+	# BUF-145). If neither is set — direct main.tscn launch with no
+	# preceding run-start — fall back to defaults so the scene is still
+	# runnable for development.
+	var hero_id: String = GameState.hero_id if not GameState.hero_id.is_empty() else DEFAULT_HERO_ID
+	GameState.set_hero(hero_id)
+	_run_seed = GameState.run_seed if GameState.run_seed != 0 else WorldGeneratorClass.random_seed()
+	GameState.run_seed = _run_seed
+	# Compute effective stats from owned upgrades BEFORE anything else
+	# touches base values — hero baseHealth, lodge HP, weapon scale, etc.
+	_effective_stats = StatSystemClass.effective_stats(hero_id, SaveIo.owned_upgrades())
+	_starter_items = _build_starter_items(hero_id)
 	_build_logic()
 	_build_world()
 	_build_ui()
 	_wire_signals()
-	_seed_world_resources()
+	# World generation runs ONCE per run on day_index = 1 (with day-1
+	# climate weights). The chunks stay constant across the run; the
+	# lighting adapter pushes the cold-tint forward each successive
+	# night so the world *visibly* deepens into winter (BUF-146).
+	_generate_world(1)
+	_apply_stats_to_systems()
 	_start_run()
 
 func _build_logic() -> void:
@@ -105,7 +128,7 @@ func _build_world() -> void:
 	sector = SectorScene.instantiate()
 	add_child(sector)
 	hero = HeroScene.instantiate()
-	hero.set_hero(DEFAULT_HERO_ID)
+	hero.set_hero(GameState.hero_id)
 	hero.attach_sector(sector)
 	add_child(hero)
 	# Combat visuals layer — sibling so swing arcs render in world space.
@@ -116,6 +139,16 @@ func _build_world() -> void:
 	build_overlay = BuildOverlayScript.new()
 	build_overlay.name = "BuildOverlay"
 	add_child(build_overlay)
+	# World builder spawns resource node Node2Ds from the WorldDef.
+	world_builder = WorldBuilderScript.new()
+	world_builder.name = "WorldBuilder"
+	add_child(world_builder)
+	world_builder.attach(sector, self)
+	# Debug overlay (F3) — chunk lines drawn in world space.
+	debug_overlay = DebugOverlayScript.new()
+	debug_overlay.name = "DebugOverlay"
+	add_child(debug_overlay)
+	debug_overlay.attach(sector)
 
 func _build_ui() -> void:
 	var ui_layer := CanvasLayer.new()
@@ -135,6 +168,10 @@ func _build_ui() -> void:
 	ui_layer.add_child(inventory_hud)
 	end_screen = EndScene.instantiate()
 	ui_layer.add_child(end_screen)
+	# Debug panel (F3) — screen-space stats panel above the world overlay.
+	debug_panel = DebugPanelScript.new()
+	debug_panel.name = "DebugPanel"
+	ui_layer.add_child(debug_panel)
 	# Telemetry IO is a non-visual node — parent it under self so its
 	# _process tick fires and _exit_tree flushes on shutdown.
 	telemetry_io = TelemetryIoScript.new()
@@ -163,45 +200,120 @@ func _wire_signals() -> void:
 	gather.gather_completed.connect(_on_gather_completed)
 	inventory.added_item.connect(_on_inventory_added)
 	combat.damage_dealt.connect(_on_combat_damage)
+	combat.projectile_requested.connect(_on_projectile_requested)
+	combat.ammo_consumed.connect(_on_ammo_consumed)
+
+# ── World generation (BUF-144) ───────────────────────────────────────
+func _generate_world(day_index: int) -> void:
+	var t0: int = Time.get_ticks_msec()
+	_world_def = WorldGeneratorClass.generate(_run_seed, day_index, GameState.hero_id)
+	var elapsed: int = Time.get_ticks_msec() - t0
+	# Brief mandates <250 ms; a stamp + ~20 resource placements completes
+	# in single-digit ms in practice. Warning fires only if generation
+	# starts misbehaving so we catch perf regressions.
+	if elapsed > 250:
+		push_warning("WorldGenerator slow: %d ms (target <250)" % elapsed)
+	if sector != null and sector.has_method("adopt_world"):
+		sector.adopt_world(_world_def)
+	if world_builder != null:
+		world_builder.build_from(_world_def)
+	if debug_overlay != null:
+		debug_overlay.set_world(_world_def)
+	if debug_panel != null:
+		debug_panel.set_world(_world_def)
+
+func _apply_stats_to_systems() -> void:
+	# Stat dispatch (BUF-147). Each consumer reads what it cares about
+	# from the effective_stats dict — no system reads the upgrade list
+	# directly.
+	var stats: Dictionary = _effective_stats
+	if hero != null and is_instance_valid(hero) and hero.has_method("apply_stats"):
+		hero.apply_stats(float(stats.hp_max), float(stats.move_speed))
+	if combat != null:
+		combat.set_stat_modifiers(
+			float(stats.attack_damage),
+			float(stats.attack_speed),
+			float(stats.attack_range),
+		)
+	if gather != null:
+		gather.set_speed_multiplier(float(stats.gather_speed))
+	if sector != null:
+		sector.reset_core(float(stats.lodge_hp_max))
+
+func _build_starter_items(hero_id: String) -> Array:
+	# Pick the best axe the player has unlocked at the lodge. Default
+	# is hand_axe; iron_axe replaces it once unlocked; steel_axe replaces
+	# both. Players also get spear / bow + arrows when unlocked. Wood
+	# walls always seed at 4 so day 1 has something to build.
+	var owned: Array = SaveIo.owned_upgrades()
+	var unlocks: Dictionary = StatSystemClass.unlocks_from(owned)
+	var axe_id: String = "hand_axe"
+	if unlocks.has("iron_axe"):
+		axe_id = "iron_axe"
+	if unlocks.has("steel_axe"):
+		axe_id = "steel_axe"
+	var items: Array = [
+		{"id": axe_id, "count": 1},
+		{"id": "wood_wall", "count": 4},
+	]
+	# Spear in slot 2 if unlocked; bow + arrows after.
+	if unlocks.has("spear"):
+		items.append({"id": "spear", "count": 1})
+	if unlocks.has("bow"):
+		items.append({"id": "bow", "count": 1})
+	if unlocks.has("arrow"):
+		items.append({"id": "arrow", "count": 12})
+	return items
 
 func _start_run() -> void:
+	# Snapshot identity before reset() so the same hero + seed survive
+	# the phase / hp wipe that GameState.reset() applies.
+	var preserved_hero: String = GameState.hero_id if not GameState.hero_id.is_empty() else DEFAULT_HERO_ID
 	GameState.reset()
-	GameState.set_hero(DEFAULT_HERO_ID)
-	sector.set_hero(DEFAULT_HERO_ID)
-	sector.reset_core()
+	GameState.set_hero(preserved_hero)
+	GameState.run_seed = _run_seed
+	sector.set_hero(GameState.hero_id)
+	# Reset core uses the upgrade-scaled lodge_hp_max so the upgrade
+	# applies immediately on a fresh run.
+	sector.reset_core(float(_effective_stats.get("lodge_hp_max", Sectors.CORE_HEALTH)))
 	hero.reset_hp()
 	hero.reset_position()
 	wave_director.reset()
 	day_night.reset()
 	inventory.reset()
 	combat.reset()
+	combat.set_stat_modifiers(
+		float(_effective_stats.get("attack_damage", 1.0)),
+		float(_effective_stats.get("attack_speed", 1.0)),
+		float(_effective_stats.get("attack_range", 0.0)),
+	)
 	gather.reset()
+	gather.set_speed_multiplier(float(_effective_stats.get("gather_speed", 1.0)))
 	telemetry.reset()
 	_resources_gathered = 0
 	_enemies_felled = 0
 	_nights_survived = 0
+	_embers_awarded_this_run = 0
 	_run_started_msec = Time.get_ticks_msec()
-	for item in STARTER_ITEMS:
+	for item in _starter_items:
 		inventory.add(item.id, int(item.count))
-	# Default selection: slot 0 (hand axe). Equipping happens via the
-	# inventory's selection-side effect.
+	# Default selection: slot 0 (the equipped axe).
 	inventory.select_slot(0)
 	end_screen.visible = false
 	hud.visible = true
 	inventory_hud.visible = true
-	# Cards are dormant in the survival rebuild, so the active starter
-	# inventory is what BUF-115 cares about under "deck composition" —
-	# once cards return this is the natural place to log them too.
 	telemetry.start_run({
 		"hero_id": GameState.hero_id,
 		"max_nights": DayNight.MAX_NIGHTS,
-		"deck_composition": STARTER_ITEMS.duplicate(true),
+		"deck_composition": _starter_items.duplicate(true),
+		"seed": _run_seed,
+		"seed_string": WorldGeneratorClass.seed_to_string(_run_seed),
+		"owned_upgrades": SaveIo.owned_upgrades().duplicate(),
 	})
 
 func _process(delta: float) -> void:
 	# When the run is over, freeze ticks so the end-screen scrim doesn't
-	# sit on top of a noisy world (cycle still advancing, wolves still
-	# spawning). Restart re-enters via _start_run.
+	# sit on top of a noisy world. Restart re-enters via _start_run.
 	if GameState.phase == GameState.Phase.RUN_ENDED or GameState.phase == GameState.Phase.RUN_COMPLETE:
 		return
 	day_night.tick(delta)
@@ -211,32 +323,39 @@ func _process(delta: float) -> void:
 		var node = gather.active_node()
 		if node != null and is_instance_valid(node):
 			gather.tick(delta, hero.current_tile, node.current_tile, inventory.equipped_weapon())
-	# Hold-to-gather: when E is held and the hero is next to a resource
-	# node, kick off / refresh gathering. Releasing E cancels.
 	if Input.is_action_pressed("gather"):
 		_try_start_gather()
 	elif Input.is_action_just_released("gather"):
 		gather.cancel_active()
-	# Hotbar 1..8 → select slot.
 	for i in InventorySystem.SLOT_COUNT:
 		if Input.is_action_just_pressed("hotbar_%d" % (i + 1)):
 			inventory.select_slot(i)
 
 func _unhandled_input(event: InputEvent) -> void:
-	# Click-to-attack — only fires when no placeable is selected (the
-	# build overlay handles the click in that case).
+	# F3 toggles the debug overlay (BUF-145). Captured here rather than
+	# as a registered input action so we don't have to touch project.godot
+	# for this dev-only toggle.
+	if event is InputEventKey:
+		var k: InputEventKey = event
+		if k.pressed and k.keycode == KEY_F3:
+			if debug_overlay != null:
+				debug_overlay.toggle()
+			if debug_panel != null:
+				debug_panel.toggle()
+			return
+		if k.pressed and k.keycode == KEY_F4:
+			# F4 = dump current WorldDef to user://debug/<seed>.json so
+			# the chunk pick / resource list can be inspected offline.
+			_dump_world()
+			return
 	if not (event is InputEventMouseButton):
 		return
-	# Mirror the _process gate: once the run is over, swallow inputs so
-	# clicks on the end-screen scrim don't trigger swings (or telemetry
-	# events) behind the UI.
 	if GameState.phase == GameState.Phase.RUN_ENDED or GameState.phase == GameState.Phase.RUN_COMPLETE:
 		return
 	var mb: InputEventMouseButton = event
 	if not mb.pressed:
 		return
 	if mb.button_index == MOUSE_BUTTON_RIGHT:
-		# Right-click anywhere clears any active placeable preview.
 		inventory.clear_selection()
 		return
 	if mb.button_index != MOUSE_BUTTON_LEFT:
@@ -251,13 +370,68 @@ func _unhandled_input(event: InputEvent) -> void:
 	for n in get_tree().get_nodes_in_group("enemies"):
 		if is_instance_valid(n):
 			enemies.append(n)
-	var swing_result: Dictionary = combat.resolve_swing(hero.position, hero.facing, inventory.equipped_weapon(), enemies)
+	# Ammo count for ranged weapons. Bare hands / melee ignore it.
+	var equipped: String = inventory.equipped_weapon()
+	var ammo_count: int = 0
+	if Weapons.is_ranged(equipped):
+		var ammo_id: String = Weapons.ammo_for(equipped)
+		# Inventory has has_at_least but no exact-count getter — count
+		# slots with the ammo id.
+		for slot in inventory.slots:
+			if String(slot.get("item_id", "")) == ammo_id:
+				ammo_count += int(slot.get("count", 0))
+	var swing_result: Dictionary = combat.resolve_swing(hero.position, hero.facing, equipped, enemies, ammo_count)
 	if telemetry != null and swing_result.get("ok", false):
 		telemetry.log("ability_cast", {
 			"ability_id": "weapon_swing",
 			"weapon_id": String(swing_result.get("weapon", "")),
 			"hits": int((swing_result.get("hits", []) as Array).size()),
+			"ranged": bool(swing_result.get("ranged", false)),
 		})
+
+# ── Debug helpers (BUF-145) ──────────────────────────────────────────
+func _dump_world() -> void:
+	if _world_def.is_empty():
+		return
+	DirAccess.make_dir_recursive_absolute(DEBUG_DUMP_DIR)
+	var seed_str: String = WorldGeneratorClass.seed_to_string(_run_seed)
+	var path: String = "%s/world_%s.json" % [DEBUG_DUMP_DIR, seed_str]
+	var f := FileAccess.open(path, FileAccess.WRITE)
+	if f == null:
+		push_warning("debug: could not open %s" % path)
+		return
+	# Vector2i / Vector2 don't json natively — flatten into [x, y] pairs.
+	f.store_string(JSON.stringify(_flatten_world_for_json(_world_def), "\t"))
+	f.close()
+	print("debug: wrote ", path)
+
+func _flatten_world_for_json(def: Dictionary) -> Dictionary:
+	var copy: Dictionary = {}
+	for k in def.keys():
+		var v = def[k]
+		if v is Vector2i:
+			copy[k] = [v.x, v.y]
+		elif typeof(v) == TYPE_ARRAY and not (v as Array).is_empty() and (v as Array)[0] is Vector2i:
+			var pts: Array = []
+			for p in v:
+				pts.append([p.x, p.y])
+			copy[k] = pts
+		elif k == "tiles":
+			# Tile dicts pass through cleanly.
+			copy[k] = v
+		elif k == "resources":
+			var rs: Array = []
+			for r in v:
+				rs.append({"kind": String(r.kind), "tile": [r.tile.x, r.tile.y]})
+			copy[k] = rs
+		elif k == "chunks":
+			var cs: Array = []
+			for c in v:
+				cs.append({"chunk_pos": [c.chunk_pos.x, c.chunk_pos.y], "template_id": c.template_id, "climate": c.climate})
+			copy[k] = cs
+		else:
+			copy[k] = v
+	return copy
 
 # ── Gather plumbing ──────────────────────────────────────────────────
 func _try_start_gather() -> void:
@@ -265,9 +439,6 @@ func _try_start_gather() -> void:
 		return
 	if gather.is_active():
 		return
-	# Find a resource node within 1 tile of the hero. Prefer the closest
-	# in cardinal direction the hero is facing — keeps the interaction
-	# predictable when two nodes are adjacent.
 	var best: Node2D = null
 	var best_d: int = 99
 	for n in get_tree().get_nodes_in_group("resource_nodes"):
@@ -293,8 +464,6 @@ func _on_gather_completed(node_ref, yields: Dictionary) -> void:
 	for item_id in yields:
 		var leftover: int = inventory.add(item_id, int(yields[item_id]))
 		_resources_gathered += int(yields[item_id]) - leftover
-		# Pickup-on-floor when inventory overflows is flagged in the
-		# brief but out of MVP scope — leftover is logged and dropped.
 		if leftover > 0:
 			push_warning("Inventory full — %d %s left on the floor" % [leftover, item_id])
 	if telemetry != null:
@@ -306,9 +475,6 @@ func _on_gather_completed(node_ref, yields: Dictionary) -> void:
 		node_ref.deplete()
 
 func _on_inventory_added(_item_id: String, _count: int) -> void:
-	# Hook for future audio / VFX. Stat tally happens at gather_completed
-	# so it doesn't double-count when the same item arrives via place
-	# refunds, etc.
 	pass
 
 # ── Build plumbing ───────────────────────────────────────────────────
@@ -332,9 +498,6 @@ func _on_placed(item_id: String, tile: Vector2i) -> void:
 	p.attach_sector(sector)
 	add_child(p)
 	p.place_at_tile(tile)
-	# After placing, if the player ran out of that item, clear the build
-	# ghost so they don't see a "blocked because no resources" red ghost
-	# trailing the cursor.
 	if not inventory.has_at_least(item_id, 1):
 		sector.clear_build_ghost()
 
@@ -344,20 +507,34 @@ func _on_combat_damage(target_ref, amount: float) -> void:
 		return
 	target_ref.damage(amount)
 
+func _on_projectile_requested(_weapon_id: String, origin: Vector2, direction: Vector2, range_px: float, damage: float, speed_px: float) -> void:
+	# Spawn an arrow Node2D at the hero's position. Hits roll in via
+	# the projectile's own hit_target signal.
+	var arrow: Node2D = ProjectileScene.instantiate()
+	add_child(arrow)
+	arrow.position = origin
+	arrow.configure(direction, range_px, damage, speed_px)
+	arrow.hit_target.connect(_on_projectile_hit)
+
+func _on_projectile_hit(target_ref, amount: float) -> void:
+	if target_ref == null or not is_instance_valid(target_ref):
+		return
+	target_ref.damage(amount)
+
+func _on_ammo_consumed(item_id: String, count: int) -> void:
+	if item_id.is_empty() or count <= 0:
+		return
+	inventory.remove_item(item_id, count)
+
 # ── Wave plumbing ────────────────────────────────────────────────────
 func _on_enemy_due(enemy_type: String, slot_index: int) -> void:
 	var entry_tiles: Array[Vector2i] = Sectors.ENEMY_ENTRY_TILES
 	var entry_tile: Vector2i = entry_tiles[slot_index % entry_tiles.size()]
 	var e: Node2D = EnemyScene.instantiate()
-	# Stamp the current round's stat scale so a Night-3 wolf hits harder
-	# than a Night-1 wolf even when the same archetype shows up. Tunables
-	# live in data/waves.gd (BUF-115).
 	e.configure(enemy_type, Waves.stat_scale_for(wave_director.round_index))
 	e.attach_sector(sector)
 	e.died.connect(_on_enemy_died.bind(enemy_type))
 	e.reached_core.connect(_on_enemy_reached_core)
-	# Bind enemy_type so the telemetry hook knows what hit the hero
-	# without re-reading the (possibly freed) enemy node.
 	e.damaged_target.connect(_on_enemy_damaged_target.bind(enemy_type))
 	add_child(e)
 	e.place_at_tile(entry_tile)
@@ -393,11 +570,6 @@ func _on_enemy_reached_core(enemy: Node2D) -> void:
 	enemy.queue_free()
 
 func _on_wave_started(round_index: int, composition: Dictionary) -> void:
-	# Voice rule: archetype banner is the ALL-CAPS shout, e.g.
-	#   "NIGHT 1 — PROBE"
-	#   "NIGHT 3 — A BIG ONE INCOMING"
-	# The HUD's NIGHT phase-change banner is suppressed so this is
-	# the single banner the player sees at night-start.
 	var shout: String = "NIGHT %d — %s" % [round_index, str(composition.get("banner", "RAID"))]
 	hud.show_banner(shout, 2.5)
 	if telemetry != null:
@@ -412,8 +584,6 @@ func _on_wave_started(round_index: int, composition: Dictionary) -> void:
 		})
 
 func _on_wave_ended(round_index: int) -> void:
-	# Sweep any wolves still on the board — dawn ended the night, the
-	# pack retreats. Keeps day-1-into-day-2 transitions clean.
 	for n in get_tree().get_nodes_in_group("enemies"):
 		if is_instance_valid(n):
 			n.queue_free()
@@ -426,14 +596,11 @@ func _on_wave_ended(round_index: int) -> void:
 
 # ── Day/night plumbing ───────────────────────────────────────────────
 func _on_phase_changed(_phase: int, _day_index: int) -> void:
-	pass  # HUD listens directly; nothing for main to do.
+	pass
 
 func _on_cycle_complete(nights: int) -> void:
-	# Defer so the rest of this frame's _process (wave_director.tick,
-	# combat.tick, gather.tick) can finish without their events landing
-	# in the buffer behind run_end. cycle_complete is emitted from
-	# day_night.tick — without the defer, a gather that completes later
-	# in the same _process would log resource_gathered AFTER run_end.
+	# Defer so the rest of this frame's _process can finish without
+	# events landing in the buffer behind run_end.
 	_run_victory.call_deferred(nights)
 
 func _run_victory(_nights: int) -> void:
@@ -441,6 +608,9 @@ func _run_victory(_nights: int) -> void:
 		return
 	GameState.set_phase(GameState.Phase.RUN_COMPLETE)
 	end_screen.set_stats(_nights_survived, _resources_gathered, _enemies_felled)
+	end_screen.set_seed(_run_seed)
+	_award_embers(SaveStateClass.OUTCOME_VICTORY)
+	end_screen.set_embers_earned(_embers_awarded_this_run)
 	end_screen.show_victory()
 	if telemetry != null:
 		telemetry.end_run({
@@ -448,26 +618,15 @@ func _run_victory(_nights: int) -> void:
 			"nights_survived": _nights_survived,
 			"resources_gathered": _resources_gathered,
 			"enemies_felled": _enemies_felled,
+			"embers_earned": _embers_awarded_this_run,
 		})
 	_record_run_and_go_to_lodge(SaveStateClass.OUTCOME_VICTORY)
 
 # ── Run-end plumbing ─────────────────────────────────────────────────
 func _on_hero_downed() -> void:
-	# Hero HP at 0 ends the run. The wave-defense build only banner-noted
-	# this; survival treats hero death as defeat (no respawn for MVP).
-	#
-	# Defer so the rest of the in-flight signal chain settles before the
-	# run is closed out. enemy._physics_process calls hero.damage() and
-	# THEN emits damaged_target — without the defer, _run_defeat would
-	# log run_end before the fatal damaged_target ever fires its
-	# hero_damage_taken event, putting the events out of order in the
-	# run file (and dropping the fatal hit if run_id were cleared).
 	_run_defeat.call_deferred()
 
 func _on_core_destroyed() -> void:
-	# Same rationale as _on_hero_downed — defer for symmetry and to
-	# avoid serializing run-end side-effects inside another module's
-	# signal stack.
 	_run_defeat.call_deferred()
 
 func _run_defeat() -> void:
@@ -475,6 +634,9 @@ func _run_defeat() -> void:
 		return
 	GameState.set_phase(GameState.Phase.RUN_ENDED)
 	end_screen.set_stats(_nights_survived, _resources_gathered, _enemies_felled)
+	end_screen.set_seed(_run_seed)
+	_award_embers(SaveStateClass.OUTCOME_DEFEAT)
+	end_screen.set_embers_earned(_embers_awarded_this_run)
 	end_screen.show_defeat()
 	if telemetry != null:
 		telemetry.end_run({
@@ -482,8 +644,24 @@ func _run_defeat() -> void:
 			"nights_survived": _nights_survived,
 			"resources_gathered": _resources_gathered,
 			"enemies_felled": _enemies_felled,
+			"embers_earned": _embers_awarded_this_run,
 		})
 	_record_run_and_go_to_lodge(SaveStateClass.OUTCOME_DEFEAT)
+
+func _award_embers(outcome: String) -> void:
+	# Single-shot per run. Call only from victory/defeat paths.
+	var amount: int = RunEconomy.award_for_run(outcome, _nights_survived, _resources_gathered, _enemies_felled)
+	_embers_awarded_this_run = amount
+	if amount > 0:
+		SaveIo.add_embers(amount)
+	if telemetry != null:
+		telemetry.log("ember_earned", {
+			"outcome": outcome,
+			"amount": amount,
+			"nights_survived": _nights_survived,
+			"resources_gathered": _resources_gathered,
+			"enemies_felled": _enemies_felled,
+		})
 
 func _record_run_and_go_to_lodge(outcome: String) -> void:
 	var duration: float = float(Time.get_ticks_msec() - _run_started_msec) / 1000.0
@@ -495,53 +673,10 @@ func _record_run_and_go_to_lodge(outcome: String) -> void:
 		_enemies_felled,
 		duration,
 	)
-	# Hold the end-screen scrim for a beat so the player can register
-	# what happened, then swap to the lodge. Going straight to the lodge
-	# eats the moment.
 	get_tree().create_timer(RUN_END_TO_LODGE_DELAY_SECONDS).timeout.connect(_go_to_lodge)
 
 func _go_to_lodge() -> void:
 	get_tree().change_scene_to_file(LODGE_SCENE_PATH)
 
 func _on_restart_requested() -> void:
-	# End-screen "Run again" is now a fast-path to the lodge — the lodge
-	# itself owns the actual restart trigger (BUF-142). Clicking before
-	# the auto-transition timer fires just gets you there sooner.
 	_go_to_lodge()
-
-# ── World seeding ────────────────────────────────────────────────────
-func _seed_world_resources() -> void:
-	# Hand-crafted seed: a treeline north, a rock outcrop east, berry
-	# bushes south of the lodge. Exact tile positions live here rather
-	# than in data/sectors.gd because they're "where" decisions, not
-	# "how the world is shaped" decisions — biome rectangles in sectors
-	# describe the latter, this loop describes the former.
-	var trees := [
-		Vector2i(5, 2), Vector2i(7, 1), Vector2i(9, 2), Vector2i(12, 1),
-		Vector2i(15, 2), Vector2i(17, 1), Vector2i(19, 2),
-		Vector2i(6, 4), Vector2i(10, 4), Vector2i(14, 4), Vector2i(18, 4),
-	]
-	var rocks := [
-		Vector2i(21, 8), Vector2i(22, 10), Vector2i(21, 12), Vector2i(23, 14),
-		Vector2i(22, 16),
-	]
-	var bushes := [
-		Vector2i(8, 19), Vector2i(11, 19), Vector2i(14, 19), Vector2i(17, 19),
-	]
-	for tile in trees:
-		_spawn_resource("tree_pine", tile)
-	for tile in rocks:
-		_spawn_resource("rock_field", tile)
-	for tile in bushes:
-		_spawn_resource("berry_bush", tile)
-
-func _spawn_resource(kind: String, tile: Vector2i) -> void:
-	if not Sectors.is_tile_in_grid(tile) or Sectors.is_tile_protected(tile):
-		return
-	if not sector.is_tile_walkable(tile):
-		return
-	var n: Node2D = ResourceNodeScene.instantiate()
-	n.configure(kind)
-	n.attach_sector(sector)
-	add_child(n)
-	n.place_at_tile(tile)

@@ -100,6 +100,36 @@ func _draw_artifact_id() -> String:
 	rng.randomize()
 	return ArtifactsData.draw(rng)
 
+# ── M2: embers + upgrades (BUF-147) ──────────────────────────────────────
+
+func add_embers(amount: int) -> int:
+	# Mutates + persists. Returns the new balance.
+	data = SaveStateClass.add_embers(data, amount)
+	save()
+	return SaveStateClass.embers(data)
+
+func purchase_upgrade(upgrade_id: String) -> Dictionary:
+	# Pure stat-system computes the new state; the adapter persists it.
+	# Returns the same {ok, embers, owned_upgrades, reason} dict the
+	# pure logic produces so callers can render rejection states.
+	var StatSystemClass := load("res://scripts/logic/stat_system.gd")
+	var result: Dictionary = StatSystemClass.apply_purchase(
+		upgrade_id,
+		SaveStateClass.embers(data),
+		SaveStateClass.owned_upgrades(data),
+	)
+	if result.ok:
+		data = SaveStateClass.set_embers(data, int(result.embers))
+		data = SaveStateClass.set_owned_upgrades(data, result.owned_upgrades)
+		save()
+	return result
+
+func embers() -> int:
+	return SaveStateClass.embers(data)
+
+func owned_upgrades() -> Array:
+	return SaveStateClass.owned_upgrades(data)
+
 # ── Accessors ────────────────────────────────────────────────────────────
 
 func last_run() -> Dictionary:

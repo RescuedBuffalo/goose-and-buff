@@ -45,17 +45,21 @@ func _on_phase_changed(phase: int, day_index: int) -> void:
 	_phase = phase
 	_day_index = day_index
 	# Phase-change banners stay short and warm — sentence case, no shouts.
+	# Seasonal-frame language (BUF-146): days carry a chapter name, not a
+	# wave number. "First frost → the long cold → the deep dark → before
+	# the thaw" is the locked vocabulary.
+	#
 	# The NIGHT case is intentionally absent: the wave-start path raises
 	# its own ALL-CAPS archetype shout via show_banner (e.g. "NIGHT 3 —
 	# A BIG ONE INCOMING"), and a duplicate sentence-case banner here
 	# would just flicker underneath it.
 	match phase:
 		DayNight.PHASE_DAY:
-			show_banner("Day %d — gather and prepare." % day_index, 2.0)
+			show_banner("%s — %s" % [_day_chapter_title(day_index), _day_chapter_action(day_index)], 2.4)
 		DayNight.PHASE_DUSK:
 			show_banner("The light is going.", 2.0)
 		DayNight.PHASE_DAWN:
-			show_banner("We held.", 2.0)
+			show_banner(_dawn_banner_text(day_index), 2.0)
 
 func _on_phase_timer(seconds_left: float, phase: int) -> void:
 	_phase_seconds = seconds_left
@@ -94,12 +98,45 @@ func _draw() -> void:
 		_draw_banner(_banner_text)
 
 func _phase_headline() -> String:
+	# Seasonal-frame chapter names (BUF-146). "Day 1 — first frost,
+	# gather and prepare" / "Night 2 — the long cold, hold the line"
+	# / "Day 3 — the deep dark, gather and prepare". The chapter
+	# carries the seasonal weight; the verb tells the player what to do.
 	match _phase:
-		DayNight.PHASE_DAY: return "Day %d — gather and prepare" % _day_index
-		DayNight.PHASE_DUSK: return "Day %d — dusk" % _day_index
-		DayNight.PHASE_NIGHT: return "Night %d — hold the line" % _day_index
-		DayNight.PHASE_DAWN: return "Day %d — dawn" % _day_index
-		_: return "Day %d" % _day_index
+		DayNight.PHASE_DAY: return "%s — gather and prepare" % _day_chapter_title(_day_index)
+		DayNight.PHASE_DUSK: return "%s — dusk" % _day_chapter_title(_day_index)
+		DayNight.PHASE_NIGHT: return "%s — hold the line" % _night_chapter_title(_day_index)
+		DayNight.PHASE_DAWN: return "%s — dawn" % _day_chapter_title(_day_index)
+		_: return _day_chapter_title(_day_index)
+
+func _day_chapter_title(day_index: int) -> String:
+	match day_index:
+		1: return "Day 1 — first frost"
+		2: return "Day 2 — the long cold"
+		3: return "Day 3 — the deep dark"
+		_: return "Day %d" % day_index
+
+func _night_chapter_title(day_index: int) -> String:
+	match day_index:
+		1: return "Night 1 — first frost"
+		2: return "Night 2 — the long cold"
+		3: return "Night 3 — the deep dark"
+		_: return "Night %d" % day_index
+
+func _day_chapter_action(day_index: int) -> String:
+	# Action verb pairs the chapter with what to do during it.
+	match day_index:
+		1: return "gather and prepare"
+		2: return "stockpile and brace"
+		3: return "ready the last stand"
+		_: return "gather and prepare"
+
+func _dawn_banner_text(day_index: int) -> String:
+	# Final dawn (after night 3) reads "before the thaw" — the chapter
+	# the seasonal frame closes on. Earlier dawns simply note "we held".
+	if day_index >= DayNight.MAX_NIGHTS:
+		return "Before the thaw — we held."
+	return "We held."
 
 func _draw_banner(text: String) -> void:
 	var font: Font = ThemeDB.fallback_font

@@ -4,8 +4,9 @@ extends Control
 ##
 ## Reads cross-run state from the SaveIo autoload: surfaces the last run's
 ## stats, lists the last MAX_RUNS runs, renders the lodge's accumulated
-## artifacts (BUF-130), and offers a "Run again" button that boots a fresh
-## run.
+## artifacts (BUF-130), surfaces the embers balance + upgrade tree
+## (BUF-147 / BUF-148), and offers a "Run again" button that boots the
+## run-start screen (BUF-145) so the player picks a hero + optional seed.
 ##
 ## The Variants panel still ships as a visible placeholder — it holds
 ## layout space until BUF-129 lands.
@@ -15,24 +16,42 @@ extends Control
 
 const SaveStateClass := preload("res://scripts/logic/save_state.gd")
 const ArtifactsData := preload("res://data/lodge_artifacts.gd")
-const MAIN_SCENE_PATH := "res://scenes/main.tscn"
+const UpgradeTreeScript := preload("res://scripts/ui/upgrade_tree.gd")
 
-@onready var _last_outcome: Label = $Margin/V/LastWatch/Outcome
-@onready var _last_subtitle: Label = $Margin/V/LastWatch/Subtitle
-@onready var _last_stats: Label = $Margin/V/LastWatch/Stats
-@onready var _last_empty: Label = $Margin/V/LastWatch/Empty
-@onready var _artifacts_empty: Label = $Margin/V/Reserved/Artifacts/V/Empty
-@onready var _artifacts_scroll: ScrollContainer = $Margin/V/Reserved/Artifacts/V/Scroll
-@onready var _artifacts_list: VBoxContainer = $Margin/V/Reserved/Artifacts/V/Scroll/List
-@onready var _history_list: VBoxContainer = $Margin/V/History/List
-@onready var _history_empty: Label = $Margin/V/History/Empty
-@onready var _run_again: Button = $Margin/V/Footer/RunAgain
+const RUN_START_SCENE_PATH := "res://scenes/ui/run_start.tscn"
+
+@onready var _last_outcome: Label = $Margin/Scroll/V/LastWatch/Outcome
+@onready var _last_subtitle: Label = $Margin/Scroll/V/LastWatch/Subtitle
+@onready var _last_stats: Label = $Margin/Scroll/V/LastWatch/Stats
+@onready var _last_empty: Label = $Margin/Scroll/V/LastWatch/Empty
+@onready var _embers_balance: Label = $Margin/Scroll/V/EmbersPanel/EmbersRow/Balance
+@onready var _upgrade_tree_mount: Control = $Margin/Scroll/V/UpgradeSection/UpgradeTreeMount
+@onready var _artifacts_empty: Label = $Margin/Scroll/V/Reserved/Artifacts/V/Empty
+@onready var _artifacts_scroll: ScrollContainer = $Margin/Scroll/V/Reserved/Artifacts/V/Scroll
+@onready var _artifacts_list: VBoxContainer = $Margin/Scroll/V/Reserved/Artifacts/V/Scroll/List
+@onready var _history_list: VBoxContainer = $Margin/Scroll/V/History/List
+@onready var _history_empty: Label = $Margin/Scroll/V/History/Empty
+@onready var _run_again: Button = $Margin/Scroll/V/Footer/RunAgain
+
+var _upgrade_tree: Control = null
 
 func _ready() -> void:
 	_run_again.pressed.connect(_on_run_again_pressed)
+	_mount_upgrade_tree()
 	_render()
 
+func _mount_upgrade_tree() -> void:
+	if _upgrade_tree_mount == null:
+		return
+	_upgrade_tree = UpgradeTreeScript.new()
+	_upgrade_tree.size = _upgrade_tree_mount.size
+	_upgrade_tree.anchor_right = 1.0
+	_upgrade_tree.anchor_bottom = 1.0
+	_upgrade_tree.purchased.connect(_on_upgrade_purchased)
+	_upgrade_tree_mount.add_child(_upgrade_tree)
+
 func _render() -> void:
+	_render_embers()
 	var last: Dictionary = SaveIo.last_run()
 	if last.is_empty():
 		_last_outcome.visible = false
@@ -49,6 +68,14 @@ func _render() -> void:
 		_last_stats.text = _format_stats(last)
 	_render_artifacts()
 	_render_history()
+
+func _render_embers() -> void:
+	if _embers_balance == null:
+		return
+	# Tabular numeral with a trailing "ember(s)" hint kept in the eyebrow
+	# so the headline number stays scannable. Voice rule: sentence case
+	# in the eyebrow, plain integer here.
+	_embers_balance.text = str(SaveIo.embers())
 
 func _render_artifacts() -> void:
 	# Lodge accumulates across runs (BUF-130). Group acquired artifacts by
@@ -146,7 +173,6 @@ func _outcome_subtitle(r: Dictionary) -> String:
 	var nights := int(r.get("nights_survived", 0))
 	if String(r.get("outcome", "")) == SaveStateClass.OUTCOME_VICTORY:
 		return "Three nights stood. The lodge still stands."
-	# "Watches stood" — recasts the loss without naming it as a fail count.
 	if nights == 0:
 		return "No watches stood. We try again."
 	if nights == 1:
@@ -165,8 +191,6 @@ func _format_stats(r: Dictionary) -> String:
 	]
 
 func _format_history_line(r: Dictionary) -> String:
-	# One line per past run. Outcome word first so the eye scans the
-	# column for "held / broke" patterns.
 	var outcome_word := "Held" if String(r.get("outcome", "")) == SaveStateClass.OUTCOME_VICTORY else "Broke"
 	return "%s  ·  %s  ·  nights %d  ·  felled %d  ·  %s" % [
 		outcome_word,
@@ -186,7 +210,13 @@ func _format_duration(seconds: float) -> String:
 # ── Actions ─────────────────────────────────────────────────────────────
 
 func _on_run_again_pressed() -> void:
-	# Hero selector is BUF-129's territory; until then "Run again" goes
-	# straight back into the run. When the selector lands, swap this to
-	# load that scene instead — the lodge contract here is unchanged.
-	get_tree().change_scene_to_file(MAIN_SCENE_PATH)
+	# M2 (BUF-145): runs go through the run-start screen first so the
+	# player can pick a totem + optional seed. The screen swaps to
+	# main.tscn once they confirm.
+	get_tree().change_scene_to_file(RUN_START_SCENE_PATH)
+
+func _on_upgrade_purchased(_upgrade_id: String) -> void:
+	# Refresh the embers balance + tree visual states. The tree's own
+	# _render() runs internally on confirm; we re-render the embers
+	# pill here so the balance pill isn't stale.
+	_render_embers()

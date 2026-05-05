@@ -23,124 +23,165 @@ theme_override_constants/margin_right = 64
 theme_override_constants/margin_bottom = 56
 mouse_filter = 2
 
-[node name="V" type="VBoxContainer" parent="Margin"]
-theme_override_constants/separation = 28
-mouse_filter = 2
+[node name="Scroll" type="ScrollContainer" parent="Margin"]
+horizontal_scroll_mode = 0
 
-[node name="Header" type="VBoxContainer" parent="Margin/V"]
+[node name="V" type="VBoxContainer" parent="Margin/Scroll"]
+theme_override_constants/separation = 24
+mouse_filter = 2
+custom_minimum_size = Vector2(1080, 0)
+
+[node name="Header" type="VBoxContainer" parent="Margin/Scroll/V"]
 theme_override_constants/separation = 4
 
-[node name="Eyebrow" type="Label" parent="Margin/V/Header"]
+[node name="Eyebrow" type="Label" parent="Margin/Scroll/V/Header"]
 text = "THE LODGE"
 theme_override_font_sizes/font_size = 12
 theme_override_colors/font_color = Color(0.502, 0.376, 0.227, 1)
 
-[node name="Headline" type="Label" parent="Margin/V/Header"]
+[node name="Headline" type="Label" parent="Margin/Scroll/V/Header"]
 text = "Last watch"
 theme_override_font_sizes/font_size = 34
 theme_override_colors/font_color = Color(0.180, 0.125, 0.086, 1)
 
-[node name="Sub" type="Label" parent="Margin/V/Header"]
+[node name="Sub" type="Label" parent="Margin/Scroll/V/Header"]
 text = "Warm fire. Long memory. We sit a moment before the next watch."
 theme_override_font_sizes/font_size = 16
 theme_override_colors/font_color = Color(0.317, 0.243, 0.180, 1)
 
-[node name="LastWatch" type="VBoxContainer" parent="Margin/V"]
+[node name="EmbersPanel" type="PanelContainer" parent="Margin/Scroll/V"]
+custom_minimum_size = Vector2(0, 60)
+
+[node name="EmbersRow" type="HBoxContainer" parent="Margin/Scroll/V/EmbersPanel"]
+theme_override_constants/separation = 16
+
+[node name="Eyebrow" type="Label" parent="Margin/Scroll/V/EmbersPanel/EmbersRow"]
+text = "EMBERS"
+theme_override_font_sizes/font_size = 12
+theme_override_colors/font_color = Color(0.502, 0.376, 0.227, 1)
+
+[node name="Balance" type="Label" parent="Margin/Scroll/V/EmbersPanel/EmbersRow"]
+text = "0"
+theme_override_font_sizes/font_size = 26
+theme_override_colors/font_color = Color(0.18, 0.125, 0.086, 1)
+
+[node name="Hint" type="Label" parent="Margin/Scroll/V/EmbersPanel/EmbersRow"]
+text = "Spend embers below to light upgrades for next watch."
+theme_override_font_sizes/font_size = 14
+theme_override_colors/font_color = Color(0.317, 0.243, 0.180, 1)
+
+[node name="LastWatch" type="VBoxContainer" parent="Margin/Scroll/V"]
 theme_override_constants/separation = 8
 
-[node name="Outcome" type="Label" parent="Margin/V/LastWatch"]
+[node name="Outcome" type="Label" parent="Margin/Scroll/V/LastWatch"]
 text = ""
 theme_override_font_sizes/font_size = 26
 theme_override_colors/font_color = Color(0.180, 0.125, 0.086, 1)
 
-[node name="Subtitle" type="Label" parent="Margin/V/LastWatch"]
+[node name="Subtitle" type="Label" parent="Margin/Scroll/V/LastWatch"]
 text = ""
 theme_override_font_sizes/font_size = 16
 theme_override_colors/font_color = Color(0.317, 0.243, 0.180, 1)
 
-[node name="Stats" type="Label" parent="Margin/V/LastWatch"]
+[node name="Stats" type="Label" parent="Margin/Scroll/V/LastWatch"]
 text = ""
 theme_override_font_sizes/font_size = 16
 theme_override_colors/font_color = Color(0.317, 0.243, 0.180, 1)
 
-[node name="Empty" type="Label" parent="Margin/V/LastWatch"]
+[node name="Empty" type="Label" parent="Margin/Scroll/V/LastWatch"]
 text = "No watches yet — your first run is your first story."
 theme_override_font_sizes/font_size = 16
 theme_override_colors/font_color = Color(0.502, 0.376, 0.227, 1)
 visible = false
 
-[node name="Reserved" type="HBoxContainer" parent="Margin/V"]
+[node name="UpgradeSection" type="VBoxContainer" parent="Margin/Scroll/V"]
+theme_override_constants/separation = 8
+
+[node name="Title" type="Label" parent="Margin/Scroll/V/UpgradeSection"]
+text = "Upgrades"
+theme_override_font_sizes/font_size = 20
+theme_override_colors/font_color = Color(0.180, 0.125, 0.086, 1)
+
+[node name="Sub" type="Label" parent="Margin/Scroll/V/UpgradeSection"]
+text = "Each ember lights one. Owned upgrades carry into every watch."
+theme_override_font_sizes/font_size = 14
+theme_override_colors/font_color = Color(0.317, 0.243, 0.180, 1)
+
+[node name="UpgradeTreeMount" type="Control" parent="Margin/Scroll/V/UpgradeSection"]
+custom_minimum_size = Vector2(1080, 720)
+
+[node name="Reserved" type="HBoxContainer" parent="Margin/Scroll/V"]
 theme_override_constants/separation = 16
 
-[node name="Artifacts" type="PanelContainer" parent="Margin/V/Reserved"]
+[node name="Artifacts" type="PanelContainer" parent="Margin/Scroll/V/Reserved"]
 custom_minimum_size = Vector2(360, 96)
 size_flags_horizontal = 3
 size_flags_vertical = 3
 
-[node name="V" type="VBoxContainer" parent="Margin/V/Reserved/Artifacts"]
+[node name="V" type="VBoxContainer" parent="Margin/Scroll/V/Reserved/Artifacts"]
 theme_override_constants/separation = 4
 
-[node name="Title" type="Label" parent="Margin/V/Reserved/Artifacts/V"]
+[node name="Title" type="Label" parent="Margin/Scroll/V/Reserved/Artifacts/V"]
 text = "Lodge artifacts"
 theme_override_font_sizes/font_size = 14
 theme_override_colors/font_color = Color(0.180, 0.125, 0.086, 1)
 
-[node name="Empty" type="Label" parent="Margin/V/Reserved/Artifacts/V"]
+[node name="Empty" type="Label" parent="Margin/Scroll/V/Reserved/Artifacts/V"]
 text = "Things left behind by past runs. Nothing here yet."
 theme_override_font_sizes/font_size = 14
 theme_override_colors/font_color = Color(0.502, 0.376, 0.227, 1)
 autowrap_mode = 2
 
-[node name="Scroll" type="ScrollContainer" parent="Margin/V/Reserved/Artifacts/V"]
+[node name="Scroll" type="ScrollContainer" parent="Margin/Scroll/V/Reserved/Artifacts/V"]
 custom_minimum_size = Vector2(0, 240)
 size_flags_horizontal = 3
 size_flags_vertical = 3
 horizontal_scroll_mode = 0
 visible = false
 
-[node name="List" type="VBoxContainer" parent="Margin/V/Reserved/Artifacts/V/Scroll"]
+[node name="List" type="VBoxContainer" parent="Margin/Scroll/V/Reserved/Artifacts/V/Scroll"]
 theme_override_constants/separation = 6
 size_flags_horizontal = 3
 
-[node name="Variants" type="PanelContainer" parent="Margin/V/Reserved"]
+[node name="Variants" type="PanelContainer" parent="Margin/Scroll/V/Reserved"]
 custom_minimum_size = Vector2(360, 96)
 size_flags_horizontal = 3
 
-[node name="V" type="VBoxContainer" parent="Margin/V/Reserved/Variants"]
+[node name="V" type="VBoxContainer" parent="Margin/Scroll/V/Reserved/Variants"]
 theme_override_constants/separation = 4
 
-[node name="Title" type="Label" parent="Margin/V/Reserved/Variants/V"]
+[node name="Title" type="Label" parent="Margin/Scroll/V/Reserved/Variants/V"]
 text = "Hero variants"
 theme_override_font_sizes/font_size = 14
 theme_override_colors/font_color = Color(0.180, 0.125, 0.086, 1)
 
-[node name="Body" type="Label" parent="Margin/V/Reserved/Variants/V"]
+[node name="Body" type="Label" parent="Margin/Scroll/V/Reserved/Variants/V"]
 text = "Different cuts of the same hero. Locked for now."
 theme_override_font_sizes/font_size = 14
 theme_override_colors/font_color = Color(0.502, 0.376, 0.227, 1)
 autowrap_mode = 2
 
-[node name="History" type="VBoxContainer" parent="Margin/V"]
+[node name="History" type="VBoxContainer" parent="Margin/Scroll/V"]
 theme_override_constants/separation = 6
 
-[node name="Title" type="Label" parent="Margin/V/History"]
+[node name="Title" type="Label" parent="Margin/Scroll/V/History"]
 text = "Previous watches"
 theme_override_font_sizes/font_size = 20
 theme_override_colors/font_color = Color(0.180, 0.125, 0.086, 1)
 
-[node name="List" type="VBoxContainer" parent="Margin/V/History"]
+[node name="List" type="VBoxContainer" parent="Margin/Scroll/V/History"]
 theme_override_constants/separation = 2
 
-[node name="Empty" type="Label" parent="Margin/V/History"]
+[node name="Empty" type="Label" parent="Margin/Scroll/V/History"]
 text = "(no past watches yet)"
 theme_override_font_sizes/font_size = 14
 theme_override_colors/font_color = Color(0.502, 0.376, 0.227, 1)
 visible = false
 
-[node name="Footer" type="HBoxContainer" parent="Margin/V"]
+[node name="Footer" type="HBoxContainer" parent="Margin/Scroll/V"]
 alignment = 2
 theme_override_constants/separation = 12
 
-[node name="RunAgain" type="Button" parent="Margin/V/Footer"]
+[node name="RunAgain" type="Button" parent="Margin/Scroll/V/Footer"]
 text = "Run again"
 custom_minimum_size = Vector2(180, 44)

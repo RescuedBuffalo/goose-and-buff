@@ -1,0 +1,93 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/ui/run_start.gd" id="1"]
+
+[node name="RunStart" type="Control"]
+script = ExtResource("1")
+anchor_right = 1.0
+anchor_bottom = 1.0
+mouse_filter = 0
+
+[node name="Background" type="ColorRect" parent="."]
+anchor_right = 1.0
+anchor_bottom = 1.0
+color = Color(0.07, 0.07, 0.09, 1)
+mouse_filter = 2
+
+[node name="Margin" type="MarginContainer" parent="."]
+anchor_right = 1.0
+anchor_bottom = 1.0
+theme_override_constants/margin_left = 80
+theme_override_constants/margin_top = 80
+theme_override_constants/margin_right = 80
+theme_override_constants/margin_bottom = 80
+mouse_filter = 2
+
+[node name="V" type="VBoxContainer" parent="Margin"]
+theme_override_constants/separation = 28
+mouse_filter = 2
+
+[node name="Header" type="VBoxContainer" parent="Margin/V"]
+theme_override_constants/separation = 4
+
+[node name="Eyebrow" type="Label" parent="Margin/V/Header"]
+text = "THE LONG WATCH"
+theme_override_font_sizes/font_size = 12
+theme_override_colors/font_color = Color(0.62, 0.55, 0.4, 1)
+
+[node name="Headline" type="Label" parent="Margin/V/Header"]
+text = "Pick a totem. Stand the watch."
+theme_override_font_sizes/font_size = 34
+theme_override_colors/font_color = Color(0.99, 0.96, 0.89, 1)
+
+[node name="Sub" type="Label" parent="Margin/V/Header"]
+text = "Three nights, one lodge. Same seed grows the same world — leave it blank for a fresh watch."
+theme_override_font_sizes/font_size = 16
+theme_override_colors/font_color = Color(0.84, 0.8, 0.74, 1)
+
+[node name="HeroRow" type="HBoxContainer" parent="Margin/V"]
+theme_override_constants/separation = 24
+alignment = 1
+
+[node name="Buffalo" type="Button" parent="Margin/V/HeroRow"]
+text = "Buffalo
+The anchor — heavy, patient."
+custom_minimum_size = Vector2(280, 140)
+
+[node name="Goose" type="Button" parent="Margin/V/HeroRow"]
+text = "Goose
+The aggression — loud, fast, IGL."
+custom_minimum_size = Vector2(280, 140)
+
+[node name="Fox" type="Button" parent="Margin/V/HeroRow"]
+text = "Fox
+The recon — slips through, snatches first."
+custom_minimum_size = Vector2(280, 140)
+
+[node name="SeedRow" type="HBoxContainer" parent="Margin/V"]
+theme_override_constants/separation = 12
+alignment = 1
+
+[node name="SeedLabel" type="Label" parent="Margin/V/SeedRow"]
+text = "Watch seed (optional):"
+theme_override_font_sizes/font_size = 16
+theme_override_colors/font_color = Color(0.84, 0.8, 0.74, 1)
+
+[node name="SeedInput" type="LineEdit" parent="Margin/V/SeedRow"]
+custom_minimum_size = Vector2(220, 36)
+placeholder_text = "blank for a fresh watch"
+
+[node name="Footer" type="HBoxContainer" parent="Margin/V"]
+alignment = 1
+theme_override_constants/separation = 12
+
+[node name="StartButton" type="Button" parent="Margin/V/Footer"]
+text = "Start the watch"
+custom_minimum_size = Vector2(220, 48)
+disabled = true
+
+[node name="Hint" type="Label" parent="Margin/V"]
+text = "Pick a totem to begin. F3 toggles the chunk debug overlay during play."
+theme_override_font_sizes/font_size = 14
+theme_override_colors/font_color = Color(0.62, 0.55, 0.4, 1)
+horizontal_alignment = 1

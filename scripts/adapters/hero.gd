@@ -28,6 +28,12 @@ var move_pixels_per_second: float = 0.0
 var current_tile: Vector2i = Sectors.SPAWN_TILE
 var facing: Vector2 = Vector2.RIGHT
 
+# Effective-stat overrides (BUF-147). main.gd calls apply_stats() at
+# run-start with the resolved values from stat_system.effective_stats.
+# Defaults pull from the hero's base values in heroes.gd via _ready.
+var _stat_hp_max: float = -1.0
+var _stat_move_speed: float = -1.0
+
 var sector: Node = null
 @onready var sprite: Sprite2D = $Sprite
 
@@ -50,9 +56,10 @@ func set_hero(hero_id: String) -> void:
 	hero_data = Heroes.ALL.get(hero_id, Heroes.Buffalo)
 
 func _ready() -> void:
-	hp_max = float(hero_data.baseHealth)
+	hp_max = _stat_hp_max if _stat_hp_max > 0.0 else float(hero_data.baseHealth)
 	hp = hp_max
-	move_pixels_per_second = float(hero_data.moveSpeed) * PIXELS_PER_STUD
+	var move_speed: float = _stat_move_speed if _stat_move_speed > 0.0 else float(hero_data.moveSpeed)
+	move_pixels_per_second = move_speed * PIXELS_PER_STUD
 	GameState.set_hero_hp(hp, hp_max)
 	add_to_group("hero")
 	y_sort_enabled = true
@@ -118,6 +125,19 @@ func reset_hp() -> void:
 		sprite.modulate = Color(1, 1, 1, 1)
 	GameState.set_hero_hp(hp, hp_max)
 	queue_redraw()
+
+func apply_stats(stat_hp_max: float, stat_move_speed: float) -> void:
+	# Called by main.gd after stat_system computes effective_stats. Safe
+	# to call before _ready (cached and applied there) or after (mutates
+	# hp_max + move speed in place; full HP refilled).
+	_stat_hp_max = stat_hp_max
+	_stat_move_speed = stat_move_speed
+	if hp_max > 0.0:
+		hp_max = stat_hp_max
+		hp = hp_max
+		move_pixels_per_second = stat_move_speed * PIXELS_PER_STUD
+		GameState.set_hero_hp(hp, hp_max)
+		queue_redraw()
 
 func revive() -> void:
 	reset_hp()

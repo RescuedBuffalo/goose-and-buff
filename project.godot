@@ -12,7 +12,7 @@ config_version=5
 
 config/name="The Long Watch — Survival Prototype"
 config/description="Phase 1 survival conversion. Buffalo, lodge core, day/night cycle, gather + build + combat."
-run/main_scene="res://scenes/main.tscn"
+run/main_scene="res://scenes/ui/run_start.tscn"
 config/features=PackedStringArray("4.6", "GL Compatibility")
 
 [autoload]

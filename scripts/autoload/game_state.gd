@@ -22,6 +22,11 @@ var retreat_mode: bool = false
 var signature_cooldown: float = 0.0
 var signature_cooldown_max: float = 0.0
 
+# M2 (BUF-145): seed for the current run's procgen world. 0 = "no
+# seed configured yet" — main.gd treats that as a signal to roll a
+# fresh random one. Set by the run-start screen, read by main.gd.
+var run_seed: int = 0
+
 func reset() -> void:
 	phase = Phase.PREP
 	round_index = 1
@@ -33,6 +38,10 @@ func reset() -> void:
 	set_signature_cooldown(0.0, 0.0)
 
 func set_hero(new_hero_id: String) -> void:
+	hero_id = new_hero_id
+
+func set_run_config(seed: int, new_hero_id: String) -> void:
+	run_seed = seed
 	hero_id = new_hero_id
 
 func set_retreat(active: bool) -> void:
