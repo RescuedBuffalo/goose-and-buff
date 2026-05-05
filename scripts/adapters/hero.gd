@@ -27,9 +27,12 @@ const TOTEM_SCALE := {
 	"Fox": Vector2(0.65, 0.65),
 }
 
+signal hero_downed
+
 var hero_data: Dictionary = Heroes.Buffalo
 var hp_max: float = 0.0
 var hp: float = 0.0
+var is_downed: bool = false
 var move_pixels_per_second: float = 0.0
 var _scripted_motion: bool = false  # disables input while a tween moves us
 
@@ -50,6 +53,7 @@ func _ready() -> void:
 	move_pixels_per_second = float(hero_data.moveSpeed) * PIXELS_PER_STUD
 	GameState.set_hero_hp(hp, hp_max)
 	position = spawn_position()
+	add_to_group("hero")
 	_load_sprite()
 
 func spawn_position() -> Vector2:
@@ -59,7 +63,7 @@ func set_scripted_motion(active: bool) -> void:
 	_scripted_motion = active
 
 func _physics_process(delta: float) -> void:
-	if _scripted_motion:
+	if _scripted_motion or is_downed:
 		return
 	var dir := Vector2(
 		Input.get_axis("move_left", "move_right"),
@@ -73,14 +77,33 @@ func _physics_process(delta: float) -> void:
 		position = next
 
 func damage(amount: float) -> void:
+	if is_downed:
+		return
 	hp = max(0.0, hp - amount)
 	GameState.set_hero_hp(hp, hp_max)
+	if hp <= 0.0:
+		is_downed = true
+		sprite.modulate = Color(1.0, 0.3, 0.3, 0.65)
+		hero_downed.emit()
+		queue_redraw()
+
+func revive() -> void:
+	# Clears downed state and restores full HP. Called after each wave victory
+	# so a downed hero is back to full when the next round's prep begins.
+	is_downed = false
+	hp = hp_max
+	sprite.modulate = Color(1, 1, 1, 1)
+	GameState.set_hero_hp(hp, hp_max)
+	queue_redraw()
 
 func reset_hp() -> void:
 	# Re-applies hero HP to GameState. Called from main._start_run after
 	# GameState.reset() so the HUD reads the right values on first frame.
+	is_downed = false
 	hp = hp_max
+	sprite.modulate = Color(1, 1, 1, 1)
 	GameState.set_hero_hp(hp, hp_max)
+	queue_redraw()
 
 func reset_position() -> void:
 	# Snap the hero back to the spawn pad. Called by main._start_run on a
@@ -104,4 +127,8 @@ func _load_sprite() -> void:
 
 func _draw() -> void:
 	if sprite.texture == null:
-		draw_circle(Vector2.ZERO, 24.0, DesignTokens.core_color(hero_data.id))
+		var fill := Color(0.5, 0.1, 0.1) if is_downed else DesignTokens.core_color(hero_data.id)
+		draw_circle(Vector2.ZERO, 24.0, fill)
+	if is_downed:
+		draw_line(Vector2(-10, -10), Vector2(10, 10), Color(1, 0.1, 0.1, 0.9), 3.0)
+		draw_line(Vector2(-10, 10), Vector2(10, -10), Color(1, 0.1, 0.1, 0.9), 3.0)

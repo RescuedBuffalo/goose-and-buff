@@ -115,6 +115,7 @@ func _spawn_hero(hero_id: String) -> void:
 	hero = HeroScene.instantiate()
 	hero.set_hero(hero_id)
 	add_child(hero)
+	hero.hero_downed.connect(_on_hero_downed)
 
 func _start_run() -> void:
 	GameState.reset()
@@ -200,6 +201,8 @@ func _place_or_upgrade_building(world_pos: Vector2) -> void:
 	building_node = b
 
 func _resolve_ability(ability_id: String, target_pos: Vector2) -> void:
+	if hero == null or not is_instance_valid(hero) or hero.is_downed:
+		return
 	var effects := AbilityResolver.resolve(ability_id, hero.position, target_pos)
 	for fx in effects:
 		match fx.kind:
@@ -385,6 +388,9 @@ const RESET_DURATION := 0.6
 func _reset_to_base() -> void:
 	# Tween Buffalo and any surviving units back to the spawn pad area.
 	# AI / input stays off on each entity for the duration of the tween.
+	# Revive a downed hero immediately — HP and state restore as they walk back.
+	if hero != null and is_instance_valid(hero):
+		hero.revive()
 	var hero_target: Vector2 = hero.spawn_position()
 	_tween_back(hero, hero_target)
 	for n in get_tree().get_nodes_in_group("units"):
@@ -405,6 +411,9 @@ func _tween_back(node: Node2D, target: Vector2) -> void:
 func _release_scripted_motion(node: Node) -> void:
 	if is_instance_valid(node):
 		node.set_scripted_motion(false)
+
+func _on_hero_downed() -> void:
+	hud.show_banner("Hero is down — hold the line!", 2.5)
 
 func _on_core_destroyed() -> void:
 	wave_director.note_core_destroyed()

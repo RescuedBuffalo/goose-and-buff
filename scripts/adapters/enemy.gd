@@ -34,6 +34,9 @@ func _physics_process(delta: float) -> void:
 	# If a unit is in attack range, prefer it.
 	if _engaged_unit == null or not is_instance_valid(_engaged_unit):
 		_engaged_unit = _find_engageable_unit()
+	# Drop a hero target that went down while we were already locked onto them.
+	if _engaged_unit != null and _engaged_unit.get("is_downed"):
+		_engaged_unit = null
 	if _engaged_unit != null and is_instance_valid(_engaged_unit):
 		_engage_target(_engaged_unit.position, delta, float(data.attackRange), func(): _engaged_unit.damage(float(data.damage)))
 		return
@@ -96,6 +99,17 @@ func _find_engageable_unit() -> Node2D:
 		if d < best_d and d <= float(data.attackRange) + 4.0:
 			best_d = d
 			best = u
+	# Also consider the hero as a valid melee target when in range.
+	for n in get_tree().get_nodes_in_group("hero"):
+		var h := n as Node2D
+		if h == null or not is_instance_valid(h):
+			continue
+		if h.get("is_downed"):
+			continue
+		var d := position.distance_to(h.position)
+		if d < best_d and d <= float(data.attackRange) + 4.0:
+			best_d = d
+			best = h
 	return best
 
 func _draw() -> void:
