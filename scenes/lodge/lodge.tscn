@@ -75,6 +75,7 @@ theme_override_constants/separation = 16
 [node name="Artifacts" type="PanelContainer" parent="Margin/V/Reserved"]
 custom_minimum_size = Vector2(360, 96)
 size_flags_horizontal = 3
+size_flags_vertical = 3
 
 [node name="V" type="VBoxContainer" parent="Margin/V/Reserved/Artifacts"]
 theme_override_constants/separation = 4
@@ -84,11 +85,22 @@ text = "Lodge artifacts"
 theme_override_font_sizes/font_size = 14
 theme_override_colors/font_color = Color(0.180, 0.125, 0.086, 1)
 
-[node name="Body" type="Label" parent="Margin/V/Reserved/Artifacts/V"]
+[node name="Empty" type="Label" parent="Margin/V/Reserved/Artifacts/V"]
 text = "Things left behind by past runs. Nothing here yet."
 theme_override_font_sizes/font_size = 14
 theme_override_colors/font_color = Color(0.502, 0.376, 0.227, 1)
 autowrap_mode = 2
+
+[node name="Scroll" type="ScrollContainer" parent="Margin/V/Reserved/Artifacts/V"]
+custom_minimum_size = Vector2(0, 240)
+size_flags_horizontal = 3
+size_flags_vertical = 3
+horizontal_scroll_mode = 0
+visible = false
+
+[node name="List" type="VBoxContainer" parent="Margin/V/Reserved/Artifacts/V/Scroll"]
+theme_override_constants/separation = 6
+size_flags_horizontal = 3
 
 [node name="Variants" type="PanelContainer" parent="Margin/V/Reserved"]
 custom_minimum_size = Vector2(360, 96)

@@ -7,7 +7,7 @@ class_name SaveState extends RefCounted
 ##     "version": int,                  # SCHEMA_VERSION at write time
 ##     "runs": Array[RunRecord],        # newest first, capped at MAX_RUNS
 ##     "unlocks": Dictionary,           # reserved (BUF-113 re-port + future)
-##     "lodge_artifacts": Array,        # reserved for BUF-130
+##     "lodge_artifacts": Array[ArtifactRecord], # append-only across runs
 ##     "current_variants": Dictionary,  # reserved for BUF-129 (hero_id → variant_id)
 ##   }
 ##
@@ -20,6 +20,13 @@ class_name SaveState extends RefCounted
 ##     "resources_gathered": int,
 ##     "enemies_felled": int,
 ##     "duration_seconds": float,
+##   }
+##
+## ArtifactRecord shape:
+##   {
+##     "id": String,                    # key into data/lodge_artifacts.gd
+##     "acquired_at": int,              # unix epoch seconds
+##     "outcome": String,               # outcome of the run that left it
 ##   }
 ##
 ## Pure: no FileAccess, no scene tree, no autoloads. The save_io adapter
@@ -40,6 +47,17 @@ static func empty() -> Dictionary:
 		"unlocks": {},
 		"lodge_artifacts": [],
 		"current_variants": {},
+	}
+
+static func make_artifact_record(
+	artifact_id: String,
+	outcome: String,
+	acquired_at_epoch: int,
+) -> Dictionary:
+	return {
+		"id": artifact_id,
+		"acquired_at": acquired_at_epoch,
+		"outcome": outcome,
 	}
 
 static func make_run_record(
@@ -75,6 +93,17 @@ static func append_run(state: Dictionary, record: Dictionary) -> Dictionary:
 	out["version"] = SCHEMA_VERSION
 	return out
 
+static func append_artifact(state: Dictionary, record: Dictionary) -> Dictionary:
+	# Append-only: the lodge accumulates and never forgets. Order is
+	# acquisition order so the UI can read top-to-bottom as a timeline if
+	# it wants to.
+	var artifacts: Array = (state.get("lodge_artifacts", []) as Array).duplicate()
+	artifacts.append(record)
+	var out := state.duplicate(true)
+	out["lodge_artifacts"] = artifacts
+	out["version"] = SCHEMA_VERSION
+	return out
+
 # ── Accessors ────────────────────────────────────────────────────────────
 
 static func last_run(state: Dictionary) -> Dictionary:
@@ -88,6 +117,9 @@ static func last_run(state: Dictionary) -> Dictionary:
 
 static func runs(state: Dictionary) -> Array:
 	return state.get("runs", [])
+
+static func artifacts(state: Dictionary) -> Array:
+	return state.get("lodge_artifacts", [])
 
 # ── Serialization ────────────────────────────────────────────────────────
 
@@ -138,10 +170,27 @@ static func coerce(loaded: Dictionary) -> Dictionary:
 		base["unlocks"] = {}
 	if typeof(base["lodge_artifacts"]) != TYPE_ARRAY:
 		base["lodge_artifacts"] = []
+	else:
+		var clean_artifacts: Array = []
+		for a in base["lodge_artifacts"]:
+			if typeof(a) == TYPE_DICTIONARY:
+				clean_artifacts.append(_coerce_artifact(a))
+		base["lodge_artifacts"] = clean_artifacts
 	if typeof(base["current_variants"]) != TYPE_DICTIONARY:
 		base["current_variants"] = {}
 	base["version"] = SCHEMA_VERSION
 	return base
+
+static func _coerce_artifact(a: Dictionary) -> Dictionary:
+	# Mirror of _coerce_run for artifact records. Unknown ids are kept —
+	# the renderer drops them gracefully if data/lodge_artifacts.gd no
+	# longer recognizes the entry, which is the right call for save
+	# stability across content changes.
+	return {
+		"id": String(a.get("id", "")),
+		"acquired_at": int(a.get("acquired_at", 0)),
+		"outcome": String(a.get("outcome", OUTCOME_DEFEAT)),
+	}
 
 static func _coerce_run(r: Dictionary) -> Dictionary:
 	# Fill any missing per-run fields with safe defaults. A run record
