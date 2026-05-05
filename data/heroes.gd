@@ -2,11 +2,6 @@ class_name HeroesData extends RefCounted
 ##
 ## Mirror of src/shared/Data/Heroes.lua from the Roblox project.
 ## Keys are heroIds used everywhere else.
-##
-## Role + flavor strings come from the Long Watch design bundle's hero
-## select wireframe (`design/wireframes/Wireframes.html`, surface 01).
-## Hero select renders these directly — change the wireframe and this file
-## together so they don't drift.
 
 const Buffalo := {
 	"id": "Buffalo",
@@ -50,6 +45,4 @@ const ALL := {
 	"Fox": Fox,
 }
 
-# Canonical pick order — matches design wireframe surface 01 (Goose · Buffalo
-# · Fox). Predictable position is muscle memory; do not sort by availability.
 const ORDER := ["Goose", "Buffalo", "Fox"]

@@ -1,89 +1,60 @@
-# Prototype notes — Godot pivot test
+# Prototype notes — tile rebuild (canonical)
 
-Built to answer three questions: does the art direction land in 2D, does
-the card mechanic feel good, does Godot's workflow sustain.
+Architecture-pivot rebuild onto an isometric TileMap. Same wave-defense
+loop, same data, same logic. As of this commit the tile rebuild is the
+canonical project at the repo root; the previous top-down prototype is
+preserved at `archive/godot-top-down/` for reference.
 
 ## Run it
 
-1. Install Godot 4 (4.3+ recommended, GL Compatibility renderer is selected
-   in `project.godot`).
-2. Open `project.godot` (at repo root) in Godot. Let the editor process
-   the texture imports on first open — the totem PNG and SVGs aren't
-   pre-baked. The hero falls back to a flat circle until imports finish;
-   restart the scene and the sprite appears.
-3. Press **Play** (F5). WASD moves Buffalo. Drag cards from the hand onto
-   the sector during prep. Press **Space** to ready up early. Drop a
-   Buffalo charge card during the wave to cast a line AoE from Buffalo
-   toward the drop point.
+Open `project.godot` in Godot 4.6. Click a tile to walk Buffalo. Drag
+cards during prep; drop Charge during a wave. Space readies early, Q
+casts the signature.
 
-## What ships
+## Ships
 
-Spec checklist, all green:
+16×12 DIAMOND_DOWN grid, 64×32 tiles, procedural atlas (no imported
+artwork). Buffalo click-to-move via AStarGrid2D. 15-card Buffalo deck
+dealt 5-up. Three waves of grunts pathing to the core. Full
+prep / wave / debrief loop, 3-cleared win, core-0 lose, restart. HUD:
+HP, Core, coin, phase + round, prep timer.
 
-- Buffalo character on screen, WASD-controlled, totem PNG sprite (with
-  flat-circle fallback for first-open before imports complete).
-- Buffalo sector floor + core in the canonical Buffalo palette, sourced
-  from `data/sectors.gd` which mirrors `Sectors.lua` 1:1.
-- 5-card hand at the bottom; cards render with faction palette, totem dot,
-  cost pip, name, description, flavor.
-- Drag-drop unit cards spawn Calf / Ostrich / Longhorn at the drop
-  position. Drag-drop building card places (or upgrades) the Production
-  Node. Stockpile resource card auto-pays. Charge ability card casts
-  during wave from Buffalo toward the drop point.
-- Wave timer ticks during prep (30s default). Eight grunts per wave spawn
-  off the right edge and walk left toward the core. Units engage on sight.
-- Round outcomes: 3 cleared waves → "Run complete." / "We held."; core
-  HP 0 → "Run ended." / "The line broke." Single-button restart.
-- HUD: Buffalo HP, Core HP, coin balance, phase + round, timer, wave
-  banner. All values use design tokens; no hardcoded colors anywhere
-  outside `scripts/autoload/design_tokens.gd`.
+## Pure-logic changes during the port
 
-## What's stubbed or deviated
+**Zero.** `wave_director`, `ability_resolver`, `card_system`, `economy`,
+all of `data/*` except `sectors.gd`, and `game_state` ported verbatim.
+`sectors.gd` swapped pixel anchors for `Vector2i` tile coords (geometry,
+no logic). `design_tokens.gd` lost font / stylebox helpers Phase 1
+doesn't use. Layer split survived the engine-shape change.
 
-- **No multiplayer.** Per spec.
-- **Totem PNG, not SVG, for Buffalo.** The shipped design system only
-  includes `buffalo.png` (the other three are SVG). I kept the asset as
-  shipped instead of regenerating an SVG.
-- **Hero takes no damage.** Enemies target deployed units or the core,
-  never the hero. `Hero.damage()` is plumbed but unused — wire it up if
-  you want hero death to count.
-- **Adapters consolidated.** The suggested layout listed separate
-  `wave_spawner.gd`, `unit_spawner.gd`, `ui_renderer.gd` files; I folded
-  them into `scripts/adapters/main.gd` because the wiring is small enough
-  that splitting it would just be ceremony. The pure-logic / adapter / data
-  split is preserved — the rule that matters.
-- **Fonts are Godot's fallback.** The design system specifies Young Serif
-  / Nunito / JetBrains Mono. Loading those needs the editor's font
-  importer, which is friction I skipped. Numeric values look fine in the
-  fallback; type personality is missing.
-- **No animations beyond a single tween on the Charge AoE.** Static
-  sprites otherwise.
-- **No sound.**
+## Stubbed
 
-## Things to flag for the merge review
+Buffalo only — no hero select, no Goose / Fox decks, Snatch no-ops.
+Buffalo PNG reused as the tile sprite; other entities are colored
+shapes. Hero now takes adjacency damage (top-down flagged it pending).
+No tile reservation, no sound, only the Charge-line tween for animation.
 
-- **Card drop targeting is point-based.** The unit goes exactly where you
-  drop. With a small sector this can leave units far from the action; we
-  may want a "deploy zone" UI cue, or auto-snap toward the core.
-- **Charge cast direction is set by drop position relative to the hero.**
-  Feels OK with mouse, but it's not a visible aim indicator. A Hades-style
-  ghost line during drag would help.
-- **The hand spans 5 cards across ~944px.** Fine at 1280×720; a smaller
-  viewport would crowd. If we keep this resolution, the gap can grow.
-- **Production Node "one per sector" with upgrades on replay.** Plays
-  fine as a balance lever but communicates poorly — the second card just
-  bumps a tier dot. Worth showing tier-up FX.
+## Flag for follow-up
 
-## Open questions for the pivot decision
+- **Movement feel.** ~0.24 s/tile is snappy but more discrete than the
+  free-form top-down motion. Smooth multi-tile tweens may close the gap.
+- **Click replan latency.** A new click finishes the in-flight step
+  before redirecting. Tween-kill fixes it; deferred.
+- **Cardinal-only paths.** Diagonals would smooth follow / chase. One
+  flag in `sector._build_astar`.
+- **Grid size.** 16×12 fits 1920×1080 but isn't load-bearing. Phase 2
+  exploration will want more space; revisit before BUF-128.
+- **Re-introducing hero select / Goose + Fox decks.** The data and the
+  AbilityResolver branches are preserved verbatim; restoring the select
+  flow + extra decks is a copy from `archive/godot-top-down/` plus a
+  small adapter scene.
+- **Formation control.** Click-to-move invites deliberate movement; the
+  next UX question is how the player commands units.
 
-1. The art direction question is half-answered: palette + composition is
-   in place, but real illustrations (cards, hero, units) are placeholder.
-   Worth committing one illustrated card before judging.
-2. The card mechanic prototype demonstrates the loop but doesn't prove
-   the *strategy depth*. Three card types and one ability isn't enough to
-   tell whether deckbuilding is interesting yet — it tells you whether
-   the *interaction* feels good.
-3. Architecture discipline carried cleanly. `scripts/logic/*` has zero
-   scene-tree references; it ports without changes. If we keep this
-   separation, an eventual port back to Roblox or sideways to another
-   engine stays cheap.
+## Comparing against the top-down
+
+`archive/godot-top-down/` holds the v0.1 top-down prototype as it
+shipped before the pivot. Run it standalone by opening its
+`project.godot`. The data + pure-logic modules in there are 1:1 with
+the canonical tree (Phase 1 changed only adapters, scenes, and
+`data/sectors.gd`).

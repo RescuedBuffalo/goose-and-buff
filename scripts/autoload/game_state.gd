@@ -2,14 +2,14 @@ extends Node
 ##
 ## Shared run state. Held in a singleton so adapters can read without
 ## passing references through the scene tree. Pure data — mutated by
-## logic modules; rendered by adapters.
+## logic modules; rendered by adapters. Same contract as godot-prototype/.
 
 signal phase_changed(phase: String)
 signal hero_hp_changed(current: float, maximum: float)
 signal retreat_changed(active: bool)
 signal signature_cooldown_changed(remaining: float, maximum: float)
 
-enum Phase { LODGE, PREP, WAVE, DEBRIEF, RUN_COMPLETE, RUN_ENDED }
+enum Phase { PREP, WAVE, DEBRIEF, RUN_COMPLETE, RUN_ENDED }
 
 var phase: int = Phase.PREP
 var round_index: int = 1
@@ -18,21 +18,13 @@ var hero_hp: float = 0.0
 var hero_hp_max: float = 0.0
 var core_hp: float = 0.0
 var core_hp_max: float = 0.0
-# Retreat mode: when true, units ignore enemies and only follow the leader.
-# Toggled by the player; auto-cleared on wave start.
 var retreat_mode: bool = false
-# Signature ability cooldown — remaining seconds and the cooldown's full
-# length. Adapter ticks remaining down each frame; HUD reads to render the
-# AbilityRail. Both zero means "ready to cast".
 var signature_cooldown: float = 0.0
 var signature_cooldown_max: float = 0.0
 
 func reset() -> void:
 	phase = Phase.PREP
 	round_index = 1
-	# hero_id intentionally preserved across reset() — it's set on hero
-	# select and survives a "Try again" run. "Change hero" overwrites it
-	# explicitly via set_hero().
 	hero_hp = 0.0
 	hero_hp_max = 0.0
 	core_hp = 0.0
@@ -67,7 +59,6 @@ func set_signature_cooldown(remaining: float, maximum: float) -> void:
 
 static func phase_name(p: int) -> String:
 	match p:
-		Phase.LODGE: return "lodge"
 		Phase.PREP: return "prep"
 		Phase.WAVE: return "wave"
 		Phase.DEBRIEF: return "debrief"

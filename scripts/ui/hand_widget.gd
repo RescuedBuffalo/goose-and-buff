@@ -1,26 +1,30 @@
 extends Control
 ##
 ## Renders the player's hand and translates drag-drop into "play card at"
-## requests. Listens to a CardSystem instance via the `bind` method —
-## the hand never reaches into the logic module's internals directly.
+## requests. Listens to a CardSystem instance via the `bind` method.
+##
+## Drop targeting: the hand reports the drop in global viewport coords; the
+## main adapter converts that to a tile via the sector. Drop-outside-grid
+## snaps the card back to the hand.
 
 const CardScene := preload("res://scenes/ui/card.tscn")
 const CardWidget := preload("res://scripts/ui/card_widget.gd")
 const Sectors := preload("res://data/sectors.gd")
 
 signal play_requested(card_id: String, position: Vector2)
-# Drag lifecycle — main.gd subscribes to draw deploy zones / aim lines in
-# the world layer. The hand only owns input; the indicators belong to the
-# adapter that knows about hero + sector.
 signal drag_started(card_id: String, world_pos: Vector2)
 signal drag_moved(card_id: String, world_pos: Vector2)
 signal drag_ended()
 
 const CARD_GAP := 18.0
-const HAND_BOTTOM_PADDING := 32.0
+const HAND_BOTTOM_PADDING := 24.0
+# Visual height of the card-bearing strip at the bottom. The hand Control
+# itself spans the whole viewport (so drag-release outside the strip still
+# fires _gui_input) but cards are laid out only inside this band.
+const HAND_BAND_HEIGHT_PX := Sectors.HAND_BAND_HEIGHT
 
 var _card_system  # CardSystem
-var _economy  # Economy — needed so each card can dim when unaffordable
+var _economy
 var _hand_ids: Array = []
 var _drag_widget: Control = null
 var _drag_card_id: String = ""
@@ -36,26 +40,25 @@ func bind(card_system, economy = null) -> void:
 
 func _ready() -> void:
 	mouse_filter = Control.MOUSE_FILTER_PASS
-	# Hand band — bottom 320 px of a 1080-tall viewport. Cards (248 tall +
-	# 32 bottom padding) anchor against the band's bottom; the rest of the
-	# band hosts the val strip, ability rail, and breathing room.
+	# Span the whole viewport. Cards render in the bottom strip via
+	# _band_y(); making the Control full-screen lets drag-release events
+	# outside the strip still hit _gui_input — Godot Controls don't capture
+	# the mouse, so a release outside the rect is silently dropped otherwise.
 	anchor_left = 0
 	anchor_right = 1
+	anchor_top = 0
 	anchor_bottom = 1
-	anchor_top = 1
-	offset_top = -320
+	offset_top = 0
 	offset_left = 0
 	offset_right = 0
 	offset_bottom = 0
+	queue_redraw()
 
 func _on_hand_changed(hand: Array) -> void:
 	_hand_ids = hand.duplicate()
-	# Defer one frame so layout has computed our size before card placement.
 	_rebuild.call_deferred()
 
 func _on_play_rejected(_card_id: String, _reason: String) -> void:
-	# Card stays in hand logically — snap the dragged widget back to its
-	# slot so the visual matches the model.
 	_rebuild.call_deferred()
 
 func _rebuild() -> void:
@@ -63,12 +66,11 @@ func _rebuild() -> void:
 		child.queue_free()
 	if _hand_ids.is_empty():
 		return
-	# Explicit float typing — max() on ints would otherwise leave total_w
-	# untyped, which Godot's static checker rejects.
 	var card_w: float = CardWidget.CARD_SIZE.x
 	var gap_count: float = float(max(0, _hand_ids.size() - 1))
 	var total_w: float = float(_hand_ids.size()) * card_w + gap_count * CARD_GAP
 	var start_x: float = (size.x - total_w) * 0.5
+	# Card row sits inside the bottom HAND_BAND_HEIGHT_PX of the viewport.
 	var y: float = size.y - CardWidget.CARD_SIZE.y - HAND_BOTTOM_PADDING
 	for i in _hand_ids.size():
 		var card_id: String = _hand_ids[i]
@@ -77,6 +79,11 @@ func _rebuild() -> void:
 		widget.set_card(card_id)
 		add_child(widget)
 	_apply_affordability()
+
+func _band_top() -> float:
+	# Top of the visible hand band relative to the Control's local rect.
+	# Anything above this is "the world" for drop-targeting purposes.
+	return size.y - HAND_BAND_HEIGHT_PX
 
 func _on_balance_changed(_new_balance: int) -> void:
 	_apply_affordability()
@@ -117,22 +124,23 @@ func _try_pick_up(local_pos: Vector2) -> void:
 			_drag_offset = local_pos - widget.position
 			move_child(widget, get_child_count() - 1)
 			drag_started.emit(_drag_card_id, global_position + local_pos)
+			# Stop the click from bubbling to the world layer (would
+			# otherwise issue a click-to-move command on pickup).
+			accept_event()
 			return
 
 func _try_drop(local_pos: Vector2) -> void:
 	if _drag_widget == null:
 		return
-	# Convert local hand-coords to global viewport coords for the play target.
-	var global_drop := global_position + local_pos
-	# Every card kind requires the drop to land in the sector. For ability
-	# cards the drop position becomes the cast target; for unit / building
-	# cards it's the spawn point. Out-of-bounds drops snap back to the hand.
-	if Sectors.is_inside_sector(global_drop):
+	var global_drop: Vector2 = global_position + local_pos
+	# Drops above the hand band (sector / HUD area) are forwarded to main —
+	# main converts to a tile and validates the play. Drops inside the band
+	# snap the card back to the hand row.
+	if local_pos.y < _band_top():
 		play_requested.emit(_drag_card_id, global_drop)
 	else:
 		_rebuild()
 	_drag_widget = null
 	_drag_card_id = ""
-	# Always emit so subscribers (deploy highlight, aim line) clear regardless
-	# of whether the drop landed in the sector or snapped back.
 	drag_ended.emit()
+	accept_event()

@@ -4,3 +4,5 @@
 
 [node name="Card" type="Control"]
 script = ExtResource("1")
+custom_minimum_size = Vector2(170, 240)
+mouse_filter = 2
