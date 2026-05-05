@@ -12,6 +12,7 @@ extends Node
 ## won't — we cap at MAX_RUNS records).
 
 const SaveStateClass := preload("res://scripts/logic/save_state.gd")
+const ArtifactsData := preload("res://data/lodge_artifacts.gd")
 
 const SAVE_PATH := "user://save_data.json"
 const SAVE_PATH_TMP := "user://save_data.json.tmp"
@@ -72,6 +73,7 @@ func record_run(
 	enemies_felled: int,
 	duration_seconds: float,
 ) -> void:
+	var now := int(Time.get_unix_time_from_system())
 	var record := SaveStateClass.make_run_record(
 		hero_id,
 		outcome,
@@ -79,10 +81,24 @@ func record_run(
 		resources_gathered,
 		enemies_felled,
 		duration_seconds,
-		int(Time.get_unix_time_from_system()),
+		now,
 	)
 	data = SaveStateClass.append_run(data, record)
+	# Every completed run leaves a mark — victory or defeat (BUF-130). The
+	# lodge accumulates regardless of outcome; the room remembers more than
+	# the heroes do. Draw + accumulate happen in the same save call so a
+	# crash between record_run and add_artifact can't leave the run logged
+	# without its artifact (or vice versa).
+	var artifact_id := _draw_artifact_id()
+	if artifact_id != "":
+		var artifact_record := SaveStateClass.make_artifact_record(artifact_id, outcome, now)
+		data = SaveStateClass.append_artifact(data, artifact_record)
 	save()
+
+func _draw_artifact_id() -> String:
+	var rng := RandomNumberGenerator.new()
+	rng.randomize()
+	return ArtifactsData.draw(rng)
 
 # ── Accessors ────────────────────────────────────────────────────────────
 
@@ -91,3 +107,6 @@ func last_run() -> Dictionary:
 
 func runs() -> Array:
 	return SaveStateClass.runs(data)
+
+func artifacts() -> Array:
+	return SaveStateClass.artifacts(data)
