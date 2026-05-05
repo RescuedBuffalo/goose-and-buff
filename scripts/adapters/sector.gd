@@ -16,6 +16,9 @@ signal core_destroyed()
 var core_hp: float = Sectors.CORE_HEALTH
 var core_hp_max: float = Sectors.CORE_HEALTH
 var hero_id: String = "Buffalo"
+# Lit while the player is dragging a unit / building card. Visualizes the
+# legal drop area so cards don't feel point-imprecise (BUF-110).
+var _deploy_highlight: bool = false
 
 func _ready() -> void:
 	add_to_group("sector")
@@ -41,6 +44,12 @@ func reset_core() -> void:
 	core_hp = core_hp_max
 	GameState.core_hp = core_hp
 	core_hp_changed.emit(core_hp, core_hp_max)
+	queue_redraw()
+
+func set_deploy_highlight(active: bool) -> void:
+	if _deploy_highlight == active:
+		return
+	_deploy_highlight = active
 	queue_redraw()
 
 func _draw() -> void:
@@ -81,3 +90,12 @@ func _draw() -> void:
 		Vector2(Sectors.SECTOR_RIGHT, Sectors.SECTOR_BOTTOM),
 		DesignTokens.DIVIDER, 2.0,
 	)
+	# Deploy zone overlay — only visible while a unit/building card is being
+	# dragged. Tinted with the hero's accent color so the boundary reads at a
+	# glance without overwhelming the floor underneath.
+	if _deploy_highlight:
+		var accent := DesignTokens.core_color(hero_id)
+		var tint := Color(accent.r, accent.g, accent.b, 0.18)
+		draw_rect(floor_rect, tint, true)
+		var border := Color(accent.r, accent.g, accent.b, 0.85)
+		draw_rect(floor_rect, border, false, 4.0)

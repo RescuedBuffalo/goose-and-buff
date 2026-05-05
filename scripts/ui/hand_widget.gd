@@ -9,6 +9,12 @@ const CardWidget := preload("res://scripts/ui/card_widget.gd")
 const Sectors := preload("res://data/sectors.gd")
 
 signal play_requested(card_id: String, position: Vector2)
+# Drag lifecycle — main.gd subscribes to draw deploy zones / aim lines in
+# the world layer. The hand only owns input; the indicators belong to the
+# adapter that knows about hero + sector.
+signal drag_started(card_id: String, world_pos: Vector2)
+signal drag_moved(card_id: String, world_pos: Vector2)
+signal drag_ended()
 
 const CARD_GAP := 16.0
 const HAND_BOTTOM_PADDING := 24.0
@@ -75,6 +81,7 @@ func _gui_input(event: InputEvent) -> void:
 			_try_drop(mb.position)
 	elif event is InputEventMouseMotion and _drag_widget != null:
 		_drag_widget.position = event.position - _drag_offset
+		drag_moved.emit(_drag_card_id, global_position + event.position)
 
 func _try_pick_up(local_pos: Vector2) -> void:
 	for child in get_children():
@@ -87,6 +94,7 @@ func _try_pick_up(local_pos: Vector2) -> void:
 			_drag_card_id = widget.card_id
 			_drag_offset = local_pos - widget.position
 			move_child(widget, get_child_count() - 1)
+			drag_started.emit(_drag_card_id, global_position + local_pos)
 			return
 
 func _try_drop(local_pos: Vector2) -> void:
@@ -103,3 +111,6 @@ func _try_drop(local_pos: Vector2) -> void:
 		_rebuild()
 	_drag_widget = null
 	_drag_card_id = ""
+	# Always emit so subscribers (deploy highlight, aim line) clear regardless
+	# of whether the drop landed in the sector or snapped back.
+	drag_ended.emit()
