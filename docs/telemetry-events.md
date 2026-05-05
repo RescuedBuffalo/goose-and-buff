@@ -53,6 +53,10 @@ inventory is granted.
 ### `run_end`
 
 Fires on victory (cycle complete) or defeat (hero or lodge core down).
+Terminal: `Telemetry` clears its `run_id` after this event, so any
+straggler `log()` calls during the end-screen idle (e.g. an unhandled
+left-click after the scrim appears) are dropped — `run_end` is always
+the last entry in a run file.
 
 | Payload field | Type | Notes |
 | --- | --- | --- |
@@ -69,6 +73,8 @@ Fires when night begins (dusk → night transition triggers
 | Payload field | Type | Notes |
 | --- | --- | --- |
 | `round_index` | `int` | Day index, 1-based. |
+| `archetype` | `string` | ALL-CAPS archetype id (e.g. `"PROBE"`, `"RUSH"`, `"SKIRMISH"`, `"SIEGE"`). Empty string if absent. |
+| `has_mini_boss` | `bool` | True on the SIEGE night (AlphaWolf). |
 | `composition` | `object` | `{ enemy_type: count }` summary of the wave roster. |
 
 ### `wave_end`

@@ -37,6 +37,12 @@ func end_run(payload: Dictionary = {}) -> void:
 	if run_id.is_empty():
 		return
 	self.log(KIND_RUN_END, payload)
+	# run_end is terminal — clear the run_id so any straggling events
+	# (e.g. an unhandled left-click that lands after the end screen
+	# appears, since the input handler isn't phase-gated) become no-ops
+	# in log() and don't get appended to the run file behind the
+	# run_end event.
+	run_id = ""
 
 func log(kind: String, payload: Dictionary = {}) -> void:
 	# Drop events emitted before a run is active. start_run() is the

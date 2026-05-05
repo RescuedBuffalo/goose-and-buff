@@ -370,13 +370,21 @@ func _on_enemy_reached_core(enemy: Node2D) -> void:
 	enemy.queue_free()
 
 func _on_wave_started(round_index: int, composition: Dictionary) -> void:
-	# HUD reacts to the day_night phase; only telemetry needs anything here.
+	# Voice rule: archetype banner is the ALL-CAPS shout, e.g.
+	#   "NIGHT 1 — PROBE"
+	#   "NIGHT 3 — A BIG ONE INCOMING"
+	# The HUD's NIGHT phase-change banner is suppressed so this is
+	# the single banner the player sees at night-start.
+	var shout: String = "NIGHT %d — %s" % [round_index, str(composition.get("banner", "RAID"))]
+	hud.show_banner(shout, 2.5)
 	if telemetry != null:
 		var summary: Dictionary = {}
 		for entry in composition.get("enemies", []):
 			summary[String(entry.type)] = int(summary.get(entry.type, 0)) + int(entry.count)
 		telemetry.log("wave_start", {
 			"round_index": round_index,
+			"archetype": String(composition.get("archetype", "")),
+			"has_mini_boss": bool(composition.get("has_mini_boss", false)),
 			"composition": summary,
 		})
 

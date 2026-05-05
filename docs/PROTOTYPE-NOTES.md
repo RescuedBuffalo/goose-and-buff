@@ -46,7 +46,8 @@ composition data are unchanged. `card_system.gd`, `economy.gd`,
   coins anymore (demoted per brief).
 - Inventory overflow drops to a `push_warning`, not a world pickup.
 - Owl + bear archetypes designed in `data/enemies.gd` (Bruiser etc)
-  but only `FrostWolf` ships in waves.
+  but only the four wolf variants — `FrostWolf`, `DireWolf`,
+  `FrostStalker`, `AlphaWolf` — ship in waves today.
 
 ## Design calls I made on my own
 
@@ -65,8 +66,12 @@ composition data are unchanged. `card_system.gd`, `economy.gd`,
 
 - **What does the lodge core do besides die at HP 0?** Passive
   production? Heal aura? Currently inert except as a damage target.
-- **Wave intensity scaling.** Night 1 = 6 wolves @ 2.5s, Night 3 = 12
-  @ 1.6s. First-pass guess; needs a real playtest pass.
+- **Wave intensity scaling.** BUF-114 broke the three nights into named
+  archetypes — Night 1 = PROBE (6 FrostWolves), Night 2 = RUSH (12
+  DireWolves) or SKIRMISH (4 FrostWolves + 5 FrostStalkers, 50/50
+  roll), Night 3 = SIEGE (6 FrostWolves + 3 DireWolves + 1 AlphaWolf
+  mini-boss). Counts and intervals in `data/waves.gd` are still a
+  first-pass guess — needs a real playtest pass.
 - **Pickup-on-floor for inventory overflow.** Brief says drop a
   `world_pickup`; deferred to a follow-up — currently logs and drops.
 - **Wolves vs walls.** Walls reroute; should they also take damage?
