@@ -22,7 +22,8 @@ const MAIN_SCENE_PATH := "res://scenes/main.tscn"
 @onready var _last_stats: Label = $Margin/V/LastWatch/Stats
 @onready var _last_empty: Label = $Margin/V/LastWatch/Empty
 @onready var _artifacts_empty: Label = $Margin/V/Reserved/Artifacts/V/Empty
-@onready var _artifacts_list: VBoxContainer = $Margin/V/Reserved/Artifacts/V/List
+@onready var _artifacts_scroll: ScrollContainer = $Margin/V/Reserved/Artifacts/V/Scroll
+@onready var _artifacts_list: VBoxContainer = $Margin/V/Reserved/Artifacts/V/Scroll/List
 @onready var _history_list: VBoxContainer = $Margin/V/History/List
 @onready var _history_empty: Label = $Margin/V/History/Empty
 @onready var _run_again: Button = $Margin/V/Footer/RunAgain
@@ -54,15 +55,19 @@ func _render_artifacts() -> void:
 	# their assigned spot so the panel reads as a room — entrance first,
 	# fixtures last — rather than a flat list. Hover surfaces flavor;
 	# nothing here ever explains.
+	#
+	# The list lives inside a ScrollContainer because the lodge "only
+	# accumulates" — a long campaign would otherwise grow the panel until
+	# it pushed History and Footer out of the viewport.
 	for child in _artifacts_list.get_children():
 		child.queue_free()
 	var acquired: Array = SaveIo.artifacts()
 	if acquired.is_empty():
 		_artifacts_empty.visible = true
-		_artifacts_list.visible = false
+		_artifacts_scroll.visible = false
 		return
 	_artifacts_empty.visible = false
-	_artifacts_list.visible = true
+	_artifacts_scroll.visible = true
 	var by_spot := _group_artifacts_by_spot(acquired)
 	for spot in ArtifactsData.SPOT_ORDER:
 		var entries: Array = by_spot.get(spot, [])
