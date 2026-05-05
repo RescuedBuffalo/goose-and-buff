@@ -54,11 +54,13 @@ inventory is granted.
 
 Fires on victory (cycle complete) or defeat (hero or lodge core down).
 Always the final event in a run file. The wiring layer enforces this
-in two places: `main.gd` defers `_run_defeat` via `call_deferred` so
-any in-flight signal (notably the fatal hit's `hero_damage_taken`,
-emitted by the enemy adapter after `hero.damage` returns) lands in
-the buffer first, and phase-gates `_unhandled_input` so clicks on the
-end-screen scrim don't trigger trailing `ability_cast` events.
+by deferring both `_run_defeat` and `_run_victory` via `call_deferred`,
+so any signal raised earlier in the same frame (the fatal hit's
+`hero_damage_taken` from the enemy adapter, or a `resource_gathered`
+emitted later in `_process` after `day_night.tick` triggered cycle
+completion) lands in the buffer before `run_end`. `_unhandled_input`
+is also phase-gated so clicks on the end-screen scrim can't trigger
+trailing `ability_cast` events from later frames.
 
 | Payload field | Type | Notes |
 | --- | --- | --- |

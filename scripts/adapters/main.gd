@@ -410,7 +410,17 @@ func _on_wave_ended(round_index: int) -> void:
 func _on_phase_changed(_phase: int, _day_index: int) -> void:
 	pass  # HUD listens directly; nothing for main to do.
 
-func _on_cycle_complete(_nights: int) -> void:
+func _on_cycle_complete(nights: int) -> void:
+	# Defer so the rest of this frame's _process (wave_director.tick,
+	# combat.tick, gather.tick) can finish without their events landing
+	# in the buffer behind run_end. cycle_complete is emitted from
+	# day_night.tick — without the defer, a gather that completes later
+	# in the same _process would log resource_gathered AFTER run_end.
+	_run_victory.call_deferred(nights)
+
+func _run_victory(_nights: int) -> void:
+	if GameState.phase == GameState.Phase.RUN_ENDED or GameState.phase == GameState.Phase.RUN_COMPLETE:
+		return
 	GameState.set_phase(GameState.Phase.RUN_COMPLETE)
 	end_screen.set_stats(_nights_survived, _resources_gathered, _enemies_felled)
 	end_screen.show_victory()
