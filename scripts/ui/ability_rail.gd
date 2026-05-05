@@ -42,11 +42,14 @@ func _draw() -> void:
 	if on_cooldown:
 		bg = Color(DesignTokens.NIGHT_2.r, DesignTokens.NIGHT_2.g, DesignTokens.NIGHT_2.b, 0.78)
 	draw_rect(slot_rect, bg, true)
-	draw_rect(slot_rect, DesignTokens.DIVIDER, false, 1.0)
+	# Hi-fi v3 border rule: 1px hero-core at 0.45 alpha — same on the slot
+	# and the keybind chip so the rail reads as one component.
+	var border := DesignTokens.hero_core_border(_hero_id)
+	draw_rect(slot_rect, border, false, 1.0)
 	# Keybind chip (top-left of the slot, slightly outside).
 	var chip_rect := Rect2(origin + Vector2(-6, -6), KEY_CHIP_SIZE)
 	draw_rect(chip_rect, DesignTokens.NIGHT_2, true)
-	draw_rect(chip_rect, DesignTokens.NIGHT_4, false, 1.0)
+	draw_rect(chip_rect, border, false, 1.0)
 	_draw_centered("Q", chip_rect, DesignTokens.FG_2, DesignTokens.FS_XS)
 	# Slot interior — number while on cooldown, totem letter otherwise.
 	var accent := DesignTokens.core_color(_hero_id)

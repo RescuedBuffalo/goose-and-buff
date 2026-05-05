@@ -51,6 +51,21 @@
   --xp-glow:     rgb(196 170 255);       /* twilight violet — xp/level */
   --gold-coin:   rgb(244 196 84);        /* coins/rewards */
 
+  /* ─── Hi-Fi v3 additions (signoff: hifi-v3-signoff.md) ─────────────── */
+  --scrim-deep:      rgb(8 7 11 / 0.72);     /* run-end + debrief modal full-bleed */
+  --scrim-soft:      rgb(8 7 11 / 0.32);     /* wave-shout splash */
+  --help-line:       rgb(206 76 64);         /* help-state border */
+  --help-fill:       rgb(206 76 64 / 0.14);  /* help-state fill */
+  --help-ink:        rgb(252 226 222);       /* help-state ink */
+  --goose-lantern:   rgb(252 222 40 / 0.14); /* HeroBadge lantern strip · Goose */
+  --buffalo-lantern: rgb(170 110 70 / 0.14); /* HeroBadge lantern strip · Buffalo */
+  --fox-lantern:     rgb(248 130 30 / 0.16); /* HeroBadge lantern strip · Fox */
+  --core-fell-bg:    rgb(60 22 18);          /* SectorStatusCard.fell bg */
+  --core-fell-line:  rgb(180 70 60);         /* SectorStatusCard.fell border */
+  --parchment-3:     rgb(218 198 162);       /* debrief modal warm-neutral tier 3 */
+  --pip-combat-bg:   rgb(206 76 64);         /* HeroBadge in-combat pip bg */
+  --pip-combat-fg:   rgb(252 244 226);       /* HeroBadge in-combat pip fg */
+
   /* Foreground / background semantic hooks */
   --fg-1: var(--parchment-0);            /* primary text (on dark) */
   --fg-2: rgb(214 204 188);              /* secondary text */

@@ -51,6 +51,23 @@ const FG_1 := PARCHMENT_0
 const FG_2 := Color8(214, 204, 188)
 const FG_3 := Color8(160, 150, 138)
 
+# ─── Hi-Fi v3 additions (signoff: game1/hifi-v3-signoff.md) ──────────────
+# Alpha-bearing values are stored as Color(r, g, b, a) so consumers can pass
+# them straight to draw_rect without recomposing.
+const SCRIM_DEEP := Color(8.0 / 255.0, 7.0 / 255.0, 11.0 / 255.0, 0.72)
+const SCRIM_SOFT := Color(8.0 / 255.0, 7.0 / 255.0, 11.0 / 255.0, 0.32)
+const HELP_LINE := Color8(206, 76, 64)
+const HELP_FILL := Color(206.0 / 255.0, 76.0 / 255.0, 64.0 / 255.0, 0.14)
+const HELP_INK := Color8(252, 226, 222)
+const GOOSE_LANTERN := Color(252.0 / 255.0, 222.0 / 255.0, 40.0 / 255.0, 0.14)
+const BUFFALO_LANTERN := Color(170.0 / 255.0, 110.0 / 255.0, 70.0 / 255.0, 0.14)
+const FOX_LANTERN := Color(248.0 / 255.0, 130.0 / 255.0, 30.0 / 255.0, 0.16)
+const CORE_FELL_BG := Color8(60, 22, 18)
+const CORE_FELL_LINE := Color8(180, 70, 60)
+const PARCHMENT_3 := Color8(218, 198, 162)
+const PIP_COMBAT_BG := Color8(206, 76, 64)
+const PIP_COMBAT_FG := Color8(252, 244, 226)
+
 # ─── Type sizes (Roblox UI floor: 14px @ 1080p) ───────────────────────────
 const FS_XS := 12
 const FS_SM := 14
@@ -104,3 +121,18 @@ func hp_color(ratio: float) -> Color:
 	if ratio > 0.25:
 		return HP_WARN
 	return HP_CRIT
+
+func lantern_color(faction: String) -> Color:
+	# Hi-fi v3 HeroBadge lantern strip — soft tinted glow on the totem side
+	# of the badge. Faction-keyed alpha-bearing variant.
+	match faction:
+		"Goose": return GOOSE_LANTERN
+		"Buffalo": return BUFFALO_LANTERN
+		"Fox": return FOX_LANTERN
+		_: return Color(NIGHT_3.r, NIGHT_3.g, NIGHT_3.b, 0.14)
+
+func hero_core_border(faction: String) -> Color:
+	# WavePill border rule (hi-fi v3): always 1px hero-core at 0.45 alpha;
+	# only fill / glow / pulse vary across variants.
+	var c := core_color(faction)
+	return Color(c.r, c.g, c.b, 0.45)

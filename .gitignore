@@ -2,6 +2,12 @@
 .godot/
 .import/
 
+# Godot reimport sidecars under design/ — that folder holds design-system
+# source (HTML / JSX / CSS). Godot writes *.import metadata when it scans
+# the tree, but those files are machine-local and noisy in a diff. Real
+# game assets under assets/ keep their import sidecars tracked.
+design/**/*.import
+
 # Per-developer Godot tooling — godot-mcp helper plugin is installed
 # locally for live editor control during AI-assisted iteration.
 /addons/godot_mcp/
