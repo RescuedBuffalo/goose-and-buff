@@ -1,69 +1,44 @@
 extends Control
 ##
-## Help-request banner — single state machine that fires + clears in lockstep
-## with the WavePill / HeroBadge pulse (hi-fi v3 §3A). The component lives
-## here in v0.1 but is M4-deferred for wiring: there is no real "help
-## requested" signal until multiplayer lands. `show_for()` is the public
-## entry point; the rest of the codebase doesn't call it yet.
-##
-## Visual: bottom-center band above the hand strip. Uses the new help-line /
-## help-fill / help-ink tokens verbatim.
+## Anchor wrapper for the HelpBanner component. Positions the visual banner
+## at the bottom-center, just above the Val strip / hand cards.
 
-const SAFE_INSET := 24.0
-const HAND_STRIP_HEIGHT := 240.0
-const VAL_STRIP_HEIGHT := 52.0
+const Component := preload("res://scripts/ui/components/help_banner.gd")
 
-var _calling_hero: String = ""
-var _responder_hero: String = ""
-var _eta_seconds: float = 0.0
+const SAFE_INSET := 32.0
+# Mirrors hud_widget.gd's hand-band height. Cards anchor against the band's
+# top so the help banner can sit just above it without competing with the
+# hand backdrop.
+const HAND_BAND_HEIGHT := 320.0
+const BANNER_HEIGHT := 72.0
+const BANNER_WIDTH := 520.0
+
+var _component: PanelContainer
 
 func _ready() -> void:
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
 	set_anchors_preset(Control.PRESET_FULL_RECT)
 	visible = false
+	_component = Component.new()
+	add_child(_component)
+	# Compute target bottom: just above the hand band so the alert reads as
+	# its own row rather than sharing real estate with the cards.
+	var bottom_offset: float = HAND_BAND_HEIGHT + 16.0
+	_component.set_anchor(SIDE_LEFT, 0.5, false)
+	_component.set_anchor(SIDE_RIGHT, 0.5, false)
+	_component.set_anchor(SIDE_TOP, 1.0, false)
+	_component.set_anchor(SIDE_BOTTOM, 1.0, false)
+	_component.offset_left = -BANNER_WIDTH * 0.5
+	_component.offset_right = BANNER_WIDTH * 0.5
+	_component.offset_top = -(bottom_offset + BANNER_HEIGHT)
+	_component.offset_bottom = -bottom_offset
 
 func show_for(calling_hero: String, responder_hero: String, eta_seconds: float) -> void:
-	# `calling_hero` and `responder_hero` are totem ids — never personal
-	# names. v0.1 single-player will not call this; M4 will.
-	_calling_hero = calling_hero
-	_responder_hero = responder_hero
-	_eta_seconds = max(0.0, eta_seconds)
+	if _component != null:
+		_component.show_for(calling_hero, responder_hero, eta_seconds)
 	visible = true
-	queue_redraw()
 
 func clear_help() -> void:
+	if _component != null:
+		_component.clear_help()
 	visible = false
-	_calling_hero = ""
-	_responder_hero = ""
-	_eta_seconds = 0.0
-	queue_redraw()
-
-func _draw() -> void:
-	if not visible:
-		return
-	var band_w := 460.0
-	var band_h := 56.0
-	# Sit just above the ValStrip so they stack cleanly.
-	var origin := Vector2(
-		(size.x - band_w) * 0.5,
-		size.y - HAND_STRIP_HEIGHT - SAFE_INSET - VAL_STRIP_HEIGHT - 16.0 - band_h,
-	)
-	var rect := Rect2(origin, Vector2(band_w, band_h))
-	# Help fill + line + ink — locked tokens.
-	draw_rect(rect, DesignTokens.HELP_FILL, true)
-	draw_rect(rect, DesignTokens.HELP_LINE, false, 1.0)
-	# Headline reads the verbatim copy from §3A:
-	#   "You called — Goose is moving · ETA 4s"
-	# Both heroes are totem ids; ETA renders without padding seconds.
-	var head: String
-	if _responder_hero.is_empty():
-		head = "Help on the way."
-	else:
-		head = "You called — %s is moving · ETA %ds" % [_responder_hero, int(ceil(_eta_seconds))]
-	_draw_label(head, rect.position + Vector2(20.0, 18.0),
-		DesignTokens.HELP_INK, DesignTokens.FS_MD)
-
-func _draw_label(text: String, pos: Vector2, color: Color, font_size: int) -> void:
-	var font := ThemeDB.fallback_font
-	draw_string(font, pos + Vector2(0, font_size), text,
-		HORIZONTAL_ALIGNMENT_LEFT, -1, font_size, color)

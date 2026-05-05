@@ -16,27 +16,34 @@ signal drag_started(card_id: String, world_pos: Vector2)
 signal drag_moved(card_id: String, world_pos: Vector2)
 signal drag_ended()
 
-const CARD_GAP := 16.0
-const HAND_BOTTOM_PADDING := 24.0
+const CARD_GAP := 18.0
+const HAND_BOTTOM_PADDING := 32.0
 
 var _card_system  # CardSystem
+var _economy  # Economy — needed so each card can dim when unaffordable
 var _hand_ids: Array = []
 var _drag_widget: Control = null
 var _drag_card_id: String = ""
 var _drag_offset: Vector2 = Vector2.ZERO
 
-func bind(card_system) -> void:
+func bind(card_system, economy = null) -> void:
 	_card_system = card_system
 	_card_system.hand_changed.connect(_on_hand_changed)
 	_card_system.play_rejected.connect(_on_play_rejected)
+	if economy != null:
+		_economy = economy
+		_economy.balance_changed.connect(_on_balance_changed)
 
 func _ready() -> void:
 	mouse_filter = Control.MOUSE_FILTER_PASS
+	# Hand band — bottom 320 px of a 1080-tall viewport. Cards (248 tall +
+	# 32 bottom padding) anchor against the band's bottom; the rest of the
+	# band hosts the val strip, ability rail, and breathing room.
 	anchor_left = 0
 	anchor_right = 1
 	anchor_bottom = 1
 	anchor_top = 1
-	offset_top = -240
+	offset_top = -320
 	offset_left = 0
 	offset_right = 0
 	offset_bottom = 0
@@ -69,6 +76,21 @@ func _rebuild() -> void:
 		widget.position = Vector2(start_x + i * (card_w + CARD_GAP), y)
 		widget.set_card(card_id)
 		add_child(widget)
+	_apply_affordability()
+
+func _on_balance_changed(_new_balance: int) -> void:
+	_apply_affordability()
+
+func _apply_affordability() -> void:
+	if _economy == null:
+		return
+	var balance: int = _economy.balance
+	for child in get_children():
+		if child is CardWidget:
+			var w: CardWidget = child
+			if w.card.is_empty():
+				continue
+			w.set_affordable(int(w.card.cost) <= balance)
 
 func _gui_input(event: InputEvent) -> void:
 	if event is InputEventMouseButton:

@@ -99,7 +99,7 @@ func _build_ui() -> void:
 
 func _wire_signals() -> void:
 	hud.bind(economy, wave_director, sector)
-	hand.bind(card_system)
+	hand.bind(card_system, economy)
 	hand.play_requested.connect(_on_play_requested)
 	hand.drag_started.connect(_on_drag_started)
 	hand.drag_moved.connect(_on_drag_moved)
