@@ -31,6 +31,13 @@ const PlaceableScene := preload("res://scenes/placeable.tscn")
 const HudScene := preload("res://scenes/ui/hud.tscn")
 const EndScene := preload("res://scenes/ui/end_screen.tscn")
 
+const SaveStateClass := preload("res://scripts/logic/save_state.gd")
+const LODGE_SCENE_PATH := "res://scenes/lodge/lodge.tscn"
+# Pause before the scene swap so the player sees what just happened —
+# without a beat, victory/defeat reads as a tab switch rather than a
+# story moment. The end-screen scrim covers the world during the wait.
+const RUN_END_TO_LODGE_DELAY_SECONDS := 1.6
+
 # Logic modules. Constructed once per run, reset between runs.
 var day_night = null
 var wave_director: WaveDirector = null
@@ -50,10 +57,12 @@ var build_overlay
 var combat_visuals
 var lighting
 
-# Run-end stat tally — pushed onto the end-screen on victory/defeat.
+# Run-end stat tally — pushed onto the end-screen on victory/defeat,
+# and serialized into the save file (BUF-142) before the lodge loads.
 var _resources_gathered: int = 0
 var _enemies_felled: int = 0
 var _nights_survived: int = 0
+var _run_started_msec: int = 0
 
 const DEFAULT_HERO_ID := "Buffalo"
 
@@ -159,6 +168,7 @@ func _start_run() -> void:
 	_resources_gathered = 0
 	_enemies_felled = 0
 	_nights_survived = 0
+	_run_started_msec = Time.get_ticks_msec()
 	for item in STARTER_ITEMS:
 		inventory.add(item.id, int(item.count))
 	# Default selection: slot 0 (hand axe). Equipping happens via the
@@ -334,9 +344,12 @@ func _on_phase_changed(_phase: int, _day_index: int) -> void:
 	pass  # HUD listens directly; nothing for main to do.
 
 func _on_cycle_complete(_nights: int) -> void:
+	if GameState.phase == GameState.Phase.RUN_ENDED or GameState.phase == GameState.Phase.RUN_COMPLETE:
+		return
 	GameState.set_phase(GameState.Phase.RUN_COMPLETE)
 	end_screen.set_stats(_nights_survived, _resources_gathered, _enemies_felled)
 	end_screen.show_victory()
+	_record_run_and_go_to_lodge(SaveStateClass.OUTCOME_VICTORY)
 
 # ── Run-end plumbing ─────────────────────────────────────────────────
 func _on_hero_downed() -> void:
@@ -353,21 +366,31 @@ func _run_defeat() -> void:
 	GameState.set_phase(GameState.Phase.RUN_ENDED)
 	end_screen.set_stats(_nights_survived, _resources_gathered, _enemies_felled)
 	end_screen.show_defeat()
+	_record_run_and_go_to_lodge(SaveStateClass.OUTCOME_DEFEAT)
+
+func _record_run_and_go_to_lodge(outcome: String) -> void:
+	var duration: float = float(Time.get_ticks_msec() - _run_started_msec) / 1000.0
+	SaveIo.record_run(
+		GameState.hero_id,
+		outcome,
+		_nights_survived,
+		_resources_gathered,
+		_enemies_felled,
+		duration,
+	)
+	# Hold the end-screen scrim for a beat so the player can register
+	# what happened, then swap to the lodge. Going straight to the lodge
+	# eats the moment.
+	get_tree().create_timer(RUN_END_TO_LODGE_DELAY_SECONDS).timeout.connect(_go_to_lodge)
+
+func _go_to_lodge() -> void:
+	get_tree().change_scene_to_file(LODGE_SCENE_PATH)
 
 func _on_restart_requested() -> void:
-	for n in get_tree().get_nodes_in_group("enemies"):
-		if is_instance_valid(n): n.queue_free()
-	for n in get_tree().get_nodes_in_group("placeables"):
-		if is_instance_valid(n): n.queue_free()
-	for n in get_tree().get_nodes_in_group("resource_nodes"):
-		if is_instance_valid(n): n.queue_free()
-	sector.clear_build_ghost()
-	# Re-build AStar from a clean slate (the placed walls + depleted
-	# resource nodes mutated it; rebuilding is cheaper than tracking
-	# every change to undo it).
-	sector.rebuild_astar()
-	_seed_world_resources()
-	_start_run()
+	# End-screen "Run again" is now a fast-path to the lodge — the lodge
+	# itself owns the actual restart trigger (BUF-142). Clicking before
+	# the auto-transition timer fires just gets you there sooner.
+	_go_to_lodge()
 
 # ── World seeding ────────────────────────────────────────────────────
 func _seed_world_resources() -> void:

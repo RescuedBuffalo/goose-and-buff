@@ -1,0 +1,134 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/ui/lodge.gd" id="1"]
+
+[node name="Lodge" type="Control"]
+script = ExtResource("1")
+anchor_right = 1.0
+anchor_bottom = 1.0
+mouse_filter = 0
+
+[node name="Background" type="ColorRect" parent="."]
+anchor_right = 1.0
+anchor_bottom = 1.0
+color = Color(0.988, 0.957, 0.886, 1)
+mouse_filter = 2
+
+[node name="Margin" type="MarginContainer" parent="."]
+anchor_right = 1.0
+anchor_bottom = 1.0
+theme_override_constants/margin_left = 64
+theme_override_constants/margin_top = 56
+theme_override_constants/margin_right = 64
+theme_override_constants/margin_bottom = 56
+mouse_filter = 2
+
+[node name="V" type="VBoxContainer" parent="Margin"]
+theme_override_constants/separation = 28
+mouse_filter = 2
+
+[node name="Header" type="VBoxContainer" parent="Margin/V"]
+theme_override_constants/separation = 4
+
+[node name="Eyebrow" type="Label" parent="Margin/V/Header"]
+text = "THE LODGE"
+theme_override_font_sizes/font_size = 12
+theme_override_colors/font_color = Color(0.502, 0.376, 0.227, 1)
+
+[node name="Headline" type="Label" parent="Margin/V/Header"]
+text = "Last watch"
+theme_override_font_sizes/font_size = 34
+theme_override_colors/font_color = Color(0.180, 0.125, 0.086, 1)
+
+[node name="Sub" type="Label" parent="Margin/V/Header"]
+text = "Warm fire. Long memory. We sit a moment before the next watch."
+theme_override_font_sizes/font_size = 16
+theme_override_colors/font_color = Color(0.317, 0.243, 0.180, 1)
+
+[node name="LastWatch" type="VBoxContainer" parent="Margin/V"]
+theme_override_constants/separation = 8
+
+[node name="Outcome" type="Label" parent="Margin/V/LastWatch"]
+text = ""
+theme_override_font_sizes/font_size = 26
+theme_override_colors/font_color = Color(0.180, 0.125, 0.086, 1)
+
+[node name="Subtitle" type="Label" parent="Margin/V/LastWatch"]
+text = ""
+theme_override_font_sizes/font_size = 16
+theme_override_colors/font_color = Color(0.317, 0.243, 0.180, 1)
+
+[node name="Stats" type="Label" parent="Margin/V/LastWatch"]
+text = ""
+theme_override_font_sizes/font_size = 16
+theme_override_colors/font_color = Color(0.317, 0.243, 0.180, 1)
+
+[node name="Empty" type="Label" parent="Margin/V/LastWatch"]
+text = "No watches yet — your first run is your first story."
+theme_override_font_sizes/font_size = 16
+theme_override_colors/font_color = Color(0.502, 0.376, 0.227, 1)
+visible = false
+
+[node name="Reserved" type="HBoxContainer" parent="Margin/V"]
+theme_override_constants/separation = 16
+
+[node name="Artifacts" type="PanelContainer" parent="Margin/V/Reserved"]
+custom_minimum_size = Vector2(360, 96)
+size_flags_horizontal = 3
+
+[node name="V" type="VBoxContainer" parent="Margin/V/Reserved/Artifacts"]
+theme_override_constants/separation = 4
+
+[node name="Title" type="Label" parent="Margin/V/Reserved/Artifacts/V"]
+text = "Lodge artifacts"
+theme_override_font_sizes/font_size = 14
+theme_override_colors/font_color = Color(0.180, 0.125, 0.086, 1)
+
+[node name="Body" type="Label" parent="Margin/V/Reserved/Artifacts/V"]
+text = "Things left behind by past runs. Nothing here yet."
+theme_override_font_sizes/font_size = 14
+theme_override_colors/font_color = Color(0.502, 0.376, 0.227, 1)
+autowrap_mode = 2
+
+[node name="Variants" type="PanelContainer" parent="Margin/V/Reserved"]
+custom_minimum_size = Vector2(360, 96)
+size_flags_horizontal = 3
+
+[node name="V" type="VBoxContainer" parent="Margin/V/Reserved/Variants"]
+theme_override_constants/separation = 4
+
+[node name="Title" type="Label" parent="Margin/V/Reserved/Variants/V"]
+text = "Hero variants"
+theme_override_font_sizes/font_size = 14
+theme_override_colors/font_color = Color(0.180, 0.125, 0.086, 1)
+
+[node name="Body" type="Label" parent="Margin/V/Reserved/Variants/V"]
+text = "Different cuts of the same hero. Locked for now."
+theme_override_font_sizes/font_size = 14
+theme_override_colors/font_color = Color(0.502, 0.376, 0.227, 1)
+autowrap_mode = 2
+
+[node name="History" type="VBoxContainer" parent="Margin/V"]
+theme_override_constants/separation = 6
+
+[node name="Title" type="Label" parent="Margin/V/History"]
+text = "Previous watches"
+theme_override_font_sizes/font_size = 20
+theme_override_colors/font_color = Color(0.180, 0.125, 0.086, 1)
+
+[node name="List" type="VBoxContainer" parent="Margin/V/History"]
+theme_override_constants/separation = 2
+
+[node name="Empty" type="Label" parent="Margin/V/History"]
+text = "(no past watches yet)"
+theme_override_font_sizes/font_size = 14
+theme_override_colors/font_color = Color(0.502, 0.376, 0.227, 1)
+visible = false
+
+[node name="Footer" type="HBoxContainer" parent="Margin/V"]
+alignment = 2
+theme_override_constants/separation = 12
+
+[node name="RunAgain" type="Button" parent="Margin/V/Footer"]
+text = "Run again"
+custom_minimum_size = Vector2(180, 44)
