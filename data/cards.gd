@@ -65,6 +65,71 @@ const StockpileCard := {
 	"payload": {"coin_delta": 30},
 }
 
+# ─── Fox starter deck ─────────────────────────────────────────────────────
+# Mirrors the Buffalo template: light/ranged/heavy unit, production node,
+# signature ability, stockpile. Costs follow units-data — Kit/Lynx/Badger
+# are slightly cheaper than Buffalo equivalents in line with the assassin
+# tilt (lower HP, higher per-attack damage, faster pressure).
+
+const KitCard := {
+	"id": "card.kit", "name": "Kit", "faction": "Fox",
+	"kind": "unit", "phase": "prep", "cost": 25,
+	"description": "Spawn one Kit. Quick light melee.",
+	"flavor": "Faster than it should be.",
+	"payload": {"unit_id": "Kit"},
+}
+
+const LynxCard := {
+	"id": "card.lynx", "name": "Lynx", "faction": "Fox",
+	"kind": "unit", "phase": "prep", "cost": 45,
+	"description": "Spawn one Lynx. Stalking ranged striker — bonus damage on the first hit.",
+	"flavor": "Stalks. Strikes once, hard.",
+	"payload": {"unit_id": "Lynx"},
+}
+
+const BadgerCard := {
+	"id": "card.badger", "name": "Badger", "faction": "Fox",
+	"kind": "unit", "phase": "prep", "cost": 70,
+	"description": "Spawn one Badger. Stocky bruiser with a chance to dodge.",
+	"flavor": "Stocky and stubborn. Hard to pin down.",
+	"payload": {"unit_id": "Badger"},
+}
+
+const FoxProductionNodeCard := {
+	"id": "card.fox_production_node", "name": "Production node", "faction": "Fox",
+	"kind": "building", "phase": "prep", "cost": 50,
+	"description": "Generates 5 coin per second. One per sector.",
+	"flavor": "Quiet hum at the back of the den.",
+	"payload": {"building_id": "ProductionNode", "coin_per_second": 5.0},
+}
+
+const SnatchCard := {
+	"id": "card.snatch", "name": "Snatch", "faction": "Fox",
+	"kind": "ability", "phase": "wave", "cost": 0,
+	"description": "Dash to a target. Strike on arrival; bonus damage from behind.",
+	"flavor": "Pick the seam, take what's loose.",
+	"payload": {
+		"ability_id": "Snatch",
+		# Pixels — caps the dash so Snatch doesn't substitute for movement.
+		# Roughly one second of Fox's run speed (22 studs * 12 px/stud).
+		"max_dash": 240.0,
+		# Strike radius around the dash endpoint.
+		"strike_radius": 44.0,
+		"damage": 22.0,
+		# Backstab fires when the hero ends up at-or-behind the enemy along
+		# the enemy's facing direction (enemies face left toward the core).
+		"backstab_multiplier": 2.0,
+	},
+}
+
+const FoxStockpileCard := {
+	"id": "card.fox_stockpile", "name": "Stockpile", "faction": "Fox",
+	"kind": "resource", "phase": "prep", "cost": 0,
+	"description": "Adds 30 coin to the balance immediately.",
+	"flavor": "Cached for the lean week.",
+	"payload": {"coin_delta": 30},
+}
+
 const ALL := {
 	"card.calf": CalfCard,
 	"card.ostrich": OstrichCard,
@@ -72,26 +137,48 @@ const ALL := {
 	"card.production_node": ProductionNodeCard,
 	"card.charge": ChargeCard,
 	"card.stockpile": StockpileCard,
+	"card.kit": KitCard,
+	"card.lynx": LynxCard,
+	"card.badger": BadgerCard,
+	"card.fox_production_node": FoxProductionNodeCard,
+	"card.snatch": SnatchCard,
+	"card.fox_stockpile": FoxStockpileCard,
 }
 
-# Starter deck: id repeated `count` times. Counts per the prompt.
-const STARTER_DECK := [
-	{"id": "card.calf", "count": 4},
-	{"id": "card.ostrich", "count": 3},
-	{"id": "card.longhorn", "count": 2},
-	{"id": "card.production_node", "count": 3},
-	{"id": "card.charge", "count": 2},
-	{"id": "card.stockpile", "count": 1},
-]
+# Starter decks: id repeated `count` times, keyed by faction. Counts mirror
+# the Buffalo template across factions so each hero opens with the same
+# 15-card shape — faction tilt comes from unit stats and signature ability,
+# not deck composition.
+const STARTER_DECKS := {
+	"Buffalo": [
+		{"id": "card.calf", "count": 4},
+		{"id": "card.ostrich", "count": 3},
+		{"id": "card.longhorn", "count": 2},
+		{"id": "card.production_node", "count": 3},
+		{"id": "card.charge", "count": 2},
+		{"id": "card.stockpile", "count": 1},
+	],
+	"Fox": [
+		{"id": "card.kit", "count": 4},
+		{"id": "card.lynx", "count": 3},
+		{"id": "card.badger", "count": 2},
+		{"id": "card.fox_production_node", "count": 3},
+		{"id": "card.snatch", "count": 2},
+		{"id": "card.fox_stockpile", "count": 1},
+	],
+}
 
 const HAND_SIZE := 5
 
 static func get_card(card_id: String) -> Dictionary:
 	return ALL.get(card_id, {})
 
-static func build_starter_deck() -> Array:
+static func build_starter_deck(faction: String = "Buffalo") -> Array:
+	# Fall back to Buffalo so an unknown faction never hard-fails — the
+	# dispatcher upstream is the one place we check the faction is real.
+	var entries: Array = STARTER_DECKS.get(faction, STARTER_DECKS["Buffalo"])
 	var deck: Array = []
-	for entry in STARTER_DECK:
+	for entry in entries:
 		for i in entry.count:
 			deck.append(entry.id)
 	return deck

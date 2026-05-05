@@ -32,6 +32,17 @@ const Buffalo := {
 	"core_color_key": "Buffalo",
 }
 
+const Fox := {
+	"id": "Fox",
+	"floor_color_key": "Fox",
+	"core_color_key": "Fox",
+}
+
+const BY_HERO := {
+	"Buffalo": Buffalo,
+	"Fox": Fox,
+}
+
 static func is_inside_sector(point: Vector2) -> bool:
 	return (point.x >= SECTOR_LEFT and point.x <= SECTOR_RIGHT
 		and point.y >= SECTOR_TOP and point.y <= SECTOR_BOTTOM)

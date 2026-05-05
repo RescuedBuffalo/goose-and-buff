@@ -18,8 +18,8 @@ var deck: Array = []
 var hand: Array = []
 var discard: Array = []
 
-func reset() -> void:
-	deck = Cards.build_starter_deck()
+func reset(faction: String = "Buffalo") -> void:
+	deck = Cards.build_starter_deck(faction)
 	hand = []
 	discard = []
 	_shuffle(deck)
