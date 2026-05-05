@@ -195,6 +195,12 @@ func _on_round_started(round_index: int) -> void:
 	_phase_label = "Prep"
 	_last_wave_victory = true
 	if _wave_pill != null:
+		# Clear any sticky headline override carried in from the prior debrief
+		# (`_on_wave_ended` sets one, and `_on_core_hp_changed` may have set
+		# a low-core override during the wave). Without this clear the pill
+		# would keep showing "Catch your breath." or "Your core's hurting."
+		# into the next prep / wave until something else overwrites it.
+		_wave_pill.set_headline("")
 		_wave_pill.set_phase(_phase_label, _round_index, GameState.hero_id)
 	_reposition_chips()
 

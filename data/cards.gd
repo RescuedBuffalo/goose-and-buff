@@ -188,6 +188,204 @@ const StockpileCardFox := {
 	"payload": {"coin_delta": 30},
 }
 
+# ── Unlock pool ───────────────────────────────────────────────────────────
+# Cards earned through meta-progression. Each carries a `replaces` field
+# pointing at the starter-deck card it swaps in for — keeps the deck-builder
+# UX a one-click toggle. Mechanics reuse existing payloads (unit_id, spawn_count,
+# coin_delta, building_id) so no new logic is needed in the adapter.
+
+# Buffalo unlocks
+const CalfPairCard := {
+	"id": "card.calf_pair", "name": "Calf pair", "faction": "Buffalo",
+	"kind": "unit", "phase": "prep", "cost": 50,
+	"description": "Spawn two Calves. The pair holds longer than the part.",
+	"flavor": "They walk in step now.",
+	"replaces": "card.calf",
+	"payload": {"unit_id": "Calf", "spawn_count": 2},
+}
+
+const CalfMilitiaCard := {
+	"id": "card.calf_militia", "name": "Calf militia", "faction": "Buffalo",
+	"kind": "unit", "phase": "prep", "cost": 75,
+	"description": "Spawn three Calves. Cheap bodies, packed tight.",
+	"flavor": "Wide stance, three abreast.",
+	"replaces": "card.calf",
+	"payload": {"unit_id": "Calf", "spawn_count": 3},
+}
+
+const OstrichPairCard := {
+	"id": "card.ostrich_pair", "name": "Ostrich pair", "faction": "Buffalo",
+	"kind": "unit", "phase": "prep", "cost": 70,
+	"description": "Spawn two Ostriches. Two kicks, twice the knockback.",
+	"flavor": "They take turns. Mostly.",
+	"replaces": "card.ostrich",
+	"payload": {"unit_id": "Ostrich", "spawn_count": 2},
+}
+
+const LonghornEliteCard := {
+	"id": "card.longhorn_elite", "name": "Longhorn elite", "faction": "Buffalo",
+	"kind": "unit", "phase": "prep", "cost": 65,
+	"description": "Spawn one Longhorn at a discount. Trained line-holder.",
+	"flavor": "Knows where the line is.",
+	"replaces": "card.longhorn",
+	"payload": {"unit_id": "Longhorn"},
+}
+
+const GreaterStockpileCard := {
+	"id": "card.greater_stockpile", "name": "Greater stockpile", "faction": "Buffalo",
+	"kind": "resource", "phase": "prep", "cost": 0,
+	"description": "Adds 60 coin to the balance immediately.",
+	"flavor": "What was set aside, doubled.",
+	"replaces": "card.stockpile",
+	"payload": {"coin_delta": 60},
+}
+
+const WarhornCard := {
+	"id": "card.warhorn", "name": "Warhorn", "faction": "Buffalo",
+	"kind": "resource", "phase": "prep", "cost": 0,
+	"description": "Adds 40 coin and steadies the line.",
+	"flavor": "Heard before it's seen.",
+	"replaces": "card.stockpile",
+	"payload": {"coin_delta": 40},
+}
+
+const ThriftNodeCard := {
+	"id": "card.thrift_node", "name": "Thrift node", "faction": "Buffalo",
+	"kind": "building", "phase": "prep", "cost": 35,
+	"description": "Cheaper production node. Same hum, fewer parts.",
+	"flavor": "Found in the back of a barn.",
+	"replaces": "card.production_node",
+	"payload": {"building_id": "ProductionNode", "coin_per_second": 5.0},
+}
+
+# Goose unlocks
+const GoslingPairCard := {
+	"id": "card.gosling_pair", "name": "Gosling pair", "faction": "Goose",
+	"kind": "unit", "phase": "prep", "cost": 40,
+	"description": "Spawn two Goslings. They scrap better in twos.",
+	"flavor": "Less brave alone.",
+	"replaces": "card.gosling",
+	"payload": {"unit_id": "Gosling", "spawn_count": 2},
+}
+
+const GoslingFlockCard := {
+	"id": "card.gosling_flock", "name": "Gosling flock", "faction": "Goose",
+	"kind": "unit", "phase": "prep", "cost": 60,
+	"description": "Spawn three Goslings. A wave of feathers.",
+	"flavor": "Loud — by design.",
+	"replaces": "card.gosling",
+	"payload": {"unit_id": "Gosling", "spawn_count": 3},
+}
+
+const HeronPairCard := {
+	"id": "card.heron_pair", "name": "Heron pair", "faction": "Goose",
+	"kind": "unit", "phase": "prep", "cost": 65,
+	"description": "Spawn two Herons. Two long strikes, far back.",
+	"flavor": "Patient at both ends.",
+	"replaces": "card.heron",
+	"payload": {"unit_id": "Heron", "spawn_count": 2},
+}
+
+const HeronPostCard := {
+	"id": "card.heron_post", "name": "Heron post", "faction": "Goose",
+	"kind": "unit", "phase": "prep", "cost": 30,
+	"description": "Spawn one Heron at a discount. Cheap eyes on the back.",
+	"flavor": "Posted up. Watching.",
+	"replaces": "card.heron",
+	"payload": {"unit_id": "Heron"},
+}
+
+const SwanEliteCard := {
+	"id": "card.swan_elite", "name": "Swan elite", "faction": "Goose",
+	"kind": "unit", "phase": "prep", "cost": 60,
+	"description": "Spawn one Swan at a discount. Same hiss, better price.",
+	"flavor": "Still surprisingly mean.",
+	"replaces": "card.swan",
+	"payload": {"unit_id": "Swan"},
+}
+
+const GreaterStockpileGooseCard := {
+	"id": "card.greater_stockpile_goose", "name": "Greater stockpile", "faction": "Goose",
+	"kind": "resource", "phase": "prep", "cost": 0,
+	"description": "Adds 60 coin to the balance immediately.",
+	"flavor": "Pulled from the back of the nest.",
+	"replaces": "card.stockpile_goose",
+	"payload": {"coin_delta": 60},
+}
+
+const ThriftNodeGooseCard := {
+	"id": "card.thrift_node_goose", "name": "Thrift node", "faction": "Goose",
+	"kind": "building", "phase": "prep", "cost": 35,
+	"description": "Cheaper production node. Quiet little hum.",
+	"flavor": "Stashed under a wing.",
+	"replaces": "card.production_node_goose",
+	"payload": {"building_id": "ProductionNode", "coin_per_second": 5.0},
+}
+
+# Fox unlocks
+const KitPairCard := {
+	"id": "card.kit_pair", "name": "Kit pair", "faction": "Fox",
+	"kind": "unit", "phase": "prep", "cost": 45,
+	"description": "Spawn two Kits. They take corners together.",
+	"flavor": "Twice the bite.",
+	"replaces": "card.kit",
+	"payload": {"unit_id": "Kit", "spawn_count": 2},
+}
+
+const KitPackCard := {
+	"id": "card.kit_pack", "name": "Kit pack", "faction": "Fox",
+	"kind": "unit", "phase": "prep", "cost": 65,
+	"description": "Spawn three Kits. The seam is wherever they say it is.",
+	"flavor": "All teeth, no plan.",
+	"replaces": "card.kit",
+	"payload": {"unit_id": "Kit", "spawn_count": 3},
+}
+
+const LynxPairCard := {
+	"id": "card.lynx_pair", "name": "Lynx pair", "faction": "Fox",
+	"kind": "unit", "phase": "prep", "cost": 80,
+	"description": "Spawn two Lynxes. Two ambushes from the back rank.",
+	"flavor": "Each picks its own.",
+	"replaces": "card.lynx",
+	"payload": {"unit_id": "Lynx", "spawn_count": 2},
+}
+
+const LynxPostCard := {
+	"id": "card.lynx_post", "name": "Lynx post", "faction": "Fox",
+	"kind": "unit", "phase": "prep", "cost": 40,
+	"description": "Spawn one Lynx at a discount. Quiet sentry.",
+	"flavor": "First strike, always.",
+	"replaces": "card.lynx",
+	"payload": {"unit_id": "Lynx"},
+}
+
+const BadgerEliteCard := {
+	"id": "card.badger_elite", "name": "Badger elite", "faction": "Fox",
+	"kind": "unit", "phase": "prep", "cost": 60,
+	"description": "Spawn one Badger at a discount. Knows the trick.",
+	"flavor": "Stocky, stubborn, cheap.",
+	"replaces": "card.badger",
+	"payload": {"unit_id": "Badger"},
+}
+
+const GreaterStockpileFoxCard := {
+	"id": "card.greater_stockpile_fox", "name": "Greater stockpile", "faction": "Fox",
+	"kind": "resource", "phase": "prep", "cost": 0,
+	"description": "Adds 60 coin to the balance immediately.",
+	"flavor": "Two lean weeks, stashed.",
+	"replaces": "card.stockpile_fox",
+	"payload": {"coin_delta": 60},
+}
+
+const ThriftNodeFoxCard := {
+	"id": "card.thrift_node_fox", "name": "Thrift node", "faction": "Fox",
+	"kind": "building", "phase": "prep", "cost": 35,
+	"description": "Cheaper production node. Hum at the back of the den.",
+	"flavor": "Salvaged, useful.",
+	"replaces": "card.production_node_fox",
+	"payload": {"building_id": "ProductionNode", "coin_per_second": 5.0},
+}
+
 const ALL := {
 	"card.calf": CalfCard,
 	"card.ostrich": OstrichCard,
@@ -207,6 +405,28 @@ const ALL := {
 	"card.production_node_fox": ProductionNodeCardFox,
 	"card.snatch": SnatchCard,
 	"card.stockpile_fox": StockpileCardFox,
+	# Unlock pool
+	"card.calf_pair": CalfPairCard,
+	"card.calf_militia": CalfMilitiaCard,
+	"card.ostrich_pair": OstrichPairCard,
+	"card.longhorn_elite": LonghornEliteCard,
+	"card.greater_stockpile": GreaterStockpileCard,
+	"card.warhorn": WarhornCard,
+	"card.thrift_node": ThriftNodeCard,
+	"card.gosling_pair": GoslingPairCard,
+	"card.gosling_flock": GoslingFlockCard,
+	"card.heron_pair": HeronPairCard,
+	"card.heron_post": HeronPostCard,
+	"card.swan_elite": SwanEliteCard,
+	"card.greater_stockpile_goose": GreaterStockpileGooseCard,
+	"card.thrift_node_goose": ThriftNodeGooseCard,
+	"card.kit_pair": KitPairCard,
+	"card.kit_pack": KitPackCard,
+	"card.lynx_pair": LynxPairCard,
+	"card.lynx_post": LynxPostCard,
+	"card.badger_elite": BadgerEliteCard,
+	"card.greater_stockpile_fox": GreaterStockpileFoxCard,
+	"card.thrift_node_fox": ThriftNodeFoxCard,
 }
 
 # Starter decks per hero. id repeated `count` times.
@@ -244,6 +464,38 @@ const STARTER_DECKS := {
 
 const HAND_SIZE := 5
 
+# Unlock pool per hero. Lists card ids the player can unlock between runs and
+# swap into that hero's deck. The order here drives the Lodge's display order.
+const UNLOCK_POOLS := {
+	"Buffalo": [
+		"card.calf_pair",
+		"card.calf_militia",
+		"card.ostrich_pair",
+		"card.longhorn_elite",
+		"card.greater_stockpile",
+		"card.warhorn",
+		"card.thrift_node",
+	],
+	"Goose": [
+		"card.gosling_pair",
+		"card.gosling_flock",
+		"card.heron_pair",
+		"card.heron_post",
+		"card.swan_elite",
+		"card.greater_stockpile_goose",
+		"card.thrift_node_goose",
+	],
+	"Fox": [
+		"card.kit_pair",
+		"card.kit_pack",
+		"card.lynx_pair",
+		"card.lynx_post",
+		"card.badger_elite",
+		"card.greater_stockpile_fox",
+		"card.thrift_node_fox",
+	],
+}
+
 static func get_card(card_id: String) -> Dictionary:
 	return ALL.get(card_id, {})
 
@@ -254,3 +506,16 @@ static func build_starter_deck(hero_id: String = "Buffalo") -> Array:
 		for i in entry.count:
 			deck.append(entry.id)
 	return deck
+
+# Apply the player's unlocked-card swaps to a starter deck. `swaps` maps a
+# starter card id to an unlocked card id; one occurrence of the starter is
+# replaced per entry. Unmatched entries (e.g. a swap whose starter isn't in
+# the deck for some reason) are silently skipped.
+static func apply_swaps(deck: Array, swaps: Dictionary) -> Array:
+	var result := deck.duplicate()
+	for starter_id in swaps.keys():
+		var unlocked_id: String = swaps[starter_id]
+		var idx := result.find(starter_id)
+		if idx != -1:
+			result[idx] = unlocked_id
+	return result

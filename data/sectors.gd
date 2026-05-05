@@ -24,8 +24,10 @@ const CORE_CENTER := Vector2(1620, 452)
 const CORE_SIZE := Vector2(96, 96)
 const CORE_HEALTH := 1000.0
 
-# Enemies spawn off-screen and walk left toward the core.
-const ENEMY_ENTRY_X := 1900
+# Enemies spawn off-screen and walk left toward the core. The entry x must
+# sit past SECTOR_RIGHT (1920) so grunt-sized sprites (≤40 px) are fully
+# off-camera at spawn — otherwise they pop in mid-air on wave start.
+const ENEMY_ENTRY_X := 2000
 const ENEMY_TARGET := CORE_CENTER
 
 const Buffalo := {
