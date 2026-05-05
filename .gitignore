@@ -12,6 +12,12 @@ design/**/*.import
 # locally for live editor control during AI-assisted iteration.
 /addons/godot_mcp/
 
+# Claude Code workspace — agent state, worktrees, hooks. Per-clone.
+.claude/
+
+# Cowork sessions — local plugin scratch / outputs.
+cowork/
+
 # Exported builds
 build/
 exports/
