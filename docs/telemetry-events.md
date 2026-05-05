@@ -49,6 +49,7 @@ inventory is granted.
 | --- | --- | --- |
 | `hero_id` | `string` | e.g. `"Buffalo"`. |
 | `max_nights` | `int` | Survival win condition (currently 3, from `data/day_night.gd`). |
+| `deck_composition` | `array` | Starter loadout entries `[{id, count}, ...]`. Cards are dormant in the survival rebuild (BUF-136), so this currently logs the seed inventory from `STARTER_ITEMS`; once cards return it will also include the chosen deck (BUF-115). |
 
 ### `run_end`
 

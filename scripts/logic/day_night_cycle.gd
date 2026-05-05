@@ -27,7 +27,7 @@ var _completed: bool = false
 func reset() -> void:
 	phase = Phase.DAY
 	day_index = 1
-	_timer = DayNight.duration_for(_to_data(phase))
+	_timer = DayNight.duration_for(_to_data(phase), day_index)
 	_completed = false
 	phase_changed.emit(phase, day_index)
 	phase_timer_tick.emit(_timer, phase)
@@ -81,8 +81,9 @@ func _set_phase(new_phase: int) -> void:
 	# When dawn ends and we roll into a new day_index, the day_index
 	# bump in _advance_phase already happened; the cycle_complete check
 	# is also handled there. Here we just reset the timer for the new
-	# phase and announce.
-	_timer = DayNight.duration_for(_to_data(phase))
+	# phase and announce. Pass day_index so per-round tuning in
+	# data/waves.gd applies (BUF-115).
+	_timer = DayNight.duration_for(_to_data(phase), day_index)
 	# When dawn ends WITHOUT rolling over (because we just hit
 	# MAX_NIGHTS), _advance_phase set _completed = true and returned
 	# before this point — so we don't emit a stale phase here.

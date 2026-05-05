@@ -32,12 +32,20 @@ var attack_range_tiles: int = 1
 var core_range_tiles: int = 1
 var preferred_range_tiles: int = 0
 
+# Per-round difficulty multipliers (BUF-115). Set by main.gd at spawn
+# time from waves.gd's stat_scale_for(round_index). Defaults to 1.0
+# everywhere so direct callers / tests still get base stats.
+var _hp_scale: float = 1.0
+var _damage_scale: float = 1.0
+
 var _attack_cooldown: float = 0.0
 var _moving: bool = false
 var _engaged_target: Node2D = null
 
-func configure(type: String) -> void:
+func configure(type: String, stat_scale: Dictionary = {}) -> void:
 	enemy_type = type
+	_hp_scale = float(stat_scale.get("hp", 1.0))
+	_damage_scale = float(stat_scale.get("damage", 1.0))
 
 func attach_sector(sector_node: Node) -> void:
 	sector = sector_node
@@ -48,7 +56,12 @@ func place_at_tile(tile: Vector2i) -> void:
 		position = sector.tile_to_world(current_tile)
 
 func _ready() -> void:
-	data = Enemies.ALL[enemy_type]
+	# Take a per-instance copy so we can stamp the round-scaled HP and
+	# damage onto `data` without mutating the constant table in
+	# enemies.gd (every enemy of the same type would inherit it).
+	data = Enemies.ALL[enemy_type].duplicate(true)
+	data.health = float(data.health) * _hp_scale
+	data.damage = float(data.damage) * _damage_scale
 	hp_max = float(data.health)
 	hp = hp_max
 	attack_range_tiles = max(1, int(round(float(data.attackRange) / PX_PER_TILE)))

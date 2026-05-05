@@ -5,6 +5,12 @@ class_name WavesData extends RefCounted
 ## mechanical variety instead of "more wolves, faster". Night 3 always
 ## resolves to SIEGE, which always includes the AlphaWolf mini-boss.
 ##
+## BUF-115: this file is also the canonical home for per-round *timing*
+## (prep / night seconds) and per-round *enemy stat scale* (HP and damage
+## multipliers applied to the base enemies.gd stats). Tuning the run
+## difficulty curve happens here, not in DayNightCycle and not in the
+## enemy adapter — keeping every knob in one place is the whole point.
+##
 ## Schema for a returned composition:
 ##   {
 ##     "index":          int,                  # 1-indexed round/night
@@ -14,6 +20,9 @@ class_name WavesData extends RefCounted
 ##     "banner":         "RUSH",               # ALL-CAPS shout for HUD
 ##     "has_mini_boss":  bool,
 ##     "enemies":        [{ type, count, spawn_interval }, ...],
+##     "stat_scale":     { "hp": 1.0, "damage": 1.0 },
+##     "prep_seconds":   60.0,                 # DAY-phase length for this round
+##     "night_seconds":  35.0,                 # NIGHT-phase length for this round
 ##   }
 ##
 ## Archetypes are kept declarative — adjusting balance happens here, not
@@ -104,6 +113,41 @@ const ROUND_NAMES := {
 	3: "Third night",
 }
 
+# ── Run-shape tunables (BUF-115) ──────────────────────────────────────
+#
+# Per-round prep + night durations build the difficulty arc. Round 1 is
+# short and forgiving so the on-ramp doesn't drag. Round 2 stretches the
+# day so the player has time to react to the mid-run threat shift. Round
+# 3 gets the longest prep (recover from Night 2, brace for siege) and
+# the longest night (the mini-boss needs time to land).
+#
+# A full run with these defaults runs ~7:30 (within the 7-12 minute
+# target). Numbers are intentionally first-pass — re-tune after the
+# first M2 playtest. DUSK and DAWN are fixed in day_night.gd because
+# they're framing beats, not difficulty knobs.
+const ROUND_PREP_SECONDS := {
+	1: 60.0,
+	2: 90.0,
+	3: 120.0,
+}
+
+const ROUND_NIGHT_SECONDS := {
+	1: 35.0,
+	2: 50.0,
+	3: 60.0,
+}
+
+# Per-round multipliers applied to base enemy stats from enemies.gd. The
+# wave already escalates in *kind* (PROBE → RUSH/SKIRMISH → SIEGE); this
+# layers a gentle stat ramp on top so an individual wolf on Night 3 hits
+# harder than the same wolf on Night 1. Keep multipliers conservative —
+# big jumps make the arc feel arbitrary rather than earned.
+const ROUND_STAT_SCALE := {
+	1: {"hp": 1.0, "damage": 1.0},
+	2: {"hp": 1.10, "damage": 1.05},
+	3: {"hp": 1.25, "damage": 1.15},
+}
+
 # ── API ──────────────────────────────────────────────────────────────
 
 static func for_round(round_index: int) -> Dictionary:
@@ -123,6 +167,20 @@ static func for_round_with_archetype(round_index: int, archetype_id: String) -> 
 	var id: String = archetype_id if ARCHETYPES.has(archetype_id) else "PROBE"
 	return _composition_for(idx, id)
 
+static func prep_seconds_for(round_index: int) -> float:
+	var idx: int = clamp(round_index, 1, TOTAL_ROUNDS)
+	return float(ROUND_PREP_SECONDS.get(idx, ROUND_PREP_SECONDS[TOTAL_ROUNDS]))
+
+static func night_seconds_for(round_index: int) -> float:
+	var idx: int = clamp(round_index, 1, TOTAL_ROUNDS)
+	return float(ROUND_NIGHT_SECONDS.get(idx, ROUND_NIGHT_SECONDS[TOTAL_ROUNDS]))
+
+static func stat_scale_for(round_index: int) -> Dictionary:
+	var idx: int = clamp(round_index, 1, TOTAL_ROUNDS)
+	# Return a fresh copy so callers can't accidentally mutate the const.
+	var scale: Dictionary = ROUND_STAT_SCALE.get(idx, {"hp": 1.0, "damage": 1.0})
+	return {"hp": float(scale.get("hp", 1.0)), "damage": float(scale.get("damage", 1.0))}
+
 static func _composition_for(idx: int, archetype_id: String) -> Dictionary:
 	var arch: Dictionary = ARCHETYPES[archetype_id]
 	return {
@@ -133,4 +191,7 @@ static func _composition_for(idx: int, archetype_id: String) -> Dictionary:
 		"banner": arch.banner,
 		"has_mini_boss": arch.has_mini_boss,
 		"enemies": arch.enemies,
+		"stat_scale": stat_scale_for(idx),
+		"prep_seconds": prep_seconds_for(idx),
+		"night_seconds": night_seconds_for(idx),
 	}
