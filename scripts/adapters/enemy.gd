@@ -89,6 +89,11 @@ func apply_knockback(direction: Vector2, distance: float) -> void:
 func _physics_process(delta: float) -> void:
 	if hp <= 0.0 or sector == null or _moving:
 		return
+	# Freeze enemy AI once the run ends so wolves don't keep pathing
+	# / attacking behind the end-screen scrim. Mirrors main.gd's
+	# tick guard. Enemies are queue_freed on restart.
+	if GameState.phase == GameState.Phase.RUN_ENDED or GameState.phase == GameState.Phase.RUN_COMPLETE:
+		return
 	_attack_cooldown = max(0.0, _attack_cooldown - delta)
 	# Refresh hero engagement once per tile rather than every frame.
 	if _engaged_target == null or not is_instance_valid(_engaged_target):

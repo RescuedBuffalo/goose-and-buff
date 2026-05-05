@@ -66,6 +66,11 @@ func _ready() -> void:
 func _physics_process(delta: float) -> void:
 	if is_downed or sector == null:
 		return
+	# Freeze movement + facing once the run ends. main.gd's _process
+	# already gates the cycle/wave/combat ticks on this; mirror it here
+	# so the hero doesn't drift behind the end-screen scrim.
+	if GameState.phase == GameState.Phase.RUN_ENDED or GameState.phase == GameState.Phase.RUN_COMPLETE:
+		return
 	# WASD → direct screen-cardinal movement. The Hades / Stardew
 	# convention: pressing "up" walks the hero straight up on the
 	# screen, regardless of how the iso tile axes are oriented. Tile

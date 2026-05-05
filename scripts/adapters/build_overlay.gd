@@ -26,6 +26,12 @@ func attach(sector_node: Node, inventory_logic: InventorySystem, build_logic: Bu
 func _process(_delta: float) -> void:
 	if sector == null or inventory == null or build_system == null:
 		return
+	# Stop updating the ghost preview once the run ends — otherwise the
+	# cursor keeps painting a green/red diamond behind the end-screen
+	# scrim. Mirrors main.gd's tick guard.
+	if GameState.phase == GameState.Phase.RUN_ENDED or GameState.phase == GameState.Phase.RUN_COMPLETE:
+		sector.clear_build_ghost()
+		return
 	var item_id: String = inventory.selected_item_id()
 	if item_id.is_empty() or not Items.is_placeable(item_id):
 		sector.clear_build_ghost()
