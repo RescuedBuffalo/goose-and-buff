@@ -140,8 +140,10 @@ func _start_run() -> void:
 	hero.reset_position()
 	economy.reset()
 	card_system.reset(GameState.hero_id)
+	# wave_director.reset() emits round_started, which _on_round_started
+	# routes back into card_system.start_round(); calling it again here
+	# would double-fire hand_changed and rebuild the hand twice.
 	wave_director.reset()
-	card_system.start_round()
 	GameState.set_phase(GameState.Phase.PREP)
 	_reset_signature_cooldown()
 
@@ -175,7 +177,12 @@ func _current_phase_name() -> String:
 	return "other"
 
 func _on_card_played(card: Dictionary, world_pos: Vector2) -> void:
-	# Pay cost first; the logic layer has already validated.
+	# Building cards no-op when the production node is already at max tier;
+	# don't charge the player for a card that did nothing. CardSystem can't
+	# see economy.production_tier, so the refund-style guard lives here.
+	if card.kind == "building" and economy.production_tier >= Economy.PRODUCTION_TIERS.size():
+		return
+	# Pay cost first; the logic layer has already validated phase + balance.
 	if int(card.cost) > 0:
 		economy.spend(int(card.cost))
 	match card.kind:
@@ -466,8 +473,17 @@ func _reset_to_base() -> void:
 	# Tween Buffalo and any surviving units back to the spawn pad area.
 	# AI / input stays off on each entity for the duration of the tween.
 	# Revive a downed hero immediately — HP and state restore as they walk back.
-	if hero != null and is_instance_valid(hero):
-		hero.revive()
+	if hero == null or not is_instance_valid(hero):
+		# No hero in the tree (mid-rebuild / edge case). Units fall back to
+		# the spawn pad anchor directly so they still regroup.
+		var anchor := Sectors.SPAWN_PAD_CENTER
+		for n in get_tree().get_nodes_in_group("units"):
+			var u := n as Node2D
+			if u == null or not is_instance_valid(u):
+				continue
+			_tween_back(u, anchor + u.formation_offset)
+		return
+	hero.revive()
 	var hero_target: Vector2 = hero.spawn_position()
 	_tween_back(hero, hero_target)
 	for n in get_tree().get_nodes_in_group("units"):
