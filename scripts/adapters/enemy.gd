@@ -34,24 +34,40 @@ func _physics_process(delta: float) -> void:
 	# If a unit is in attack range, prefer it.
 	if _engaged_unit == null or not is_instance_valid(_engaged_unit):
 		_engaged_unit = _find_engageable_unit()
+	# Drop a hero target that went down while we were already locked onto them.
+	if _engaged_unit != null and _engaged_unit.get("is_downed"):
+		_engaged_unit = null
 	if _engaged_unit != null and is_instance_valid(_engaged_unit):
-		var d := position.distance_to(_engaged_unit.position)
-		if d <= float(data.attackRange):
-			if _attack_cooldown <= 0.0:
-				_attack_cooldown = float(data.attackInterval)
-				_engaged_unit.damage(float(data.damage))
-			return
-		_advance_toward(_engaged_unit.position, delta)
+		_engage_target(_engaged_unit.position, delta, float(data.attackRange), func(): _engaged_unit.damage(float(data.damage)))
 		return
-	# Otherwise march on the core.
+	# Otherwise march on the core. Ranged archetypes must walk to coreRange
+	# (melee contact) before core damage triggers — they cannot fire from afar.
 	var core_pos: Vector2 = Sectors.CORE_CENTER
-	var dist_to_core := position.distance_to(core_pos)
-	if dist_to_core <= float(data.attackRange):
+	var core_range := float(data.get("coreRange", data.attackRange))
+	_engage_target(core_pos, delta, core_range, func(): reached_core.emit(self))
+
+# Handle movement and attack toward a single target position.
+# range overrides which distance triggers attack (unit range vs. core range).
+# on_attack is called (once per interval) when within range.
+func _engage_target(target_pos: Vector2, delta: float, range: float, on_attack: Callable) -> void:
+	var dist := position.distance_to(target_pos)
+	if dist <= range:
 		if _attack_cooldown <= 0.0:
 			_attack_cooldown = float(data.attackInterval)
-			reached_core.emit(self)
+			on_attack.call()
+		# Ranged enemies keep a preferred stand-off distance; back away if
+		# the target has closed inside it.
+		if data.get("keep_distance", false):
+			var preferred := float(data.get("preferred_range", 0.0))
+			if dist < preferred:
+				_retreat_from(target_pos, delta)
 		return
-	_advance_toward(core_pos, delta)
+	_advance_toward(target_pos, delta)
+
+func _retreat_from(target_pos: Vector2, delta: float) -> void:
+	var dir := (position - target_pos).normalized()
+	position += dir * float(data.moveSpeed) * delta
+	position.y = clamp(position.y, Sectors.SECTOR_TOP + 16, Sectors.SECTOR_BOTTOM - 16)
 
 func damage(amount: float) -> void:
 	hp = max(0.0, hp - amount)
@@ -83,6 +99,17 @@ func _find_engageable_unit() -> Node2D:
 		if d < best_d and d <= float(data.attackRange) + 4.0:
 			best_d = d
 			best = u
+	# Also consider the hero as a valid melee target when in range.
+	for n in get_tree().get_nodes_in_group("hero"):
+		var h := n as Node2D
+		if h == null or not is_instance_valid(h):
+			continue
+		if h.get("is_downed"):
+			continue
+		var d := position.distance_to(h.position)
+		if d < best_d and d <= float(data.attackRange) + 4.0:
+			best_d = d
+			best = h
 	return best
 
 func _draw() -> void:
