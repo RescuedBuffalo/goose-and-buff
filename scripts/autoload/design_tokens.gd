@@ -93,6 +93,16 @@ const RADIUS_2 := 8
 const RADIUS_3 := 14
 const RADIUS_4 := 22
 
+# ─── Totem textures ───────────────────────────────────────────────────────
+# Same source files used by hero.gd / hero_select.gd — preloaded once here so
+# every UI surface that wants the artwork (badge, val strip, ability rail,
+# cards, debrief …) shares one cached Texture2D and stays consistent with the
+# in-world hero sprite.
+const TOTEM_BUFFALO := preload("res://assets/totems/buffalo.png")
+const TOTEM_GOOSE := preload("res://assets/totems/goose.svg")
+const TOTEM_FOX := preload("res://assets/totems/fox.svg")
+const TOTEM_VAL := preload("res://assets/totems/val.svg")
+
 # ─── Hero look-up by faction id ───────────────────────────────────────────
 func floor_color(faction: String) -> Color:
 	match faction:
@@ -136,3 +146,173 @@ func hero_core_border(faction: String) -> Color:
 	# only fill / glow / pulse vary across variants.
 	var c := core_color(faction)
 	return Color(c.r, c.g, c.b, 0.45)
+
+func totem_texture(faction: String) -> Texture2D:
+	match faction:
+		"Goose": return TOTEM_GOOSE
+		"Buffalo": return TOTEM_BUFFALO
+		"Fox": return TOTEM_FOX
+		"Val": return TOTEM_VAL
+		_: return null
+
+# ─── Fonts ────────────────────────────────────────────────────────────────
+# Loaded lazily so the autoload doesn't crash on first import (the .ttf files
+# are added in a separate step). Until they exist on disk, every accessor
+# falls back to ThemeDB.fallback_font and the HUD still renders.
+var _font_display: Font = null
+var _font_body: Font = null
+var _font_body_bold: Font = null
+var _font_body_x_bold: Font = null
+var _font_mono: Font = null
+var _font_mono_bold: Font = null
+
+func _try_load_font(path: String) -> Font:
+	if not ResourceLoader.exists(path):
+		return null
+	var res := ResourceLoader.load(path)
+	if res is Font:
+		return res
+	return null
+
+func font_display() -> Font:
+	# Young Serif — display headings (h-display, h1, h2, .ws-shout).
+	if _font_display == null:
+		_font_display = _try_load_font("res://assets/fonts/YoungSerif-Regular.ttf")
+	return _font_display if _font_display != null else ThemeDB.fallback_font
+
+func font_body() -> Font:
+	# Nunito (variable wght). One .ttf file; weight is dialed in by the
+	# `*_bold` accessors via FontVariation.
+	if _font_body == null:
+		_font_body = _try_load_font("res://assets/fonts/Nunito-VariableWght.ttf")
+	return _font_body if _font_body != null else ThemeDB.fallback_font
+
+func _nunito_at_weight(weight: int) -> Font:
+	var base := font_body()
+	if base == ThemeDB.fallback_font:
+		return base
+	var fv := FontVariation.new()
+	fv.base_font = base
+	fv.variation_opentype = {"wght": weight}
+	return fv
+
+func font_body_bold() -> Font:
+	# Nunito @ wght 700 — names, eyebrow, hp numbers.
+	if _font_body_bold == null:
+		_font_body_bold = _nunito_at_weight(700)
+	return _font_body_bold
+
+func font_body_x_bold() -> Font:
+	# Nunito @ wght 800 — combat pip, hb-name. Maps to font-weight 800
+	# in the design CSS.
+	if _font_body_x_bold == null:
+		_font_body_x_bold = _nunito_at_weight(800)
+	return _font_body_x_bold
+
+func font_mono() -> Font:
+	# JetBrains Mono — tabular numerics (HP counts, timers, balance).
+	if _font_mono == null:
+		_font_mono = _try_load_font("res://assets/fonts/JetBrainsMono-Regular.ttf")
+	return _font_mono if _font_mono != null else ThemeDB.fallback_font
+
+func font_mono_bold() -> Font:
+	if _font_mono_bold == null:
+		_font_mono_bold = _try_load_font("res://assets/fonts/JetBrainsMono-Bold.ttf")
+	return _font_mono_bold if _font_mono_bold != null else font_mono()
+
+# ─── Stylebox factories ──────────────────────────────────────────────────
+# These mirror the named CSS classes in design/src/components.css so the
+# Godot Control hierarchy can reuse the design language without re-deriving
+# colors/radii/borders at every call site. Returns a fresh StyleBoxFlat each
+# time — callers can mutate (e.g. swap the border color per hero) without
+# poisoning shared state.
+
+# Generic, used as a fallback / by `card_widget.gd`.
+func panel_box(fill: Color, radius: int = RADIUS_3,
+		border_color: Color = Color(0.0, 0.0, 0.0, 0.0),
+		border_width: int = 0) -> StyleBoxFlat:
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = fill
+	sb.set_corner_radius_all(radius)
+	if border_width > 0 and border_color.a > 0.0:
+		sb.set_border_width_all(border_width)
+		sb.border_color = border_color
+	# Soft default warm-tinted shadow — matches `--shadow-1` from tokens.css.
+	sb.shadow_color = Color(0.08, 0.04, 0.0, 0.32)
+	sb.shadow_size = 6
+	sb.shadow_offset = Vector2(0, 2)
+	return sb
+
+# `.hero-badge`, `.wave-comp-panel`, `.help-banner`, `.help-toast`, `.val-strip`,
+# `.ability-rail` — all share `border-radius: var(--radius-3)` and a hairline.
+func card_panel_box(border_color: Color = Color(0.0, 0.0, 0.0, 0.0),
+		border_width: int = 0) -> StyleBoxFlat:
+	var sb := panel_box(
+		Color(NIGHT_1.r, NIGHT_1.g, NIGHT_1.b, 0.92),
+		RADIUS_3, border_color, border_width,
+	)
+	sb.content_margin_left = 12
+	sb.content_margin_right = 14
+	sb.content_margin_top = 10
+	sb.content_margin_bottom = 10
+	return sb
+
+# `.wave-pill` — fully rounded "pill" body with a wider min-width and a
+# stronger drop shadow. Caller sets the actual content margins.
+func pill_panel_box() -> StyleBoxFlat:
+	var sb := panel_box(
+		Color(NIGHT_1.r, NIGHT_1.g, NIGHT_1.b, 0.92),
+		999,
+		Color(1.0, 1.0, 1.0, 0.06),
+		1,
+	)
+	sb.shadow_size = 12
+	sb.shadow_offset = Vector2(0, 4)
+	sb.content_margin_left = 22
+	sb.content_margin_right = 18
+	sb.content_margin_top = 10
+	sb.content_margin_bottom = 10
+	return sb
+
+# `.ab-slot` — small rounded square for Q/E/F/R, lower contrast.
+func slot_panel_box() -> StyleBoxFlat:
+	return panel_box(NIGHT_2, RADIUS_2, Color(1.0, 1.0, 1.0, 0.06), 1)
+
+# `.kbd`, `.ab-key` — tiny chip overlay above ability slots.
+func key_chip_box() -> StyleBoxFlat:
+	return panel_box(NIGHT_2, 4, Color(1.0, 1.0, 1.0, 0.10), 1)
+
+# `.hb-hp-track` — narrow rounded rail for a hero's HP, dark recess.
+func hp_track_box() -> StyleBoxFlat:
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = Color(0.0, 0.0, 0.0, 0.40)
+	sb.set_corner_radius_all(4)
+	sb.set_border_width_all(1)
+	sb.border_color = Color(0.0, 0.0, 0.0, 0.50)
+	return sb
+
+func hp_fill_box(color: Color) -> StyleBoxFlat:
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = color
+	sb.set_corner_radius_all(3)
+	return sb
+
+# `.hb-pip-combat` — small all-caps red pip on the hero badge during waves.
+func combat_pip_box() -> StyleBoxFlat:
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = PIP_COMBAT_BG
+	sb.set_corner_radius_all(4)
+	sb.content_margin_left = 6
+	sb.content_margin_right = 6
+	sb.content_margin_top = 2
+	sb.content_margin_bottom = 2
+	return sb
+
+# `.hb-stripe` — 4px hero-core glow on the left edge of the badge.
+func hero_stripe_color(faction: String) -> Color:
+	var c := core_color(faction)
+	return Color(c.r, c.g, c.b, 0.85)
+
+# `.hud-bottom` hand-strip backdrop — translucent night band the hand sits on.
+func hand_backdrop_color() -> Color:
+	return Color(NIGHT_0.r, NIGHT_0.g, NIGHT_0.b, 0.55)
