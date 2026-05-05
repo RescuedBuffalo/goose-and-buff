@@ -32,6 +32,12 @@ const Buffalo := {
 	"core_color_key": "Buffalo",
 }
 
+const Goose := {
+	"id": "Goose",
+	"floor_color_key": "Goose",
+	"core_color_key": "Goose",
+}
+
 const Fox := {
 	"id": "Fox",
 	"floor_color_key": "Fox",
@@ -40,6 +46,7 @@ const Fox := {
 
 const BY_HERO := {
 	"Buffalo": Buffalo,
+	"Goose": Goose,
 	"Fox": Fox,
 }
 
