@@ -95,7 +95,9 @@ func _gui_input(event: InputEvent) -> void:
 			STATION_START:
 				start_run_requested.emit()
 			STATION_UNLOCKS:
-				_show_toast("The cards you have are the cards you have — for now.")
+				# BUF-113 wired the actual card-unlocks screen onto this
+				# station; the v1 stub toast is gone. main.gd opens the
+				# overlay in response to the signal.
 				unlock_cards_requested.emit()
 
 func _show_toast(msg: String) -> void:
@@ -263,10 +265,16 @@ func _station_spec(station_id: String) -> Dictionary:
 				"primary": false,
 			}
 		STATION_UNLOCKS:
+			# BUF-113: the chest is open. Surface the player's token balance
+			# so the station tells them whether they can afford anything
+			# without a click. "X tokens in the jar" beats raw integers —
+			# the warm voice rules apply on stations as on banners.
+			var jar := SaveSystem.get_meta_currency()
+			var sub := "%d %s in the jar." % [jar, "token" if jar == 1 else "tokens"]
 			return {
 				"title": "Card unlocks",
-				"subtitle": "Locked — for now",
-				"flavor": "Trophies the wall doesn't have yet. Come back when we've earned them.",
+				"subtitle": sub,
+				"flavor": "Trophies for the deck. Spend a few to swap a card in for next run.",
 				"cta": "Open the chest",
 				"accent": DesignTokens.PARCHMENT_3,
 				"cta_color": DesignTokens.PARCHMENT_INK,

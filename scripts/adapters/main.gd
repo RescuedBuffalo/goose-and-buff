@@ -27,6 +27,7 @@ const LodgeScene := preload("res://scenes/ui/lodge.tscn")
 const AbilityRailScene := preload("res://scenes/ui/ability_rail.tscn")
 const WaveCompPanelScene := preload("res://scenes/ui/wave_comp_panel.tscn")
 const HelpBannerScene := preload("res://scenes/ui/help_banner.tscn")
+const CardUnlocksScene := preload("res://scenes/ui/card_unlocks.tscn")
 
 # Logic
 var economy
@@ -41,6 +42,7 @@ var hud
 var end_screen
 var hero_select
 var lodge
+var card_unlocks
 var ability_rail
 var wave_comp_panel
 var help_banner
@@ -93,6 +95,8 @@ func _build_ui() -> void:
 	ui_layer.add_child(hero_select)
 	lodge = LodgeScene.instantiate()
 	ui_layer.add_child(lodge)
+	card_unlocks = CardUnlocksScene.instantiate()
+	ui_layer.add_child(card_unlocks)
 	ability_rail = AbilityRailScene.instantiate()
 	ui_layer.add_child(ability_rail)
 	wave_comp_panel = WaveCompPanelScene.instantiate()
@@ -121,6 +125,7 @@ func _wire_signals() -> void:
 	lodge.pick_hero_requested.connect(_on_lodge_pick_hero_requested)
 	lodge.start_run_requested.connect(_on_lodge_start_run_requested)
 	lodge.unlock_cards_requested.connect(_on_lodge_unlock_cards_requested)
+	card_unlocks.closed.connect(_on_card_unlocks_closed)
 
 func _open_lodge() -> void:
 	# The Lodge is the entry point and the post-run hub (BUF-112). Hide
@@ -179,9 +184,15 @@ func _on_lodge_start_run_requested() -> void:
 	_start_run()
 
 func _on_lodge_unlock_cards_requested() -> void:
-	# v1 stub — the Lodge surfaces its own toast on click. Nothing to do
-	# here yet; the signal exists so M2's card-unlocks work has a wire to
-	# hook into without restructuring the Lodge.
+	# Open the BUF-113 card-unlocks screen as a sub-overlay over the Lodge.
+	# The Lodge stays open underneath so closing the unlocks screen lands
+	# the player back where they left off without an extra navigation step.
+	if card_unlocks != null:
+		card_unlocks.open()
+
+func _on_card_unlocks_closed() -> void:
+	# Nothing to clean up — the Lodge was never hidden. Any tokens spent or
+	# swaps toggled are already persisted via SaveSystem.
 	pass
 
 func _spawn_hero(hero_id: String) -> void:
@@ -204,7 +215,10 @@ func _start_run() -> void:
 	hero.reset_hp()
 	hero.reset_position()
 	economy.reset()
-	card_system.reset(GameState.hero_id)
+	# Pull the deck through SaveSystem so any swaps the player set up at the
+	# Lodge's card-unlocks station land in this run (BUF-113). For a fresh
+	# save this is identical to the bare starter deck.
+	card_system.reset(GameState.hero_id, SaveSystem.build_deck_for(GameState.hero_id))
 	# wave_director.reset() emits round_started, which _on_round_started
 	# routes back into card_system.start_round(); calling it again here
 	# would double-fire hand_changed and rebuild the hand twice.
@@ -314,7 +328,13 @@ func _on_card_played(card: Dictionary, world_pos: Vector2) -> void:
 		economy.spend(int(card.cost))
 	match card.kind:
 		"unit":
-			_spawn_unit(card.payload.unit_id, world_pos)
+			# BUF-113 unlock-pool cards may stamp out multiple units per play.
+			# Each spawn picks its own random formation slot in _spawn_unit so
+			# the pair/flock fans out around the leader rather than stacking
+			# on the drop point.
+			var spawn_count: int = max(1, int(card.payload.get("spawn_count", 1)))
+			for _i in spawn_count:
+				_spawn_unit(card.payload.unit_id, world_pos)
 		"building":
 			_place_or_upgrade_building(world_pos)
 		"resource":
@@ -651,12 +671,14 @@ func _on_core_destroyed() -> void:
 func _on_run_complete() -> void:
 	GameState.set_phase(GameState.Phase.RUN_COMPLETE)
 	SaveSystem.record_run_end(GameState.hero_id, true, GameState.round_index)
-	end_screen.show_victory()
+	var earned: int = SaveSystem.grant_for_outcome(true)
+	end_screen.show_victory(earned)
 
 func _on_run_ended() -> void:
 	GameState.set_phase(GameState.Phase.RUN_ENDED)
 	SaveSystem.record_run_end(GameState.hero_id, false, GameState.round_index)
-	end_screen.show_defeat()
+	var earned: int = SaveSystem.grant_for_outcome(false)
+	end_screen.show_defeat(earned)
 
 func _on_restart_requested() -> void:
 	# "Try again" — same hero, fresh run. Clear transients; _start_run

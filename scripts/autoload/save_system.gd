@@ -11,11 +11,22 @@ extends Node
 ## save automatically; callers don't manage the file. Load happens on
 ## autoload _ready(), before main.gd runs.
 
+const Cards := preload("res://data/cards.gd")
+
 signal save_reset()
+# Emitted when meta-progression state visible to the Lodge changes — tokens
+# spent, a new card unlocked, a swap toggled. UI listens to redraw.
+signal meta_changed()
 
 const SAVE_PATH := "user://save.json"
 const SAVE_PATH_TMP := "user://save.json.tmp"
 const SCHEMA_VERSION := 1
+
+# Token economy (BUF-113). Currency grant per outcome and the flat cost to
+# unlock any single card. Tune by editing these constants.
+const TOKENS_PER_VICTORY := 5
+const TOKENS_PER_DEFEAT := 1
+const UNLOCK_COST := 3
 
 # Mirrors data/heroes.gd ORDER. Duplicated here so SaveSystem stays free
 # of a Heroes import (autoloads ready before regular scripts; pulling
@@ -76,12 +87,21 @@ func _fresh() -> Dictionary:
 		"version": SCHEMA_VERSION,
 		"meta_currency": 0,
 		"unlocked_cards": [],
+		"swaps": _default_swaps(),
 		"run_count": 0,
 		"wins": 0,
 		"losses": 0,
 		"hero_progression": _default_hero_progression(),
 		"last_hero_id": "",
 	}
+
+func _default_swaps() -> Dictionary:
+	# Per-hero map: starter_card_id -> unlocked_card_id. Each entry says
+	# "in this hero's deck, swap one copy of the starter for the unlock".
+	var out := {}
+	for hid in HERO_IDS:
+		out[hid] = {}
+	return out
 
 func _default_hero_progression() -> Dictionary:
 	var out := {}
@@ -115,6 +135,14 @@ func _coerce(loaded: Dictionary) -> Dictionary:
 		var block: Variant = base.hero_progression.get(hid, null)
 		if typeof(block) != TYPE_DICTIONARY:
 			base.hero_progression[hid] = _default_hero_block()
+	# `swaps` was added in BUF-113. Older saves won't have it; defensively
+	# repair malformed shapes the same way as hero_progression.
+	if typeof(base.swaps) != TYPE_DICTIONARY:
+		base.swaps = _default_swaps()
+	for hid in HERO_IDS:
+		var sblock: Variant = base.swaps.get(hid, null)
+		if typeof(sblock) != TYPE_DICTIONARY:
+			base.swaps[hid] = {}
 	base.version = SCHEMA_VERSION
 	return base
 
@@ -166,3 +194,90 @@ func note_lodge_visit(hero_id: String = "") -> void:
 	if hero_id != "":
 		data.last_hero_id = hero_id
 	save()
+
+# ── Meta-progression (BUF-113) ──────────────────────────────────────────────
+# Currency, per-hero unlock pools, and deck swaps. Layered on top of the
+# existing flat `unlocked_cards` array (a card id is in the unlocked pool of
+# whichever hero owns the corresponding `Cards.UNLOCK_POOLS` entry).
+
+func grant_for_outcome(victory: bool) -> int:
+	# Grants the per-outcome token amount and returns it so the end screen
+	# can surface "+N tokens earned" without re-deriving the constant.
+	var amount := TOKENS_PER_VICTORY if victory else TOKENS_PER_DEFEAT
+	add_meta_currency(amount)
+	meta_changed.emit()
+	return amount
+
+func can_afford_unlock() -> bool:
+	return get_meta_currency() >= UNLOCK_COST
+
+func purchase_unlock(hero_id: String, card_id: String) -> bool:
+	# Spends UNLOCK_COST tokens to add `card_id` to the unlocked pool. Fails
+	# silently (returns false) on insufficient funds, an already-unlocked
+	# card, or an id outside this hero's pool — UI uses the boolean to
+	# decide whether to show success feedback.
+	if not _is_in_pool(hero_id, card_id):
+		return false
+	if is_card_unlocked(card_id):
+		return false
+	if not can_afford_unlock():
+		return false
+	data.meta_currency = int(data.get("meta_currency", 0)) - UNLOCK_COST
+	var unlocked: Array = data.get("unlocked_cards", [])
+	unlocked.append(card_id)
+	data.unlocked_cards = unlocked
+	save()
+	meta_changed.emit()
+	return true
+
+func unlocked_pool_for(hero_id: String) -> Array:
+	# Subset of `unlocked_cards` that belongs to this hero's UNLOCK_POOL.
+	# UI iterates this when listing what the player can swap into the deck.
+	var out: Array = []
+	var pool: Array = Cards.UNLOCK_POOLS.get(hero_id, [])
+	for cid in data.get("unlocked_cards", []):
+		if pool.has(String(cid)):
+			out.append(String(cid))
+	return out
+
+func is_card_in_deck(hero_id: String, card_id: String) -> bool:
+	var hero_swaps: Dictionary = data.swaps.get(hero_id, {})
+	for v in hero_swaps.values():
+		if v == card_id:
+			return true
+	return false
+
+func toggle_card_in_deck(hero_id: String, card_id: String) -> void:
+	# Adds or removes `card_id` from this hero's deck swap. The card's
+	# `replaces` field decides which starter slot it occupies; clicking
+	# once adds, clicking again removes. Adding overwrites any other
+	# unlock card already on the same slot — one swap per slot.
+	if not is_card_unlocked(card_id):
+		return
+	if not data.swaps.has(hero_id):
+		data.swaps[hero_id] = {}
+	var hero_swaps: Dictionary = data.swaps[hero_id]
+	for starter_id in hero_swaps.keys():
+		if hero_swaps[starter_id] == card_id:
+			hero_swaps.erase(starter_id)
+			save()
+			meta_changed.emit()
+			return
+	var card: Dictionary = Cards.get_card(card_id)
+	var slot: String = String(card.get("replaces", ""))
+	if slot == "":
+		return
+	hero_swaps[slot] = card_id
+	save()
+	meta_changed.emit()
+
+func build_deck_for(hero_id: String) -> Array:
+	# Starter deck with this hero's swaps applied — single source of truth
+	# for the deck a run starts with. Pure passthrough so the UI's preview
+	# and the run start see the exact same composition.
+	var base := Cards.build_starter_deck(hero_id)
+	return Cards.apply_swaps(base, data.swaps.get(hero_id, {}))
+
+func _is_in_pool(hero_id: String, card_id: String) -> bool:
+	var pool: Array = Cards.UNLOCK_POOLS.get(hero_id, [])
+	return pool.has(card_id)
