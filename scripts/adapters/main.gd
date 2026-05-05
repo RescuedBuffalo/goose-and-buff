@@ -613,10 +613,12 @@ func _on_core_destroyed() -> void:
 
 func _on_run_complete() -> void:
 	GameState.set_phase(GameState.Phase.RUN_COMPLETE)
+	SaveSystem.record_run_end(GameState.hero_id, true, GameState.round_index)
 	end_screen.show_victory()
 
 func _on_run_ended() -> void:
 	GameState.set_phase(GameState.Phase.RUN_ENDED)
+	SaveSystem.record_run_end(GameState.hero_id, false, GameState.round_index)
 	end_screen.show_defeat()
 
 func _on_restart_requested() -> void:
@@ -629,6 +631,7 @@ func _on_restart_requested() -> void:
 func _on_change_hero_requested() -> void:
 	# "Change hero" — back to hero select. Tear down hero too so the next
 	# pick instantiates a fresh one with the right sprite + stats.
+	SaveSystem.note_lodge_visit(GameState.hero_id)
 	_clear_run_transients()
 	if hero != null and is_instance_valid(hero):
 		hero.queue_free()
