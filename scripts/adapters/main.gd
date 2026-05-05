@@ -23,6 +23,8 @@ const HudScene := preload("res://scenes/ui/hud.tscn")
 const EndScene := preload("res://scenes/ui/end_screen.tscn")
 const HeroSelectScene := preload("res://scenes/ui/hero_select.tscn")
 const AbilityRailScene := preload("res://scenes/ui/ability_rail.tscn")
+const WaveCompPanelScene := preload("res://scenes/ui/wave_comp_panel.tscn")
+const HelpBannerScene := preload("res://scenes/ui/help_banner.tscn")
 
 # Logic
 var economy
@@ -37,6 +39,8 @@ var hud
 var end_screen
 var hero_select
 var ability_rail
+var wave_comp_panel
+var help_banner
 var building_node: Node = null  # at most one in v0
 # Signature ability cooldown — counted down each frame in _process while a
 # wave is live. Zero means "ready to cast".
@@ -80,6 +84,10 @@ func _build_ui() -> void:
 	ui_layer.add_child(hero_select)
 	ability_rail = AbilityRailScene.instantiate()
 	ui_layer.add_child(ability_rail)
+	wave_comp_panel = WaveCompPanelScene.instantiate()
+	ui_layer.add_child(wave_comp_panel)
+	help_banner = HelpBannerScene.instantiate()
+	ui_layer.add_child(help_banner)
 
 func _wire_signals() -> void:
 	hud.bind(economy, wave_director, sector)
@@ -107,6 +115,10 @@ func _open_hero_select() -> void:
 	hand.visible = false
 	if ability_rail != null:
 		ability_rail.visible = false
+	if wave_comp_panel != null:
+		wave_comp_panel.hide_panel()
+	if help_banner != null:
+		help_banner.clear_help()
 	hero_select.open()
 
 func _on_hero_selected(hero_id: String) -> void:
@@ -119,6 +131,13 @@ func _on_hero_selected(hero_id: String) -> void:
 	hand.visible = true
 	ability_rail.visible = true
 	ability_rail.set_hero(hero_id)
+	# Comp panel + help banner stay hidden until they have something to say
+	# (wave_started / help-requested respectively). Component visibility is
+	# tracked internally via show_for / hide_panel / clear_help.
+	if wave_comp_panel != null:
+		wave_comp_panel.hide_panel()
+	if help_banner != null:
+		help_banner.clear_help()
 	_start_run()
 
 func _spawn_hero(hero_id: String) -> void:
@@ -455,6 +474,12 @@ func _on_round_started(_round_index: int) -> void:
 
 func _on_wave_started(_round_index: int, _composition: Dictionary) -> void:
 	GameState.set_phase(GameState.Phase.WAVE)
+	# Info-asymmetry rule (hi-fi v3 §2A/§2B + signoff): the first-hit player
+	# sees full composition in a private side panel. Single-player resolves
+	# "first-hit player" to the local hero, so the panel surfaces here every
+	# wave. M4 will gate this on per-player engagement.
+	if wave_comp_panel != null:
+		wave_comp_panel.show_for(_round_index, _composition, GameState.hero_id)
 
 func _on_wave_ended(_round_index: int, victory: bool) -> void:
 	GameState.set_phase(GameState.Phase.DEBRIEF)
@@ -463,6 +488,10 @@ func _on_wave_ended(_round_index: int, victory: bool) -> void:
 		if is_instance_valid(n):
 			n.queue_free()
 	_reset_signature_cooldown()
+	if wave_comp_panel != null:
+		wave_comp_panel.hide_panel()
+	if help_banner != null:
+		help_banner.clear_help()
 	# A loss skips the reset — the run is ending, end screen takes over.
 	if victory:
 		_reset_to_base()
