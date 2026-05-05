@@ -1,15 +1,31 @@
 class_name EnemiesData extends RefCounted
 ##
-## Enemy archetypes. Stat values mirror godot-prototype/data/enemies.gd —
-## including pixel-scaled attack ranges. The tile adapter converts those
-## into "tiles of separation" at runtime via attack_range_px / TILE_PX.
+## Enemy archetypes. The wave-defense build leaned on Grunt / Bruiser
+## variants; the survival rebuild adds FrostWolf as the canonical MVP
+## raider. Old archetypes stay so the data isn't lost — they fold back
+## into night composition once owl + bear sprites land.
+
+const FrostWolf := {
+	"id": "FrostWolf",
+	"name": "Frost wolf",
+	"health": 35.0,
+	"damage": 8.0,
+	"attackRange": 32.0,    # tile-adjacent
+	"coreRange": 32.0,
+	"attackInterval": 1.0,
+	"moveSpeed": 80.0,
+	"size": Vector2(32, 26),
+	"color_rgba": Color8(180, 196, 220),
+	"keep_distance": false,
+	"preferred_range": 0.0,
+}
 
 const GruntMelee := {
 	"id": "GruntMelee",
 	"name": "Grunt",
 	"health": 30.0,
 	"damage": 6.0,
-	"attackRange": 32.0,   # 3 studs — vs units
+	"attackRange": 32.0,
 	"coreRange": 32.0,
 	"attackInterval": 1.0,
 	"moveSpeed": 70.0,
@@ -24,7 +40,7 @@ const GruntRanged := {
 	"name": "Ranged Grunt",
 	"health": 22.0,
 	"damage": 8.0,
-	"attackRange": 235.0,  # 22 studs — vs units
+	"attackRange": 235.0,
 	"coreRange": 32.0,
 	"attackInterval": 1.4,
 	"moveSpeed": 65.0,
@@ -50,6 +66,7 @@ const Bruiser := {
 }
 
 const ALL := {
+	"FrostWolf": FrostWolf,
 	"GruntMelee": GruntMelee,
 	"GruntRanged": GruntRanged,
 	"Bruiser": Bruiser,

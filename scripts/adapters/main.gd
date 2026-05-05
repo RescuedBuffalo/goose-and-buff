@@ -1,67 +1,68 @@
 extends Node2D
 ##
-## Boot script for the tile prototype. Builds logic modules, instantiates
-## scene-tree adapters, and wires signals between them. Mirrors the role
-## of godot-prototype/scripts/adapters/main.gd; the difference is that
-## entity placement and card drop targeting work in tile coords now.
+## Boot script for the survival rebuild. Builds logic modules, instantiates
+## scene-tree adapters, seeds the hand-crafted starter world, and wires
+## signals between them.
 ##
-## The pure logic + data layers port verbatim from the top-down prototype.
-## Anything tile-aware lives here or in scripts/adapters/sector.gd.
+## The wave-defense build had main wire a card hand and a phase button;
+## the survival rebuild swaps both for the day/night cycle (auto phases)
+## plus an inventory bar + build overlay (replaces the card hand).
+##
+## Pure logic + data layers stay verbatim from their files. Only the
+## adapter wiring lives here.
 
 const Sectors := preload("res://data/sectors.gd")
 const Heroes := preload("res://data/heroes.gd")
-const Cards := preload("res://data/cards.gd")
+const Items := preload("res://data/items.gd")
+const Resources := preload("res://data/resources.gd")
+const DayNight := preload("res://data/day_night.gd")
+const DayNightCycleClass := preload("res://scripts/logic/day_night_cycle.gd")
+const WaveDirectorGate := preload("res://scripts/adapters/wave_director_gate.gd")
+const LightingAdapterScript := preload("res://scripts/adapters/lighting_adapter.gd")
+const InventoryHudScript := preload("res://scripts/adapters/inventory_hud.gd")
+const BuildOverlayScript := preload("res://scripts/adapters/build_overlay.gd")
+const CombatVisualsScript := preload("res://scripts/adapters/combat_visuals.gd")
 
 const SectorScene := preload("res://scenes/sector.tscn")
 const HeroScene := preload("res://scenes/hero.tscn")
-const UnitScene := preload("res://scenes/unit.tscn")
 const EnemyScene := preload("res://scenes/enemy.tscn")
-const BuildingScene := preload("res://scenes/building.tscn")
-const HandScene := preload("res://scenes/ui/hand.tscn")
+const ResourceNodeScene := preload("res://scenes/resource_node.tscn")
+const PlaceableScene := preload("res://scenes/placeable.tscn")
 const HudScene := preload("res://scenes/ui/hud.tscn")
 const EndScene := preload("res://scenes/ui/end_screen.tscn")
 
 # Logic modules. Constructed once per run, reset between runs.
-var economy
-var card_system
-var wave_director
+var day_night = null
+var wave_director: WaveDirector = null
+var inventory: InventorySystem = null
+var combat: CombatSystem = null
+var gather: GatherSystem = null
+var build_logic: BuildSystem = null
+var wave_gate = null
 
 # Adapter / scene refs.
 var sector
 var hero
-var hand
 var hud
 var end_screen
-var building_node: Node = null
+var inventory_hud
+var build_overlay
+var combat_visuals
+var lighting
 
-# Aim line shown while an ability card is being dragged.
-var _aim_line: Line2D = null
-var _aim_target: Vector2 = Vector2.ZERO
-var _aim_card_id: String = ""
+# Run-end stat tally — pushed onto the end-screen on victory/defeat.
+var _resources_gathered: int = 0
+var _enemies_felled: int = 0
+var _nights_survived: int = 0
 
-# Signature ability cooldown — same model as godot-prototype.
-var _signature_cd_remaining: float = 0.0
-var _signature_cd_max: float = 0.0
-
-# Phase 1 ships Buffalo only. Hero swap (Goose / Fox) lives in the original
-# prototype; tile-rebuild adds it back once parity is locked.
 const DEFAULT_HERO_ID := "Buffalo"
 
-# Formation slot offsets — tile-space. The first unit dropped sits at
-# (-1, +1) from the leader, second at (-1, -1), etc. Pre-defined so units
-# don't pile onto the leader's tile.
-const FORMATION_SLOTS: Array[Vector2i] = [
-	Vector2i(-1, 0),
-	Vector2i(-1, 1),
-	Vector2i(-1, -1),
-	Vector2i(-2, 0),
-	Vector2i(-2, 1),
-	Vector2i(-2, -1),
-	Vector2i(-3, 0),
-	Vector2i(-3, 1),
-	Vector2i(-3, -1),
+# Starter inventory — gives the player a hand axe and one wall stack so
+# they can immediately do something on Day 1 without hunting for tools.
+const STARTER_ITEMS: Array = [
+	{"id": "hand_axe", "count": 1},
+	{"id": "wood_wall", "count": 4},
 ]
-var _next_slot_index: int = 0
 
 func _ready() -> void:
 	randomize()
@@ -70,20 +71,37 @@ func _ready() -> void:
 	_build_world()
 	_build_ui()
 	_wire_signals()
+	_seed_world_resources()
 	_start_run()
 
 func _build_logic() -> void:
-	economy = Economy.new()
-	card_system = CardSystem.new()
+	day_night = DayNightCycleClass.new()
 	wave_director = WaveDirector.new()
+	inventory = InventorySystem.new()
+	combat = CombatSystem.new()
+	gather = GatherSystem.new()
+	build_logic = BuildSystem.new()
+	wave_gate = WaveDirectorGate.new()
 
 func _build_world() -> void:
+	# Lighting modulator — tints the world below the HUD canvas layer.
+	lighting = LightingAdapterScript.new()
+	lighting.name = "Lighting"
+	add_child(lighting)
 	sector = SectorScene.instantiate()
 	add_child(sector)
 	hero = HeroScene.instantiate()
 	hero.set_hero(DEFAULT_HERO_ID)
 	hero.attach_sector(sector)
 	add_child(hero)
+	# Combat visuals layer — sibling so swing arcs render in world space.
+	combat_visuals = CombatVisualsScript.new()
+	combat_visuals.name = "CombatVisuals"
+	add_child(combat_visuals)
+	# Build overlay processes the cursor + click-to-place handshake.
+	build_overlay = BuildOverlayScript.new()
+	build_overlay.name = "BuildOverlay"
+	add_child(build_overlay)
 
 func _build_ui() -> void:
 	var ui_layer := CanvasLayer.new()
@@ -91,28 +109,40 @@ func _build_ui() -> void:
 	add_child(ui_layer)
 	hud = HudScene.instantiate()
 	ui_layer.add_child(hud)
-	hand = HandScene.instantiate()
-	ui_layer.add_child(hand)
+	# Inventory HUD anchors to the bottom band of the viewport.
+	inventory_hud = InventoryHudScript.new()
+	inventory_hud.name = "InventoryHud"
+	inventory_hud.anchor_left = 0.0
+	inventory_hud.anchor_right = 1.0
+	inventory_hud.anchor_top = 1.0
+	inventory_hud.anchor_bottom = 1.0
+	inventory_hud.offset_top = -InventoryHudScript.BAND_HEIGHT
+	inventory_hud.offset_bottom = 0.0
+	ui_layer.add_child(inventory_hud)
 	end_screen = EndScene.instantiate()
 	ui_layer.add_child(end_screen)
 
 func _wire_signals() -> void:
-	hud.bind(economy, wave_director, sector)
-	hand.bind(card_system, economy)
-	hand.play_requested.connect(_on_play_requested)
-	hand.drag_started.connect(_on_drag_started)
-	hand.drag_moved.connect(_on_drag_moved)
-	hand.drag_ended.connect(_on_drag_ended)
-	card_system.card_played.connect(_on_card_played)
+	hud.bind(day_night)
+	inventory_hud.bind(inventory)
+	build_overlay.attach(sector, inventory, build_logic)
+	combat_visuals.attach(combat)
+	lighting.bind(day_night)
+	wave_gate.bind(day_night, wave_director)
 	wave_director.enemy_due.connect(_on_enemy_due)
-	wave_director.run_complete.connect(_on_run_complete)
-	wave_director.run_ended.connect(_on_run_ended)
-	wave_director.round_started.connect(_on_round_started)
 	wave_director.wave_started.connect(_on_wave_started)
 	wave_director.wave_ended.connect(_on_wave_ended)
+	day_night.phase_changed.connect(_on_phase_changed)
+	day_night.cycle_complete.connect(_on_cycle_complete)
 	sector.core_destroyed.connect(_on_core_destroyed)
-	end_screen.restart_requested.connect(_on_restart_requested)
 	hero.hero_downed.connect(_on_hero_downed)
+	end_screen.restart_requested.connect(_on_restart_requested)
+	build_overlay.place_requested.connect(_on_place_requested)
+	build_logic.placed.connect(_on_placed)
+	gather.gather_progress.connect(_on_gather_progress)
+	gather.gather_completed.connect(_on_gather_completed)
+	inventory.added_item.connect(_on_inventory_added)
+	combat.damage_dealt.connect(_on_combat_damage)
 
 func _start_run() -> void:
 	GameState.reset()
@@ -121,281 +151,159 @@ func _start_run() -> void:
 	sector.reset_core()
 	hero.reset_hp()
 	hero.reset_position()
-	economy.reset()
-	card_system.reset(GameState.hero_id)
 	wave_director.reset()
-	_next_slot_index = 0
-	GameState.set_phase(GameState.Phase.PREP)
-	_reset_signature_cooldown()
+	day_night.reset()
+	inventory.reset()
+	combat.reset()
+	gather.reset()
+	_resources_gathered = 0
+	_enemies_felled = 0
+	_nights_survived = 0
+	for item in STARTER_ITEMS:
+		inventory.add(item.id, int(item.count))
+	# Default selection: slot 0 (hand axe). Equipping happens via the
+	# inventory's selection-side effect.
+	inventory.select_slot(0)
 	end_screen.visible = false
 	hud.visible = true
-	hand.visible = true
+	inventory_hud.visible = true
 
 func _process(delta: float) -> void:
+	# When the run is over, freeze ticks so the end-screen scrim doesn't
+	# sit on top of a noisy world (cycle still advancing, wolves still
+	# spawning). Restart re-enters via _start_run.
+	if GameState.phase == GameState.Phase.RUN_ENDED or GameState.phase == GameState.Phase.RUN_COMPLETE:
+		return
+	day_night.tick(delta)
 	wave_director.tick(delta)
-	if wave_director.is_prep_phase() or wave_director.is_wave_phase():
-		economy.tick(delta)
-	if Input.is_action_just_pressed("ready_round") and wave_director.is_prep_phase():
-		wave_director.ready_round()
-	GameState.set_retreat(Input.is_action_pressed("toggle_retreat"))
-	_tick_signature_cooldown(delta)
-	if Input.is_action_just_pressed("cast_signature"):
-		_try_cast_signature()
-	if _aim_line != null:
-		_update_aim_line()
+	combat.tick(delta)
+	if gather.is_active() and is_instance_valid(hero):
+		var node = gather.active_node()
+		if node != null and is_instance_valid(node):
+			gather.tick(delta, hero.current_tile, node.current_tile, inventory.equipped_weapon())
+	# Hold-to-gather: when E is held and the hero is next to a resource
+	# node, kick off / refresh gathering. Releasing E cancels.
+	if Input.is_action_pressed("gather"):
+		_try_start_gather()
+	elif Input.is_action_just_released("gather"):
+		gather.cancel_active()
+	# Hotbar 1..8 → select slot.
+	for i in InventorySystem.SLOT_COUNT:
+		if Input.is_action_just_pressed("hotbar_%d" % (i + 1)):
+			inventory.select_slot(i)
 
-# ── Click-to-move (hero) ─────────────────────────────────────────────────
 func _unhandled_input(event: InputEvent) -> void:
+	# Click-to-attack — only fires when no placeable is selected (the
+	# build overlay handles the click in that case).
 	if not (event is InputEventMouseButton):
 		return
 	var mb: InputEventMouseButton = event
-	if mb.button_index != MOUSE_BUTTON_LEFT or not mb.pressed:
+	if not mb.pressed:
 		return
-	if hero == null or not is_instance_valid(hero):
+	if mb.button_index == MOUSE_BUTTON_RIGHT:
+		# Right-click anywhere clears any active placeable preview.
+		inventory.clear_selection()
 		return
-	if wave_director == null:
+	if mb.button_index != MOUSE_BUTTON_LEFT:
 		return
-	# Use the event's own position rather than `get_global_mouse_position()` —
-	# the cursor and event positions agree for real OS clicks, but synthesized
-	# events (Input.parse_input_event from tooling/tests) don't move the OS
-	# cursor, so reading the event keeps automated tests honest.
-	var tile: Vector2i = sector.world_to_tile(mb.position)
-	if not Sectors.is_tile_in_grid(tile):
-		return
-	hero.walk_to(tile)
-
-# ── Card play ────────────────────────────────────────────────────────────
-func _on_play_requested(card_id: String, world_pos: Vector2) -> void:
-	card_system.play_card_at(card_id, world_pos, _current_phase_name(), economy.balance)
-
-func _on_drag_started(card_id: String, world_pos: Vector2) -> void:
-	var card: Dictionary = Cards.get_card(card_id)
-	if card.is_empty():
-		return
-	match card.kind:
-		"unit", "building", "resource":
-			sector.set_deploy_highlight(true)
-		"ability":
-			_aim_card_id = card_id
-			_aim_target = world_pos
-			_spawn_aim_line()
-
-func _on_drag_moved(_card_id: String, world_pos: Vector2) -> void:
-	_aim_target = world_pos
-	_update_aim_line()
-
-func _on_drag_ended() -> void:
-	sector.set_deploy_highlight(false)
-	_clear_aim_line()
-
-func _spawn_aim_line() -> void:
-	_clear_aim_line()
-	if hero == null or not is_instance_valid(hero):
-		return
-	_aim_line = Line2D.new()
-	_aim_line.width = 6.0
-	var accent := DesignTokens.core_color(GameState.hero_id)
-	_aim_line.default_color = Color(accent.r, accent.g, accent.b, 0.55)
-	_aim_line.z_index = 4
-	add_child(_aim_line)
-	_update_aim_line()
-
-func _update_aim_line() -> void:
-	if _aim_line == null or hero == null or not is_instance_valid(hero):
-		return
-	# Snap the endpoint to the nearest in-grid tile center so the aim line
-	# reads as "casting toward THIS tile" rather than a free-floating point.
-	var target_tile: Vector2i = sector.clamp_tile(sector.world_to_tile(_aim_target))
-	var endpoint: Vector2 = sector.tile_to_world(target_tile)
-	_aim_line.clear_points()
-	_aim_line.add_point(hero.position)
-	_aim_line.add_point(endpoint)
-
-func _clear_aim_line() -> void:
-	_aim_card_id = ""
-	if _aim_line != null and is_instance_valid(_aim_line):
-		_aim_line.queue_free()
-	_aim_line = null
-
-func _current_phase_name() -> String:
-	if wave_director.is_prep_phase():
-		return "prep"
-	if wave_director.is_wave_phase():
-		return "wave"
-	return "other"
-
-func _on_card_played(card: Dictionary, world_pos: Vector2) -> void:
-	# Building cards no-op when at max tier — don't charge for a no-op play.
-	if card.kind == "building" and economy.production_tier >= Economy.PRODUCTION_TIERS.size():
-		return
-	if int(card.cost) > 0:
-		economy.spend(int(card.cost))
-	# Convert the drop point to a tile. World pos comes from the hand widget;
-	# clamping keeps drops near the edge of the grid still legal.
-	var target_tile: Vector2i = sector.clamp_tile(sector.world_to_tile(world_pos))
-	match card.kind:
-		"unit":
-			_spawn_unit(card.payload.unit_id, target_tile)
-		"building":
-			_place_or_upgrade_building(target_tile)
-		"resource":
-			economy.add(int(card.payload.coin_delta))
-		"ability":
-			_resolve_ability(card.payload.ability_id, sector.tile_to_world(target_tile))
-
-func _spawn_unit(unit_id: String, drop_tile: Vector2i) -> void:
-	# If the dropped tile is walkable use it; otherwise fall back to a slot
-	# behind the leader. Avoids lossy "wasted card" UX when the player drops
-	# on the core tile.
-	var spawn_tile: Vector2i = drop_tile
-	if not sector.is_tile_walkable(spawn_tile):
-		spawn_tile = _next_formation_tile()
-	var u: Node2D = UnitScene.instantiate()
-	u.configure(unit_id)
-	u.attach_sector(sector)
-	# Formation offset is the slot the unit should drift toward when idle —
-	# walks back to it when no enemy is in the detection bubble.
-	var offset: Vector2i = FORMATION_SLOTS[_next_slot_index % FORMATION_SLOTS.size()]
-	_next_slot_index += 1
-	u.bind_leader(hero, offset)
-	add_child(u)
-	u.place_at_tile(spawn_tile)
-
-func _next_formation_tile() -> Vector2i:
-	var offset: Vector2i = FORMATION_SLOTS[_next_slot_index % FORMATION_SLOTS.size()]
-	return sector.clamp_tile(hero.current_tile + offset)
-
-func _place_or_upgrade_building(drop_tile: Vector2i) -> void:
-	if building_node != null and is_instance_valid(building_node):
-		var tier: int = economy.place_or_upgrade_node()
-		building_node.set_tier(tier)
-		return
-	# Snap to the drop tile, but bump off the spawn / core tiles if the
-	# player happened to drop on top of either.
-	var target_tile: Vector2i = drop_tile
-	if target_tile == Sectors.SPAWN_TILE or target_tile == Sectors.CORE_TILE \
-			or not sector.is_tile_walkable(target_tile):
-		target_tile = Sectors.PRODUCTION_NODE_DEFAULT_TILE
-	economy.place_or_upgrade_node()
-	var b: Node2D = BuildingScene.instantiate()
-	add_child(b)
-	b.place_at_tile(target_tile, sector)
-	building_node = b
-
-# ── Signature ability ────────────────────────────────────────────────────
-func _try_cast_signature() -> void:
-	if not wave_director.is_wave_phase():
+	var sel_id: String = inventory.selected_item_id()
+	if not sel_id.is_empty() and Items.is_placeable(sel_id):
+		# Build overlay owns left-click while a placeable is armed.
 		return
 	if hero == null or not is_instance_valid(hero) or hero.is_downed:
 		return
-	if _signature_cd_remaining > 0.0:
-		return
-	var hero_def: Dictionary = Heroes.ALL.get(GameState.hero_id, Heroes.Buffalo)
-	var ability_id: String = hero_def.get("signatureAbilityId", "")
-	if ability_id.is_empty():
-		return
-	var mouse_world := get_global_mouse_position()
-	var target_tile: Vector2i = sector.clamp_tile(sector.world_to_tile(mouse_world))
-	var target_world: Vector2 = sector.tile_to_world(target_tile)
-	_resolve_ability(ability_id, target_world)
-	var cooldown: float = float(hero_def.get("signatureCooldown", 5.0))
-	_signature_cd_max = cooldown
-	_signature_cd_remaining = cooldown
-	GameState.set_signature_cooldown(_signature_cd_remaining, _signature_cd_max)
+	var enemies: Array = []
+	for n in get_tree().get_nodes_in_group("enemies"):
+		if is_instance_valid(n):
+			enemies.append(n)
+	combat.resolve_swing(hero.position, hero.facing, inventory.equipped_weapon(), enemies)
 
-func _tick_signature_cooldown(delta: float) -> void:
-	if _signature_cd_remaining <= 0.0:
-		return
-	_signature_cd_remaining = max(0.0, _signature_cd_remaining - delta)
-	GameState.set_signature_cooldown(_signature_cd_remaining, _signature_cd_max)
-
-func _reset_signature_cooldown() -> void:
-	_signature_cd_remaining = 0.0
-	_signature_cd_max = 0.0
-	GameState.set_signature_cooldown(0.0, 0.0)
-
-# ── Ability resolution ───────────────────────────────────────────────────
-func _resolve_ability(ability_id: String, target_pos: Vector2) -> void:
+# ── Gather plumbing ──────────────────────────────────────────────────
+func _try_start_gather() -> void:
 	if hero == null or not is_instance_valid(hero) or hero.is_downed:
 		return
-	var effects := AbilityResolver.resolve(ability_id, hero.position, target_pos)
-	for fx in effects:
-		match fx.kind:
-			"damage_in_capsule":
-				_apply_capsule_damage(fx)
-				_show_charge_line(fx.from, fx.to, fx.width)
-			"damage_in_cone":
-				_apply_cone_damage(fx)
-			"dash_and_strike":
-				pass  # Phase 2 — Fox not in scope for parity rebuild
-
-func _apply_capsule_damage(fx: Dictionary) -> void:
-	var from: Vector2 = fx.from
-	var to: Vector2 = fx.to
-	var width: float = float(fx.width)
-	for n in get_tree().get_nodes_in_group("enemies"):
-		var e := n as Node2D
-		if e == null or not is_instance_valid(e):
+	if gather.is_active():
+		return
+	# Find a resource node within 1 tile of the hero. Prefer the closest
+	# in cardinal direction the hero is facing — keeps the interaction
+	# predictable when two nodes are adjacent.
+	var best: Node2D = null
+	var best_d: int = 99
+	for n in get_tree().get_nodes_in_group("resource_nodes"):
+		var rn := n as Node2D
+		if rn == null or not is_instance_valid(rn):
 			continue
-		if _point_in_capsule(e.position, from, to, width * 0.5):
-			e.damage(float(fx.damage))
-			if is_instance_valid(e):
-				e.apply_knockback(fx.direction, float(fx.knockback))
+		var d: int = sector.tile_distance(hero.current_tile, rn.current_tile)
+		if d < best_d and d <= 1:
+			best_d = d
+			best = rn
+	if best == null:
+		return
+	gather.start_gather(best, best.resource_kind_id(), best.hp, best.hp_max)
 
-func _point_in_capsule(p: Vector2, a: Vector2, b: Vector2, radius: float) -> bool:
-	var ab := b - a
-	var ab_len_sq := ab.length_squared()
-	if ab_len_sq <= 0.0001:
-		return p.distance_to(a) <= radius
-	var t: float = clamp((p - a).dot(ab) / ab_len_sq, 0.0, 1.0)
-	var nearest: Vector2 = a + ab * t
-	return p.distance_to(nearest) <= radius
+func _on_gather_progress(node_ref, hp_remaining: float, _hp_max: float) -> void:
+	if node_ref != null and is_instance_valid(node_ref):
+		node_ref.update_progress(hp_remaining)
 
-func _apply_cone_damage(fx: Dictionary) -> void:
-	var apex: Vector2 = fx.from
-	var dir: Vector2 = fx.direction
-	var length: float = float(fx.length)
-	var half_angle: float = float(fx.half_angle)
-	var cos_threshold := cos(half_angle)
-	for n in get_tree().get_nodes_in_group("enemies"):
-		var e := n as Node2D
-		if e == null or not is_instance_valid(e):
-			continue
-		var to_enemy := e.position - apex
-		var dist := to_enemy.length()
-		if dist <= 0.0001 or dist > length:
-			continue
-		if to_enemy.normalized().dot(dir) < cos_threshold:
-			continue
-		e.damage(float(fx.damage))
-		if is_instance_valid(e):
-			e.apply_knockback(dir, float(fx.knockback))
+func _on_gather_completed(node_ref, yields: Dictionary) -> void:
+	for item_id in yields:
+		var leftover: int = inventory.add(item_id, int(yields[item_id]))
+		_resources_gathered += int(yields[item_id]) - leftover
+		# Pickup-on-floor when inventory overflows is flagged in the
+		# brief but out of MVP scope — leftover is logged and dropped.
+		if leftover > 0:
+			push_warning("Inventory full — %d %s left on the floor" % [leftover, item_id])
+	if node_ref != null and is_instance_valid(node_ref):
+		node_ref.deplete()
 
-func _show_charge_line(from: Vector2, to: Vector2, width: float) -> void:
-	var line := Line2D.new()
-	line.add_point(from)
-	line.add_point(to)
-	line.width = width
-	var accent := DesignTokens.core_color(GameState.hero_id)
-	line.default_color = Color(accent.r, accent.g, accent.b, 0.55)
-	line.z_index = 5
-	add_child(line)
-	var tween := create_tween()
-	tween.tween_property(line, "modulate:a", 0.0, 0.45)
-	tween.tween_callback(line.queue_free)
+func _on_inventory_added(_item_id: String, _count: int) -> void:
+	# Hook for future audio / VFX. Stat tally happens at gather_completed
+	# so it doesn't double-count when the same item arrives via place
+	# refunds, etc.
+	pass
 
-# ── Wave / round transitions ─────────────────────────────────────────────
+# ── Build plumbing ───────────────────────────────────────────────────
+func _on_place_requested(item_id: String, tile: Vector2i) -> void:
+	build_logic.place(item_id, tile, inventory, Callable(sector, "is_tile_walkable"))
+
+func _on_placed(item_id: String, tile: Vector2i) -> void:
+	var item: Dictionary = Items.get_item(item_id)
+	var placeable_id: String = item.get("placeable_id", "")
+	if placeable_id.is_empty():
+		return
+	var p: Node2D = PlaceableScene.instantiate()
+	p.configure(placeable_id)
+	p.attach_sector(sector)
+	add_child(p)
+	p.place_at_tile(tile)
+	# After placing, if the player ran out of that item, clear the build
+	# ghost so they don't see a "blocked because no resources" red ghost
+	# trailing the cursor.
+	if not inventory.has_at_least(item_id, 1):
+		sector.clear_build_ghost()
+
+# ── Combat plumbing ──────────────────────────────────────────────────
+func _on_combat_damage(target_ref, amount: float) -> void:
+	if target_ref == null or not is_instance_valid(target_ref):
+		return
+	target_ref.damage(amount)
+
+# ── Wave plumbing ────────────────────────────────────────────────────
 func _on_enemy_due(enemy_type: String, slot_index: int) -> void:
 	var entry_tiles: Array[Vector2i] = Sectors.ENEMY_ENTRY_TILES
 	var entry_tile: Vector2i = entry_tiles[slot_index % entry_tiles.size()]
 	var e: Node2D = EnemyScene.instantiate()
 	e.configure(enemy_type)
 	e.attach_sector(sector)
-	e.died.connect(func(_n): wave_director.note_enemy_killed())
+	e.died.connect(_on_enemy_died)
 	e.reached_core.connect(_on_enemy_reached_core)
 	add_child(e)
 	e.place_at_tile(entry_tile)
 	wave_director.note_enemy_spawned()
+
+func _on_enemy_died(enemy: Node) -> void:
+	wave_director.note_enemy_killed()
+	_enemies_felled += 1
 
 func _on_enemy_reached_core(enemy: Node2D) -> void:
 	if not is_instance_valid(enemy):
@@ -404,63 +312,90 @@ func _on_enemy_reached_core(enemy: Node2D) -> void:
 	wave_director.note_enemy_killed()
 	enemy.queue_free()
 
-func _on_round_started(_round_index: int) -> void:
-	GameState.set_phase(GameState.Phase.PREP)
-	GameState.round_index = _round_index
-	card_system.start_round()
-
 func _on_wave_started(_round_index: int, _composition: Dictionary) -> void:
-	GameState.set_phase(GameState.Phase.WAVE)
+	pass  # HUD reacts to the day_night phase; nothing extra needed here.
 
-func _on_wave_ended(_round_index: int, victory: bool) -> void:
-	GameState.set_phase(GameState.Phase.DEBRIEF)
+func _on_wave_ended(_round_index: int) -> void:
+	# Sweep any wolves still on the board — dawn ended the night, the
+	# pack retreats. Keeps day-1-into-day-2 transitions clean.
 	for n in get_tree().get_nodes_in_group("enemies"):
 		if is_instance_valid(n):
 			n.queue_free()
-	_reset_signature_cooldown()
-	if victory:
-		_reset_to_base()
+	_nights_survived += 1
 
-func _reset_to_base() -> void:
-	if hero == null or not is_instance_valid(hero):
-		return
-	hero.revive()
-	hero.reset_position()
-	# Snap units back to their formation slots adjacent to the hero — same
-	# spirit as the original tween-back, only tile-grain.
-	var slot_idx := 0
-	for n in get_tree().get_nodes_in_group("units"):
-		var u := n as Node2D
-		if u == null or not is_instance_valid(u):
-			continue
-		var offset: Vector2i = FORMATION_SLOTS[slot_idx % FORMATION_SLOTS.size()]
-		slot_idx += 1
-		u.place_at_tile(sector.clamp_tile(hero.current_tile + offset))
+# ── Day/night plumbing ───────────────────────────────────────────────
+func _on_phase_changed(_phase: int, _day_index: int) -> void:
+	pass  # HUD listens directly; nothing for main to do.
 
-func _on_hero_downed() -> void:
-	if hud != null and hud.has_method("show_banner"):
-		hud.show_banner("Hero is down — hold the line!", 2.5)
-
-func _on_core_destroyed() -> void:
-	wave_director.note_core_destroyed()
-
-func _on_run_complete() -> void:
+func _on_cycle_complete(_nights: int) -> void:
 	GameState.set_phase(GameState.Phase.RUN_COMPLETE)
+	end_screen.set_stats(_nights_survived, _resources_gathered, _enemies_felled)
 	end_screen.show_victory()
 
-func _on_run_ended() -> void:
+# ── Run-end plumbing ─────────────────────────────────────────────────
+func _on_hero_downed() -> void:
+	# Hero HP at 0 ends the run. The wave-defense build only banner-noted
+	# this; survival treats hero death as defeat (no respawn for MVP).
+	_run_defeat()
+
+func _on_core_destroyed() -> void:
+	_run_defeat()
+
+func _run_defeat() -> void:
+	if GameState.phase == GameState.Phase.RUN_ENDED or GameState.phase == GameState.Phase.RUN_COMPLETE:
+		return
 	GameState.set_phase(GameState.Phase.RUN_ENDED)
+	end_screen.set_stats(_nights_survived, _resources_gathered, _enemies_felled)
 	end_screen.show_defeat()
 
 func _on_restart_requested() -> void:
-	for n in get_tree().get_nodes_in_group("units"):
-		if is_instance_valid(n): n.queue_free()
 	for n in get_tree().get_nodes_in_group("enemies"):
 		if is_instance_valid(n): n.queue_free()
-	if building_node != null and is_instance_valid(building_node):
-		building_node.queue_free()
-		building_node = null
-	if sector != null and is_instance_valid(sector):
-		sector.set_deploy_highlight(false)
-	_clear_aim_line()
+	for n in get_tree().get_nodes_in_group("placeables"):
+		if is_instance_valid(n): n.queue_free()
+	for n in get_tree().get_nodes_in_group("resource_nodes"):
+		if is_instance_valid(n): n.queue_free()
+	sector.clear_build_ghost()
+	# Re-build AStar from a clean slate (the placed walls + depleted
+	# resource nodes mutated it; rebuilding is cheaper than tracking
+	# every change to undo it).
+	sector.rebuild_astar()
+	_seed_world_resources()
 	_start_run()
+
+# ── World seeding ────────────────────────────────────────────────────
+func _seed_world_resources() -> void:
+	# Hand-crafted seed: a treeline north, a rock outcrop east, berry
+	# bushes south of the lodge. Exact tile positions live here rather
+	# than in data/sectors.gd because they're "where" decisions, not
+	# "how the world is shaped" decisions — biome rectangles in sectors
+	# describe the latter, this loop describes the former.
+	var trees := [
+		Vector2i(5, 2), Vector2i(7, 1), Vector2i(9, 2), Vector2i(12, 1),
+		Vector2i(15, 2), Vector2i(17, 1), Vector2i(19, 2),
+		Vector2i(6, 4), Vector2i(10, 4), Vector2i(14, 4), Vector2i(18, 4),
+	]
+	var rocks := [
+		Vector2i(21, 8), Vector2i(22, 10), Vector2i(21, 12), Vector2i(23, 14),
+		Vector2i(22, 16),
+	]
+	var bushes := [
+		Vector2i(8, 19), Vector2i(11, 19), Vector2i(14, 19), Vector2i(17, 19),
+	]
+	for tile in trees:
+		_spawn_resource("tree_pine", tile)
+	for tile in rocks:
+		_spawn_resource("rock_field", tile)
+	for tile in bushes:
+		_spawn_resource("berry_bush", tile)
+
+func _spawn_resource(kind: String, tile: Vector2i) -> void:
+	if not Sectors.is_tile_in_grid(tile) or Sectors.is_tile_protected(tile):
+		return
+	if not sector.is_tile_walkable(tile):
+		return
+	var n: Node2D = ResourceNodeScene.instantiate()
+	n.configure(kind)
+	n.attach_sector(sector)
+	add_child(n)
+	n.place_at_tile(tile)

@@ -1,26 +1,27 @@
 extends Node2D
 ##
-## Enemy adapter — tile-locked grunt. Walks toward the core via the sector's
-## AStarGrid2D, engages units / hero in attack range. The original top-down
-## version used pixel positions and free-form motion; tile rebuild swaps in
-## tile pathing + per-tile tweens.
+## Enemy adapter — tile-locked raider. Walks toward the lodge core via
+## the sector's AStarGrid2D, engages the hero on adjacency. The wave-
+## defense build engaged units first; the survival rebuild prefers the
+## hero (since there are no deployed units yet) but falls back to the
+## lodge core if the hero is too far / downed.
 ##
-## attackRange / coreRange in enemies.gd are pixel values; we convert to
-## tiles so the engage check stays tile-grid native.
+## Hero damage was flagged "pending" in the wave-defense notes — survival
+## requires it, so adjacency damage to the hero is now first-class. Walls
+## block movement, which makes the path snake around them; the AI doesn't
+## yet attack walls in MVP (flagged in PROTOTYPE-NOTES).
 
 const Enemies := preload("res://data/enemies.gd")
 const Sectors := preload("res://data/sectors.gd")
 
 const TILE_STEP_PX := 35.0
-# Pixel-to-tile conversion baseline. The data file mixes "studs * 12" and
-# raw px in attack ranges; both end up px after _ready, then we round to
-# tiles via this divisor (cardinal isometric step distance).
 const PX_PER_TILE := 32.0
 
-@export var enemy_type: String = "GruntMelee"
+@export var enemy_type: String = "FrostWolf"
 
 signal died(self_ref: Node)
 signal reached_core(self_ref: Node)
+signal damaged_target(target_ref: Node, amount: float)
 
 var data: Dictionary
 var hp_max: float = 0.0
@@ -65,8 +66,6 @@ func damage(amount: float) -> void:
 		queue_free()
 
 func apply_knockback(direction: Vector2, distance: float) -> void:
-	# Tile-snap version of the original knockback. Convert direction + px
-	# distance into tile steps; if the resulting tile is walkable, snap there.
 	if sector == null:
 		return
 	var tiles: int = int(round(distance / PX_PER_TILE))
@@ -85,18 +84,15 @@ func apply_knockback(direction: Vector2, distance: float) -> void:
 		target = probe
 	if target != current_tile:
 		current_tile = target
-		# Snap visually — knockback is a hit reaction, not a smooth glide.
 		position = sector.tile_to_world(current_tile)
 
 func _physics_process(delta: float) -> void:
 	if hp <= 0.0 or sector == null or _moving:
 		return
 	_attack_cooldown = max(0.0, _attack_cooldown - delta)
-	# Refresh engagement target once per tile rather than every frame —
-	# combat is tile-grain so checking continuously is overkill.
+	# Refresh hero engagement once per tile rather than every frame.
 	if _engaged_target == null or not is_instance_valid(_engaged_target):
 		_engaged_target = _find_engageable_target()
-	# Drop a downed hero so we go back to walking on the core.
 	if _engaged_target != null and _engaged_target.get("is_downed"):
 		_engaged_target = null
 	if _engaged_target != null and is_instance_valid(_engaged_target):
@@ -106,23 +102,20 @@ func _physics_process(delta: float) -> void:
 			if _attack_cooldown <= 0.0:
 				_attack_cooldown = float(data.attackInterval)
 				_engaged_target.damage(float(data.damage))
-			# Ranged archetypes back away if a target closes inside their
-			# preferred range — fragile vs. melee otherwise.
+				damaged_target.emit(_engaged_target, float(data.damage))
 			if data.get("keep_distance", false) and dist < preferred_range_tiles:
 				_step_away_from(t_tile)
 			return
 		_step_toward(t_tile)
 		return
-	# Default goal: the core. Reaching adjacency is the kill-the-core hit.
-	var dist_to_core: int = sector.tile_distance(current_tile, Sectors.CORE_TILE)
+	# Default goal: lodge core. Reaching adjacency damages the lodge.
+	var dist_to_core: int = sector.tile_distance(current_tile, Sectors.LODGE_TILE)
 	if dist_to_core <= core_range_tiles:
 		if _attack_cooldown <= 0.0:
 			_attack_cooldown = float(data.attackInterval)
-			# Single hit — main listens to reached_core and damages the core,
-			# then frees us.
 			reached_core.emit(self)
 		return
-	_step_toward(Sectors.CORE_TILE)
+	_step_toward(Sectors.LODGE_TILE)
 
 func _step_toward(goal_tile: Vector2i) -> void:
 	var path: Array = sector.find_path(current_tile, goal_tile)
@@ -162,19 +155,11 @@ func _on_step_complete(arrived: Vector2i) -> void:
 	_moving = false
 
 func _find_engageable_target() -> Node2D:
+	# Hero first — there are no deployed units in the survival build.
+	# Units stay supported in code so existing data ports straight back
+	# in once the hero-pet system lands.
 	var best: Node2D = null
 	var best_d: int = attack_range_tiles + 1
-	# Units first.
-	for n in get_tree().get_nodes_in_group("units"):
-		var u := n as Node2D
-		if u == null or not is_instance_valid(u):
-			continue
-		var d: int = sector.tile_distance(current_tile, u.current_tile)
-		if d < best_d:
-			best_d = d
-			best = u
-	# Hero — adjacent-tile damage was flagged as pending in godot-prototype's
-	# notes; the tile rebuild wires it through.
 	for n in get_tree().get_nodes_in_group("hero"):
 		var h := n as Node2D
 		if h == null or not is_instance_valid(h):
@@ -185,6 +170,14 @@ func _find_engageable_target() -> Node2D:
 		if d < best_d:
 			best_d = d
 			best = h
+	for n in get_tree().get_nodes_in_group("units"):
+		var u := n as Node2D
+		if u == null or not is_instance_valid(u):
+			continue
+		var d: int = sector.tile_distance(current_tile, u.current_tile)
+		if d < best_d:
+			best_d = d
+			best = u
 	return best
 
 # ── Drawing ──────────────────────────────────────────────────────────────

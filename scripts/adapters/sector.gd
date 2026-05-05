@@ -1,31 +1,37 @@
 extends Node2D
 ##
-## Sector adapter — owns the TileMapLayer, the placeholder TileSet, and the
-## AStarGrid2D pathfinding graph. The original top-down sector drew a flat
-## floor with _draw(); the tile rebuild paints diamonds on a real tile grid
-## and exposes tile<->world conversion + path lookup.
+## Sector adapter — owns the TileMapLayer, the procedurally-built
+## TileSet, and the AStarGrid2D pathfinding graph. The survival rebuild
+## widens the grid to 25x25 and paints biome tiles (grass, treeline,
+## rocks, water, sand) so the world reads as more than a flat arena.
 ##
-## All consumers (hero, units, enemies, hand drop targeting) go through the
-## helpers here — they should never reach into _tile_layer directly. The
-## sector is the only adapter that knows the projection.
+## Resource nodes (trees / rocks / bushes) are NOT tiles — they are
+## Node2D children placed on top of grass tiles by the world adapter.
+## The sector exposes block_tile / unblock_tile so those adapters can
+## hook into AStar without reaching across layers.
 ##
-## Pure-data tile coords come from data/sectors.gd. The atlas / TileSet
-## painting is procedural so the prototype runs without any imported tile
-## artwork — image textures are built in code at sector ready.
+## Tile coords come from data/sectors.gd. The atlas is procedural so the
+## prototype runs without imported tile artwork.
 
 const Sectors := preload("res://data/sectors.gd")
 
 signal core_destroyed()
 signal core_hp_changed(current: float, maximum: float)
 
-# Atlas tile types. Each entry is the (column, row) in the procedurally-built
-# TileSet atlas — see _build_atlas_texture.
-const ATLAS_FLOOR := Vector2i(0, 0)
-const ATLAS_CORE := Vector2i(1, 0)
-const ATLAS_SPAWN := Vector2i(2, 0)
-const ATLAS_ENTRY := Vector2i(3, 0)
+# Atlas coordinates — one row of tiles in the procedural texture.
+const ATLAS_GRASS := Vector2i(0, 0)
+const ATLAS_LODGE := Vector2i(1, 0)
+const ATLAS_ENTRY := Vector2i(2, 0)
+const ATLAS_WATER := Vector2i(3, 0)
+const ATLAS_SAND := Vector2i(4, 0)
+const ATLAS_ROCK := Vector2i(5, 0)
+const ATLAS_LEAF := Vector2i(6, 0)
 
-# Source id we use when adding the atlas to the TileSet. Arbitrary.
+const ATLAS_KEYS := [
+	ATLAS_GRASS, ATLAS_LODGE, ATLAS_ENTRY,
+	ATLAS_WATER, ATLAS_SAND, ATLAS_ROCK, ATLAS_LEAF,
+]
+
 const SOURCE_ID := 0
 
 var hero_id: String = "Buffalo"
@@ -33,13 +39,14 @@ var core_hp: float = Sectors.CORE_HEALTH
 var core_hp_max: float = Sectors.CORE_HEALTH
 var astar: AStarGrid2D
 var _tile_layer: TileMapLayer
-var _deploy_highlight: bool = false
+var _build_highlight_tile: Vector2i = Vector2i(-1, -1)
+var _build_highlight_valid: bool = true
 
 func _ready() -> void:
 	add_to_group("sector")
-	# Anchor the tile origin at the sector's world offset. The TileMapLayer
-	# computes (0, 0)..(N, M) tile centers relative to its node position.
-	position = Sectors.WORLD_OFFSET
+	# The world is now larger than the screen — anchor the TileMap at
+	# (0,0) and let the camera pan over it, instead of pre-centering.
+	position = Vector2.ZERO
 	_tile_layer = TileMapLayer.new()
 	_tile_layer.tile_set = _build_tile_set(hero_id)
 	_tile_layer.y_sort_enabled = true
@@ -52,9 +59,6 @@ func _ready() -> void:
 
 # ── Identity ──────────────────────────────────────────────────────────────
 func set_hero(new_hero_id: String) -> void:
-	# Repaint the floor in the new faction palette. M4 swaps the whole tileset
-	# rather than re-coloring per cell — the atlas is small enough that a
-	# rebuild is cheaper than caching N variants. Only used in solo retoning.
 	if hero_id == new_hero_id:
 		return
 	hero_id = new_hero_id
@@ -65,8 +69,6 @@ func set_hero(new_hero_id: String) -> void:
 
 # ── Tile coordinate API ───────────────────────────────────────────────────
 func tile_to_world(tile: Vector2i) -> Vector2:
-	# Tile center in global viewport coords. Adapters never reach into the
-	# TileMapLayer directly — they call this to position sprites.
 	return _tile_layer.to_global(_tile_layer.map_to_local(tile))
 
 func world_to_tile(world: Vector2) -> Vector2i:
@@ -85,13 +87,21 @@ func is_tile_walkable(tile: Vector2i) -> bool:
 		return true
 	return not astar.is_point_solid(tile)
 
+# Building, resource, and water tiles set themselves solid in AStar via
+# this helper. The sector treats AStar as the source of truth for "can
+# I path through this tile" — biome painting is purely cosmetic.
+func block_tile(tile: Vector2i) -> void:
+	if astar == null or not Sectors.is_tile_in_grid(tile):
+		return
+	astar.set_point_solid(tile, true)
+
+func unblock_tile(tile: Vector2i) -> void:
+	if astar == null or not Sectors.is_tile_in_grid(tile):
+		return
+	astar.set_point_solid(tile, false)
+
 # ── Pathfinding ───────────────────────────────────────────────────────────
 func find_path(from_tile: Vector2i, to_tile: Vector2i) -> Array:
-	# Returns the tile-space path from from_tile to to_tile, with the start
-	# node dropped so callers can iterate "next tile to step toward".
-	# If the goal is solid (e.g. enemies pathing to the core), the call
-	# falls back to the closest reachable adjacent tile so wave AI doesn't
-	# stall at the gates.
 	if from_tile == to_tile:
 		return []
 	if not Sectors.is_tile_in_grid(from_tile):
@@ -104,25 +114,18 @@ func find_path(from_tile: Vector2i, to_tile: Vector2i) -> Array:
 		if fallback == goal:
 			return []
 		goal = fallback
-	# get_id_path returns Array[Vector2i]; let the inference catch it instead
-	# of forcing an untyped Array assignment which Godot can warn about.
 	var raw := astar.get_id_path(from_tile, goal)
 	if raw.size() <= 1:
 		return []
-	# Strip the start so each call returns "everything left to walk".
 	var stripped: Array = []
 	for i in range(1, raw.size()):
 		stripped.append(raw[i])
 	return stripped
 
 func tile_distance(a: Vector2i, b: Vector2i) -> int:
-	# Chebyshev distance — diagonal-mode-NEVER paths only step cardinally,
-	# so the tile-step count between two tiles is the Manhattan distance.
 	return abs(a.x - b.x) + abs(a.y - b.y)
 
 func _nearest_walkable_neighbor(target: Vector2i, from_tile: Vector2i) -> Vector2i:
-	# Pick the cardinal neighbor of `target` that's walkable AND closest to
-	# `from_tile` — this is what enemies use when their goal is the core.
 	var candidates: Array = [
 		target + Vector2i(-1, 0),
 		target + Vector2i(1, 0),
@@ -152,43 +155,42 @@ func damage_core(amount: float) -> void:
 		core_destroyed.emit()
 
 func reset_core() -> void:
-	# Restore both current AND max — main._start_run calls GameState.reset()
-	# which zeros core_hp_max, so just rewriting core_hp here would leave the
-	# HUD reading "1000 / 0" with a 0/0 ratio that pegs the bar to crit color.
 	core_hp = core_hp_max
 	GameState.core_hp = core_hp
 	GameState.core_hp_max = core_hp_max
 	core_hp_changed.emit(core_hp, core_hp_max)
 	queue_redraw()
 
-# ── Visuals ───────────────────────────────────────────────────────────────
-func set_deploy_highlight(active: bool) -> void:
-	if _deploy_highlight == active:
+# ── Build ghost ──────────────────────────────────────────────────────────
+func set_build_ghost(tile: Vector2i, valid: bool) -> void:
+	if _build_highlight_tile == tile and _build_highlight_valid == valid:
 		return
-	_deploy_highlight = active
+	_build_highlight_tile = tile
+	_build_highlight_valid = valid
 	queue_redraw()
 
+func clear_build_ghost() -> void:
+	if _build_highlight_tile == Vector2i(-1, -1):
+		return
+	_build_highlight_tile = Vector2i(-1, -1)
+	queue_redraw()
+
+# ── Visuals ───────────────────────────────────────────────────────────────
 func _draw() -> void:
-	# Core HP bar above the core tile. The TileMapLayer paints the cells; this
-	# overlay sits in the sector's own canvas item so HP changes don't force
-	# a tile repaint.
-	var core_world := _tile_layer.map_to_local(Sectors.CORE_TILE)
-	var bar_w := 80.0
-	var bar_h := 4.0
+	# Lodge HP bar above the lodge tile.
+	var core_world := _tile_layer.map_to_local(Sectors.LODGE_TILE)
+	var bar_w := 96.0
+	var bar_h := 5.0
 	var bar_x := core_world.x - bar_w * 0.5
-	var bar_y := core_world.y - 24.0
+	var bar_y := core_world.y - 36.0
 	var hp_ratio: float = 0.0 if core_hp_max == 0 else core_hp / core_hp_max
 	draw_rect(Rect2(bar_x, bar_y, bar_w, bar_h), DesignTokens.NIGHT_3, true)
 	draw_rect(Rect2(bar_x, bar_y, bar_w * hp_ratio, bar_h), DesignTokens.hp_color(hp_ratio), true)
-	if _deploy_highlight:
-		# Thin diamond outlines on every walkable tile — reads as "drop here
-		# is legal" without overwhelming the floor underneath.
-		var accent := DesignTokens.core_color(hero_id)
-		var border := Color(accent.r, accent.g, accent.b, 0.55)
-		for tile in Sectors.all_floor_tiles():
-			if tile == Sectors.CORE_TILE:
-				continue
-			_draw_diamond_outline(_tile_layer.map_to_local(tile), border, 2.0)
+	# Build ghost — diamond outline at the cursor tile.
+	if _build_highlight_tile != Vector2i(-1, -1):
+		var color: Color = DesignTokens.HP_FULL if _build_highlight_valid else DesignTokens.HP_CRIT
+		var outline := Color(color.r, color.g, color.b, 0.7)
+		_draw_diamond_outline(_tile_layer.map_to_local(_build_highlight_tile), outline, 3.0)
 
 func _draw_diamond_outline(center: Vector2, color: Color, width: float) -> void:
 	var half_w := float(Sectors.TILE_PIXELS.x) * 0.5
@@ -211,30 +213,34 @@ func _build_tile_set(hero: String) -> TileSet:
 	var atlas := TileSetAtlasSource.new()
 	atlas.texture = _build_atlas_texture(hero)
 	atlas.texture_region_size = Sectors.TILE_PIXELS
-	atlas.create_tile(ATLAS_FLOOR)
-	atlas.create_tile(ATLAS_CORE)
-	atlas.create_tile(ATLAS_SPAWN)
-	atlas.create_tile(ATLAS_ENTRY)
+	for k in ATLAS_KEYS:
+		atlas.create_tile(k)
 	ts.add_source(atlas, SOURCE_ID)
 	return ts
 
 func _build_atlas_texture(hero: String) -> Texture2D:
 	var tw: int = Sectors.TILE_PIXELS.x
 	var th: int = Sectors.TILE_PIXELS.y
-	# Atlas is one row of four tiles: floor, core, spawn, entry.
-	var img := Image.create(tw * 4, th, false, Image.FORMAT_RGBA8)
+	var tile_count: int = ATLAS_KEYS.size()
+	var img := Image.create(tw * tile_count, th, false, Image.FORMAT_RGBA8)
 	img.fill(Color(0, 0, 0, 0))
-	var floor_c: Color = DesignTokens.floor_color(hero)
-	var floor_edge: Color = DesignTokens.ink_color(hero)
-	var core_c: Color = DesignTokens.core_color(hero)
-	var core_edge: Color = DesignTokens.NIGHT_0
-	var spawn_c: Color = DesignTokens.PARCHMENT_2
-	var entry_base: Color = DesignTokens.HP_CRIT
-	var entry_c := Color(entry_base.r, entry_base.g, entry_base.b, 0.55)
-	_paint_diamond(img, 0, tw, th, floor_c, floor_edge)
-	_paint_diamond(img, tw, tw, th, core_c, core_edge)
-	_paint_diamond(img, tw * 2, tw, th, spawn_c, floor_edge)
-	_paint_diamond(img, tw * 3, tw, th, entry_c, core_edge)
+	# Color recipes per atlas index — kept warm so the lit-by-lantern
+	# palette holds up. Neutral-leaning tones for treeline/rocks so the
+	# Buffalo floor still reads as the dominant ground.
+	var palette := {
+		ATLAS_GRASS: [Color8(94, 110, 76), Color8(60, 70, 48)],
+		ATLAS_LODGE: [DesignTokens.core_color(hero), DesignTokens.NIGHT_0],
+		ATLAS_ENTRY: [Color(DesignTokens.HP_CRIT.r, DesignTokens.HP_CRIT.g, DesignTokens.HP_CRIT.b, 0.55),
+				DesignTokens.NIGHT_0],
+		ATLAS_WATER: [Color8(54, 88, 120), Color8(28, 52, 80)],
+		ATLAS_SAND:  [Color8(180, 156, 110), Color8(120, 96, 64)],
+		ATLAS_ROCK:  [Color8(118, 110, 100), Color8(60, 56, 50)],
+		ATLAS_LEAF:  [Color8(72, 96, 64), Color8(40, 56, 40)],
+	}
+	for i in tile_count:
+		var key: Vector2i = ATLAS_KEYS[i]
+		var pair = palette.get(key, [DesignTokens.NIGHT_2, DesignTokens.NIGHT_0])
+		_paint_diamond(img, i * tw, tw, th, pair[0], pair[1])
 	return ImageTexture.create_from_image(img)
 
 func _paint_diamond(img: Image, x_off: int, tw: int, th: int, fill: Color, edge: Color) -> void:
@@ -254,25 +260,54 @@ func _paint_diamond(img: Image, x_off: int, tw: int, th: int, fill: Color, edge:
 func _paint_floor() -> void:
 	_tile_layer.clear()
 	for tile in Sectors.all_floor_tiles():
-		var atlas_coord: Vector2i = ATLAS_FLOOR
-		if tile == Sectors.CORE_TILE:
-			atlas_coord = ATLAS_CORE
-		elif tile == Sectors.SPAWN_TILE:
-			atlas_coord = ATLAS_SPAWN
-		elif Sectors.ENEMY_ENTRY_TILES.has(tile):
-			atlas_coord = ATLAS_ENTRY
+		var atlas_coord: Vector2i = _atlas_for_tile(tile)
 		_tile_layer.set_cell(tile, SOURCE_ID, atlas_coord)
 
+func _atlas_for_tile(tile: Vector2i) -> Vector2i:
+	# Order: lodge → entry → water → rocks → trees (leaf) → grass.
+	# Sand/beach is reserved for adjacency to water.
+	if tile == Sectors.LODGE_TILE:
+		return ATLAS_LODGE
+	if Sectors.ENEMY_ENTRY_TILES.has(tile):
+		return ATLAS_ENTRY
+	var biome: String = Sectors.biome_at(tile)
+	match biome:
+		"water": return ATLAS_WATER
+		"rocks": return ATLAS_ROCK
+		"trees": return ATLAS_LEAF
+		"berries": return ATLAS_GRASS  # bushes sit on grass
+		"open": return ATLAS_GRASS
+		_:
+			# Sand band along the water edge for legibility.
+			if _is_water_adjacent(tile):
+				return ATLAS_SAND
+			return ATLAS_GRASS
+
+func _is_water_adjacent(tile: Vector2i) -> bool:
+	for dx in [-1, 0, 1]:
+		for dy in [-1, 0, 1]:
+			if dx == 0 and dy == 0: continue
+			var probe := Vector2i(tile.x + dx, tile.y + dy)
+			if Sectors.biome_at(probe) == "water":
+				return true
+	return false
+
 # ── AStarGrid2D ──────────────────────────────────────────────────────────
+func rebuild_astar() -> void:
+	# Public re-entry point used on run restart, after every placeable
+	# and resource node has been queue_freed. Replays the initial
+	# blocking pattern (lodge core + water tiles) on a fresh grid.
+	_build_astar()
+
 func _build_astar() -> void:
 	astar = AStarGrid2D.new()
 	astar.region = Rect2i(Vector2i.ZERO, Sectors.TILE_GRID_SIZE)
 	astar.cell_size = Vector2(1, 1)
-	# Cardinal-only paths keep enemy lines reading clean. Diagonal mode is
-	# easy to flip to AT_LEAST_ONE_WALKABLE later if movement feels too rigid.
 	astar.diagonal_mode = AStarGrid2D.DIAGONAL_MODE_NEVER
 	astar.update()
-	# Block the core tile so units / enemies path around it. Adjacency is
-	# what triggers core damage — the goal of "reach the core" resolves to a
-	# neighbor via _nearest_walkable_neighbor.
-	astar.set_point_solid(Sectors.CORE_TILE, true)
+	# Block the lodge core itself.
+	astar.set_point_solid(Sectors.LODGE_TILE, true)
+	# Block water tiles — they're terrain obstacles by definition.
+	for tile in Sectors.all_floor_tiles():
+		if Sectors.biome_at(tile) == "water":
+			astar.set_point_solid(tile, true)

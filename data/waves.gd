@@ -1,34 +1,32 @@
 class_name WavesData extends RefCounted
 ##
-## Wave compositions per round. 3-round fixed loop; each round escalates
-## the archetype mix per BUF-108.
-##   Wave 1 — pure GruntMelee
-##   Wave 2 — GruntMelee + GruntRanged
-##   Wave 3 — all three archetypes, including a pair of Bruisers
+## Wave compositions per night. The survival rebuild reframes "round" as
+## "night" — Night 1 / 2 / 3 escalate frost-wolf pressure on the lodge.
+##
+## Owl + bear archetypes are designed and locked but not in MVP scope;
+## once their sprites land they fold in here. Night 3 is intentionally
+## tunable — flagged as a balance question in PROTOTYPE-NOTES.
 
 const ROUNDS := [
 	{
 		"index": 1,
-		"name": "Probe",
+		"name": "First night",
 		"enemies": [
-			{"type": "GruntMelee", "count": 8, "spawn_interval": 0.7},
+			{"type": "FrostWolf", "count": 6, "spawn_interval": 2.5},
 		],
 	},
 	{
 		"index": 2,
-		"name": "Pressure",
+		"name": "Second night",
 		"enemies": [
-			{"type": "GruntMelee",  "count": 6, "spawn_interval": 0.55},
-			{"type": "GruntRanged", "count": 4, "spawn_interval": 0.65},
+			{"type": "FrostWolf", "count": 9, "spawn_interval": 2.0},
 		],
 	},
 	{
 		"index": 3,
-		"name": "Heavy Charge",
+		"name": "Third night",
 		"enemies": [
-			{"type": "GruntMelee",  "count": 5, "spawn_interval": 0.45},
-			{"type": "GruntRanged", "count": 3, "spawn_interval": 0.6},
-			{"type": "Bruiser",     "count": 2, "spawn_interval": 1.5},
+			{"type": "FrostWolf", "count": 12, "spawn_interval": 1.6},
 		],
 	},
 ]
@@ -36,5 +34,5 @@ const ROUNDS := [
 const TOTAL_ROUNDS := 3
 
 static func for_round(round_index: int) -> Dictionary:
-	# Rounds are 1-indexed in design language.
+	# Rounds (nights) are 1-indexed in design language.
 	return ROUNDS[clamp(round_index - 1, 0, ROUNDS.size() - 1)]
