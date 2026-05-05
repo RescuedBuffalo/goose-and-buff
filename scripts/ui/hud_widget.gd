@@ -228,6 +228,11 @@ func _on_wave_started(round_index: int, _composition: Dictionary) -> void:
 	_wave_banner = "WAVE %d — HOLD THE LINE" % round_index
 	_wave_banner_timeout = 2.4
 	if _wave_pill != null:
+		# Clear any sticky debrief override ("Catch your breath." /
+		# "The line broke.") that `_on_wave_ended` set on the previous wave
+		# end. Without this, the override survives prep into the new wave
+		# until `_on_core_hp_changed` happens to reset it.
+		_wave_pill.set_headline("")
 		_wave_pill.cycle_wave_voice()
 		_wave_pill.set_phase("Wave", _round_index, GameState.hero_id)
 	queue_redraw()
