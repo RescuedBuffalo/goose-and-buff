@@ -132,11 +132,13 @@ func _draw() -> void:
 	draw_rect(Rect2(-bar_w * 0.5, bar_y, bar_w * hp_ratio, 3.0), DesignTokens.hp_color(hp_ratio), true)
 
 func _color_for_archetype() -> Color:
-	# Buffalo palette tints by archetype so the three units read distinctly.
+	# Heavy uses the unit's faction core so Longhorn / Swan / Badger each
+	# read distinctly. Light + ranged stay on parchment so the archetype
+	# silhouette still reads at a glance across factions.
 	match unit_data.archetype:
 		"light": return DesignTokens.PARCHMENT_1
 		"ranged": return DesignTokens.PARCHMENT_2
-		"heavy": return DesignTokens.BUFFALO_CORE
+		"heavy": return DesignTokens.core_color(unit_data.faction)
 		_: return DesignTokens.PARCHMENT_0
 
 func _size_for_archetype() -> Vector2:

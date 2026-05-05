@@ -1,8 +1,11 @@
 extends Node2D
 ##
-## A placed building. v0 only ships Production Node — the visual is just a
+## A placed building. v0 only ships Production Node — the visual is a
 ## tinted square with a tier number. The economy module owns the actual
 ## coin generation; this adapter only renders.
+##
+## Color comes from the active hero's faction so Goose / Buffalo / Fox
+## sectors each tint their node distinctly.
 
 @export var tier: int = 1
 
@@ -15,10 +18,11 @@ func _ready() -> void:
 	queue_redraw()
 
 func _draw() -> void:
+	var faction: String = GameState.hero_id
 	var size := Vector2(56, 56)
 	var rect := Rect2(-size * 0.5, size)
-	draw_rect(rect, DesignTokens.BUFFALO_CORE, true)
-	draw_rect(rect, DesignTokens.BUFFALO_INK, false, 2.0)
+	draw_rect(rect, DesignTokens.core_color(faction), true)
+	draw_rect(rect, DesignTokens.ink_color(faction), false, 2.0)
 	# Inner gold pip — the coin source.
 	draw_circle(Vector2.ZERO, 12.0, DesignTokens.GOLD_COIN)
 	# Tier dots beneath.

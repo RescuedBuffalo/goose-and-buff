@@ -23,7 +23,7 @@ const Goose := {
 	"name": "Goose",
 	"role": "Aggression / IGL",
 	"flavor": "Loud, fast, gets there first. Calls the shots when it counts.",
-	"signatureAbility": "Goose pounce",
+	"signatureAbility": "Dive",
 	"baseHealth": 100,
 	"moveSpeed": 18,
 }
@@ -33,7 +33,7 @@ const Fox := {
 	"name": "Fox",
 	"role": "Initiator / Recon",
 	"flavor": "First in, first out. Sees what the others can't until it's too late.",
-	"signatureAbility": "Fox flank",
+	"signatureAbility": "Snatch",
 	"baseHealth": 85,
 	"moveSpeed": 22,
 }
