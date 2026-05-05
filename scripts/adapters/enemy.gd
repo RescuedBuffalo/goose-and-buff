@@ -34,6 +34,9 @@ func _physics_process(delta: float) -> void:
 	# If a unit is in attack range, prefer it.
 	if _engaged_unit == null or not is_instance_valid(_engaged_unit):
 		_engaged_unit = _find_engageable_unit()
+	# Drop a hero target that went down while we were already locked onto them.
+	if _engaged_unit != null and _engaged_unit.get("is_downed"):
+		_engaged_unit = null
 	if _engaged_unit != null and is_instance_valid(_engaged_unit):
 		var d := position.distance_to(_engaged_unit.position)
 		if d <= float(data.attackRange):
