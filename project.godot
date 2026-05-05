@@ -23,6 +23,7 @@ config/features=PackedStringArray("4.6", "GL Compatibility")
 
 DesignTokens="*res://scripts/autoload/design_tokens.gd"
 GameState="*res://scripts/autoload/game_state.gd"
+SaveSystem="*res://scripts/autoload/save_system.gd"
 
 [display]
 

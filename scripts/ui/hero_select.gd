@@ -31,8 +31,18 @@ const TOTEM_SCALE := {
 	"Fox": Vector2(0.85, 0.85),
 }
 
+# Debug "reset save" pill in the bottom-right footer corner. Sized so the
+# label "Reset save (Shift-click)" reads at FS_XS without crowding.
+const RESET_BTN_SIZE := Vector2(220, 28)
+const RESET_BTN_MARGIN := 16.0
+
 var _hover_hero_id: String = ""
 var _totem_textures: Dictionary = {}
+# Toggled in the footer pill on hover so the player can see they're targeting
+# the debug button. Independent from the hero-card hover state.
+var _hover_reset: bool = false
+# Brief flash text shown after a reset. Cleared on next open().
+var _reset_notice: String = ""
 
 func _ready() -> void:
 	mouse_filter = Control.MOUSE_FILTER_STOP
@@ -43,6 +53,8 @@ func _ready() -> void:
 func open() -> void:
 	visible = true
 	_hover_hero_id = ""
+	_hover_reset = false
+	_reset_notice = ""
 	queue_redraw()
 	# Make sure we capture clicks even if a sibling control is on top.
 	move_to_front()
@@ -60,11 +72,22 @@ func _preload_totems() -> void:
 func _gui_input(event: InputEvent) -> void:
 	if event is InputEventMouseMotion:
 		var prior := _hover_hero_id
+		var prior_reset := _hover_reset
 		_hover_hero_id = _hero_id_at(event.position)
-		if prior != _hover_hero_id:
+		_hover_reset = _reset_rect().has_point(event.position)
+		if prior != _hover_hero_id or prior_reset != _hover_reset:
 			queue_redraw()
 		return
 	if event is InputEventMouseButton and event.pressed and event.button_index == MOUSE_BUTTON_LEFT:
+		if _reset_rect().has_point(event.position):
+			# Shift-click guards a destructive debug action without needing a
+			# confirm dialog. The label tells the player which modifier to use.
+			if event.shift_pressed:
+				_perform_reset()
+			else:
+				_reset_notice = "Hold Shift and click to confirm."
+				queue_redraw()
+			return
 		var hid := _hero_id_at(event.position)
 		if hid != "":
 			_lock_in(hid)
@@ -95,6 +118,11 @@ func _lock_in(hero_id: String) -> void:
 	hero_selected.emit(hero_id)
 	close()
 
+func _perform_reset() -> void:
+	SaveSystem.reset()
+	_reset_notice = "Save reset. Run #1 ahead."
+	queue_redraw()
+
 func _hero_id_at(local_pos: Vector2) -> String:
 	for i in Heroes.ORDER.size():
 		var hid: String = Heroes.ORDER[i]
@@ -121,7 +149,8 @@ func _draw() -> void:
 
 func _draw_header() -> void:
 	var font := ThemeDB.fallback_font
-	var eyebrow := "RUN #—"
+	# Persisted run counter drives the eyebrow — shows the upcoming run.
+	var eyebrow := "RUN #%d" % (SaveSystem.get_run_count() + 1)
 	var headline := "Pick your post."
 	var sub := "Three sectors. One companion. We hold the line together."
 	var center_x := size.x * 0.5
@@ -211,3 +240,26 @@ func _draw_footer() -> void:
 	var hint_w := font.get_string_size(hint, HORIZONTAL_ALIGNMENT_CENTER, -1, DesignTokens.FS_SM).x
 	draw_string(font, Vector2((size.x - hint_w) * 0.5, size.y - 56),
 		hint, HORIZONTAL_ALIGNMENT_CENTER, -1, DesignTokens.FS_SM, DesignTokens.FG_3)
+	_draw_reset_button(font)
+	if _reset_notice != "":
+		var notice_w := font.get_string_size(_reset_notice, HORIZONTAL_ALIGNMENT_CENTER, -1, DesignTokens.FS_XS).x
+		draw_string(font, Vector2((size.x - notice_w) * 0.5, size.y - 30),
+			_reset_notice, HORIZONTAL_ALIGNMENT_CENTER, -1, DesignTokens.FS_XS, DesignTokens.FG_2)
+
+func _reset_rect() -> Rect2:
+	# Anchored bottom-right so it sits out of the way of the hero cards but
+	# stays reachable on any window size.
+	var pos := Vector2(size.x - RESET_BTN_SIZE.x - RESET_BTN_MARGIN,
+		size.y - RESET_BTN_SIZE.y - RESET_BTN_MARGIN)
+	return Rect2(pos, RESET_BTN_SIZE)
+
+func _draw_reset_button(font: Font) -> void:
+	var rect := _reset_rect()
+	var fill := DesignTokens.NIGHT_2 if _hover_reset else DesignTokens.NIGHT_1
+	var border := DesignTokens.FG_3 if _hover_reset else DesignTokens.NIGHT_3
+	draw_rect(rect, fill, true)
+	draw_rect(rect, border, false, 1.0)
+	var label := "Reset save (Shift-click)"
+	var label_w := font.get_string_size(label, HORIZONTAL_ALIGNMENT_CENTER, -1, DesignTokens.FS_XS).x
+	draw_string(font, rect.position + Vector2((rect.size.x - label_w) * 0.5, rect.size.y * 0.5 + 5),
+		label, HORIZONTAL_ALIGNMENT_CENTER, -1, DesignTokens.FS_XS, DesignTokens.FG_2)

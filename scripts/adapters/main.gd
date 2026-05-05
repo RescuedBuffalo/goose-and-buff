@@ -650,10 +650,12 @@ func _on_core_destroyed() -> void:
 
 func _on_run_complete() -> void:
 	GameState.set_phase(GameState.Phase.RUN_COMPLETE)
+	SaveSystem.record_run_end(GameState.hero_id, true, GameState.round_index)
 	end_screen.show_victory()
 
 func _on_run_ended() -> void:
 	GameState.set_phase(GameState.Phase.RUN_ENDED)
+	SaveSystem.record_run_end(GameState.hero_id, false, GameState.round_index)
 	end_screen.show_defeat()
 
 func _on_restart_requested() -> void:
@@ -667,6 +669,8 @@ func _on_back_to_lodge_requested() -> void:
 	# "Back to the lodge" — every run ends in the warm room, victory or
 	# defeat (BUF-112). Tear down the hero so a different pick instantiates
 	# fresh from the Lodge, and clear all run transients before the curtain.
+	# Persist the lodge-return so a relaunch doesn't lose the pick history.
+	SaveSystem.note_lodge_visit(GameState.hero_id)
 	_clear_run_transients()
 	if hero != null and is_instance_valid(hero):
 		hero.queue_free()
