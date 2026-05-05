@@ -23,6 +23,7 @@ const HandScene := preload("res://scenes/ui/hand.tscn")
 const HudScene := preload("res://scenes/ui/hud.tscn")
 const EndScene := preload("res://scenes/ui/end_screen.tscn")
 const HeroSelectScene := preload("res://scenes/ui/hero_select.tscn")
+const LodgeScene := preload("res://scenes/ui/lodge.tscn")
 const AbilityRailScene := preload("res://scenes/ui/ability_rail.tscn")
 const WaveCompPanelScene := preload("res://scenes/ui/wave_comp_panel.tscn")
 const HelpBannerScene := preload("res://scenes/ui/help_banner.tscn")
@@ -39,6 +40,7 @@ var hand
 var hud
 var end_screen
 var hero_select
+var lodge
 var ability_rail
 var wave_comp_panel
 var help_banner
@@ -57,7 +59,6 @@ var _aim_card_id: String = ""
 # Hero is rebuilt fresh each run so a different pick can swap sprite +
 # stats. Keeping it nullable lets _start_run handle both first launch
 # (no hero yet) and post-restart (old hero already freed).
-const DEFAULT_HERO_ID := "Buffalo"
 
 func _ready() -> void:
 	randomize()
@@ -65,7 +66,7 @@ func _ready() -> void:
 	_build_world()
 	_build_ui()
 	_wire_signals()
-	_open_hero_select()
+	_open_lodge()
 
 func _build_logic() -> void:
 	economy = Economy.new()
@@ -90,6 +91,8 @@ func _build_ui() -> void:
 	ui_layer.add_child(end_screen)
 	hero_select = HeroSelectScene.instantiate()
 	ui_layer.add_child(hero_select)
+	lodge = LodgeScene.instantiate()
+	ui_layer.add_child(lodge)
 	ability_rail = AbilityRailScene.instantiate()
 	ui_layer.add_child(ability_rail)
 	wave_comp_panel = WaveCompPanelScene.instantiate()
@@ -113,15 +116,20 @@ func _wire_signals() -> void:
 	wave_director.wave_ended.connect(_on_wave_ended)
 	sector.core_destroyed.connect(_on_core_destroyed)
 	end_screen.restart_requested.connect(_on_restart_requested)
-	end_screen.change_hero_requested.connect(_on_change_hero_requested)
+	end_screen.back_to_lodge_requested.connect(_on_back_to_lodge_requested)
 	hero_select.hero_selected.connect(_on_hero_selected)
+	lodge.pick_hero_requested.connect(_on_lodge_pick_hero_requested)
+	lodge.start_run_requested.connect(_on_lodge_start_run_requested)
+	lodge.unlock_cards_requested.connect(_on_lodge_unlock_cards_requested)
 
-func _open_hero_select() -> void:
-	# The select screen is the entry point. Hide the in-run UI so the
-	# curtain pulls clean, and pause the wave clock so the 30s prep timer
-	# doesn't tick while the player is still picking (see _process).
-	GameState.set_phase(GameState.Phase.PREP)
+func _open_lodge() -> void:
+	# The Lodge is the entry point and the post-run hub (BUF-112). Hide
+	# every in-run surface so the room reads clean, and pause the wave
+	# clock so the 30s prep timer doesn't tick behind the curtain (see
+	# _process — it short-circuits while the lodge is up).
+	GameState.set_phase(GameState.Phase.LODGE)
 	end_screen.visible = false
+	hero_select.close()
 	hud.visible = false
 	hand.visible = false
 	if ability_rail != null:
@@ -130,29 +138,56 @@ func _open_hero_select() -> void:
 		wave_comp_panel.hide_panel()
 	if help_banner != null:
 		help_banner.clear_help()
+	lodge.open()
+
+func _open_hero_select() -> void:
+	# Reachable from the Lodge's "Pick your hero" station. We don't change
+	# GameState's phase here — the player is mid-flow inside the Lodge
+	# (Phase.LODGE still applies). On selection we route back to the lodge
+	# with the new hero set; nothing starts the run from this path.
+	if lodge != null:
+		lodge.close()
 	hero_select.open()
 
 func _on_hero_selected(hero_id: String) -> void:
 	GameState.set_hero(hero_id)
-	# Sector retones immediately so the curtain pull-back lands on the
-	# correct palette.
+	# Sector retones immediately so when the run starts (from the Lodge's
+	# "Start a run" station), the curtain pull-back lands on the correct
+	# palette without an extra frame of stale color.
 	sector.set_hero(hero_id)
-	_spawn_hero(hero_id)
+	# Pick happened from inside the Lodge — return there so the player
+	# can see the new hero reflected in the Start station before going.
+	_open_lodge()
+
+func _on_lodge_pick_hero_requested() -> void:
+	_open_hero_select()
+
+func _on_lodge_start_run_requested() -> void:
+	# Leaving the Lodge for the dark — instantiate the hero, light up the
+	# in-run UI, and hand the wave clock back to _process.
+	lodge.close()
+	sector.set_hero(GameState.hero_id)
+	_spawn_hero(GameState.hero_id)
 	hud.visible = true
 	hand.visible = true
 	ability_rail.visible = true
-	ability_rail.set_hero(hero_id)
-	# Comp panel + help banner stay hidden until they have something to say
-	# (wave_started / help-requested respectively). Component visibility is
-	# tracked internally via show_for / hide_panel / clear_help.
+	ability_rail.set_hero(GameState.hero_id)
 	if wave_comp_panel != null:
 		wave_comp_panel.hide_panel()
 	if help_banner != null:
 		help_banner.clear_help()
 	_start_run()
 
+func _on_lodge_unlock_cards_requested() -> void:
+	# v1 stub — the Lodge surfaces its own toast on click. Nothing to do
+	# here yet; the signal exists so M2's card-unlocks work has a wire to
+	# hook into without restructuring the Lodge.
+	pass
+
 func _spawn_hero(hero_id: String) -> void:
-	# Tear down any prior hero — happens on the "Change hero" path.
+	# Tear down any prior hero defensively. _on_back_to_lodge_requested
+	# already frees on the run-end path; this guard catches any future
+	# entry that forgets.
 	if hero != null and is_instance_valid(hero):
 		hero.queue_free()
 	hero = HeroScene.instantiate()
@@ -178,8 +213,10 @@ func _start_run() -> void:
 	_reset_signature_cooldown()
 
 func _process(delta: float) -> void:
-	# Don't tick the run while the hero select is up — otherwise the prep
-	# timer would burn down behind the curtain.
+	# Don't tick the run while the lodge or hero select is up — otherwise
+	# the prep timer would burn down behind the curtain.
+	if lodge != null and lodge.visible:
+		return
 	if hero_select != null and hero_select.visible:
 		return
 	# Drive logic ticks. WaveDirector + Economy progress only here.
@@ -626,15 +663,16 @@ func _on_restart_requested() -> void:
 	end_screen.visible = false
 	_start_run()
 
-func _on_change_hero_requested() -> void:
-	# "Change hero" — back to hero select. Tear down hero too so the next
-	# pick instantiates a fresh one with the right sprite + stats.
+func _on_back_to_lodge_requested() -> void:
+	# "Back to the lodge" — every run ends in the warm room, victory or
+	# defeat (BUF-112). Tear down the hero so a different pick instantiates
+	# fresh from the Lodge, and clear all run transients before the curtain.
 	_clear_run_transients()
 	if hero != null and is_instance_valid(hero):
 		hero.queue_free()
 		hero = null
 	end_screen.visible = false
-	_open_hero_select()
+	_open_lodge()
 
 func _clear_run_transients() -> void:
 	for n in get_tree().get_nodes_in_group("units"):
