@@ -70,7 +70,7 @@ func _on_wave_started(round_index: int, composition: Dictionary) -> void:
 	var label: String = composition.get("name", "")
 	show_banner("Wave %d — %s" % [round_index, label], 2.5)
 
-func _on_wave_ended(_round_index: int, victory: bool) -> void:
+func _on_wave_ended(_round_idx: int, victory: bool) -> void:
 	if victory:
 		show_banner("Wave clear", 2.0)
 	else:
@@ -146,6 +146,7 @@ func _hp_ratio(current: float, maximum: float) -> float:
 func _format_timer(seconds: float) -> String:
 	# Voice rule: timers as `0:24`, never `24s`.
 	var s: int = int(ceil(seconds))
+	@warning_ignore("integer_division")
 	var m: int = s / 60
 	var r: int = s % 60
 	return "%d:%02d" % [m, r]

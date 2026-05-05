@@ -143,8 +143,11 @@ func _advance() -> void:
 		_path = []
 		return
 	_moving = true
-	var target_world := sector.tile_to_world(next_tile)
-	var step_seconds := TILE_STEP_PX / max(move_pixels_per_second, 1.0)
+	# Explicit types needed because `sector` is typed `Node` (the adapter
+	# doesn't have a base class to dot into) — type inference can't see the
+	# returned Vector2 / float through the dynamic call.
+	var target_world: Vector2 = sector.tile_to_world(next_tile)
+	var step_seconds: float = TILE_STEP_PX / max(move_pixels_per_second, 1.0)
 	var t := create_tween()
 	t.tween_property(self, "position", target_world, step_seconds) \
 		.set_trans(Tween.TRANS_LINEAR)

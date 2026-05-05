@@ -208,7 +208,7 @@ func _update_aim_line() -> void:
 	# Snap the endpoint to the nearest in-grid tile center so the aim line
 	# reads as "casting toward THIS tile" rather than a free-floating point.
 	var target_tile: Vector2i = sector.clamp_tile(sector.world_to_tile(_aim_target))
-	var endpoint := sector.tile_to_world(target_tile)
+	var endpoint: Vector2 = sector.tile_to_world(target_tile)
 	_aim_line.clear_points()
 	_aim_line.add_point(hero.position)
 	_aim_line.add_point(endpoint)

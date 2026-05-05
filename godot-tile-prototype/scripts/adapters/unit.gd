@@ -97,7 +97,7 @@ func _physics_process(delta: float) -> void:
 		_engaged_enemy = _find_enemy_in_detection()
 		if _engaged_enemy != null and is_instance_valid(_engaged_enemy):
 			var enemy_tile: Vector2i = _engaged_enemy.current_tile
-			var dist := sector.tile_distance(current_tile, enemy_tile)
+			var dist: int = sector.tile_distance(current_tile, enemy_tile)
 			if dist > attack_range_tiles:
 				_step_toward(enemy_tile)
 			elif _attack_cooldown <= 0.0:

@@ -1,9 +1,10 @@
 ; Engine configuration file.
-; The Long Watch — tile-prototype rebuild (Phase 1).
+; It's best edited using the editor UI and not directly,
+; since the parameters that go here are not all obvious.
 ;
-; Same engine, same logic-layer rules as godot-prototype/. The difference:
-; sector + entities live on a TileMap with isometric tiles instead of a flat
-; top-down arena. See PROTOTYPE-NOTES.md for the architecture-pivot rationale.
+; Format:
+;   [section] ; section goes between []
+;   param=value ; assign values to parameters
 
 config_version=5
 
@@ -18,6 +19,7 @@ config/features=PackedStringArray("4.6", "GL Compatibility")
 
 DesignTokens="*res://scripts/autoload/design_tokens.gd"
 GameState="*res://scripts/autoload/game_state.gd"
+MCPRuntime="*uid://cmog4djoepsv"
 
 [display]
 
@@ -25,6 +27,10 @@ window/size/viewport_width=1920
 window/size/viewport_height=1080
 window/stretch/mode="canvas_items"
 window/stretch/aspect="expand"
+
+[editor_plugins]
+
+enabled=PackedStringArray("res://addons/godot_mcp/plugin.cfg")
 
 [input]
 
