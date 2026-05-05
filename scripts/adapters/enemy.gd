@@ -106,8 +106,13 @@ func _physics_process(delta: float) -> void:
 		if dist <= attack_range_tiles:
 			if _attack_cooldown <= 0.0:
 				_attack_cooldown = float(data.attackInterval)
+				# Emit *applied* damage rather than attempted: target.damage()
+				# clamps HP at zero, so a 20-dmg hit on a 5-HP hero only
+				# applies 5. Snapshot pre-damage HP to compute the delta.
+				var pre_hp: float = float(_engaged_target.get("hp", 0.0))
 				_engaged_target.damage(float(data.damage))
-				damaged_target.emit(_engaged_target, float(data.damage))
+				var applied: float = max(0.0, pre_hp - float(_engaged_target.get("hp", 0.0)))
+				damaged_target.emit(_engaged_target, applied)
 			if data.get("keep_distance", false) and dist < preferred_range_tiles:
 				_step_away_from(t_tile)
 			return

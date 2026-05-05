@@ -97,7 +97,7 @@ Fires when an enemy adapter's `damaged_target` signal hits the hero.
 
 | Payload field | Type | Notes |
 | --- | --- | --- |
-| `amount` | `float` | Damage amount applied. |
+| `amount` | `float` | Damage actually applied (post-clamp at HP 0). On a fatal hit this is less than the attacker's nominal attack value. |
 | `hp_after` | `float` | Hero HP after the hit. |
 | `hp_max` | `float` | Hero max HP (snapshot). |
 | `source_enemy_type` | `string` | Enemy archetype that landed the hit (e.g. `"FrostWolf"`). |
