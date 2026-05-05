@@ -22,6 +22,7 @@ const LightingAdapterScript := preload("res://scripts/adapters/lighting_adapter.
 const InventoryHudScript := preload("res://scripts/adapters/inventory_hud.gd")
 const BuildOverlayScript := preload("res://scripts/adapters/build_overlay.gd")
 const CombatVisualsScript := preload("res://scripts/adapters/combat_visuals.gd")
+const TelemetryIoScript := preload("res://scripts/adapters/telemetry_io.gd")
 
 const SectorScene := preload("res://scenes/sector.tscn")
 const HeroScene := preload("res://scenes/hero.tscn")
@@ -39,6 +40,7 @@ var combat: CombatSystem = null
 var gather: GatherSystem = null
 var build_logic: BuildSystem = null
 var wave_gate = null
+var telemetry: Telemetry = null
 
 # Adapter / scene refs.
 var sector
@@ -49,6 +51,7 @@ var inventory_hud
 var build_overlay
 var combat_visuals
 var lighting
+var telemetry_io = null
 
 # Run-end stat tally — pushed onto the end-screen on victory/defeat.
 var _resources_gathered: int = 0
@@ -82,6 +85,7 @@ func _build_logic() -> void:
 	gather = GatherSystem.new()
 	build_logic = BuildSystem.new()
 	wave_gate = WaveDirectorGate.new()
+	telemetry = Telemetry.new()
 
 func _build_world() -> void:
 	# Lighting modulator — tints the world below the HUD canvas layer.
@@ -121,6 +125,12 @@ func _build_ui() -> void:
 	ui_layer.add_child(inventory_hud)
 	end_screen = EndScene.instantiate()
 	ui_layer.add_child(end_screen)
+	# Telemetry IO is a non-visual node — parent it under self so its
+	# _process tick fires and _exit_tree flushes on shutdown.
+	telemetry_io = TelemetryIoScript.new()
+	telemetry_io.name = "TelemetryIO"
+	add_child(telemetry_io)
+	telemetry_io.attach(telemetry)
 
 func _wire_signals() -> void:
 	hud.bind(day_night)
@@ -156,6 +166,7 @@ func _start_run() -> void:
 	inventory.reset()
 	combat.reset()
 	gather.reset()
+	telemetry.reset()
 	_resources_gathered = 0
 	_enemies_felled = 0
 	_nights_survived = 0
@@ -167,6 +178,10 @@ func _start_run() -> void:
 	end_screen.visible = false
 	hud.visible = true
 	inventory_hud.visible = true
+	telemetry.start_run({
+		"hero_id": GameState.hero_id,
+		"max_nights": DayNight.MAX_NIGHTS,
+	})
 
 func _process(delta: float) -> void:
 	# When the run is over, freeze ticks so the end-screen scrim doesn't
@@ -216,7 +231,13 @@ func _unhandled_input(event: InputEvent) -> void:
 	for n in get_tree().get_nodes_in_group("enemies"):
 		if is_instance_valid(n):
 			enemies.append(n)
-	combat.resolve_swing(hero.position, hero.facing, inventory.equipped_weapon(), enemies)
+	var swing_result: Dictionary = combat.resolve_swing(hero.position, hero.facing, inventory.equipped_weapon(), enemies)
+	if telemetry != null and swing_result.get("ok", false):
+		telemetry.log("ability_cast", {
+			"ability_id": "weapon_swing",
+			"weapon_id": String(swing_result.get("weapon", "")),
+			"hits": int((swing_result.get("hits", []) as Array).size()),
+		})
 
 # ── Gather plumbing ──────────────────────────────────────────────────
 func _try_start_gather() -> void:
@@ -246,6 +267,9 @@ func _on_gather_progress(node_ref, hp_remaining: float, _hp_max: float) -> void:
 		node_ref.update_progress(hp_remaining)
 
 func _on_gather_completed(node_ref, yields: Dictionary) -> void:
+	var resource_kind: String = ""
+	if node_ref != null and is_instance_valid(node_ref) and node_ref.has_method("resource_kind_id"):
+		resource_kind = String(node_ref.resource_kind_id())
 	for item_id in yields:
 		var leftover: int = inventory.add(item_id, int(yields[item_id]))
 		_resources_gathered += int(yields[item_id]) - leftover
@@ -253,6 +277,11 @@ func _on_gather_completed(node_ref, yields: Dictionary) -> void:
 		# brief but out of MVP scope — leftover is logged and dropped.
 		if leftover > 0:
 			push_warning("Inventory full — %d %s left on the floor" % [leftover, item_id])
+	if telemetry != null:
+		telemetry.log("resource_gathered", {
+			"resource_kind": resource_kind,
+			"yields": yields.duplicate(),
+		})
 	if node_ref != null and is_instance_valid(node_ref):
 		node_ref.deplete()
 
@@ -271,6 +300,13 @@ func _on_placed(item_id: String, tile: Vector2i) -> void:
 	var placeable_id: String = item.get("placeable_id", "")
 	if placeable_id.is_empty():
 		return
+	if telemetry != null:
+		telemetry.log("building_placed", {
+			"item_id": item_id,
+			"placeable_id": placeable_id,
+			"tile_x": tile.x,
+			"tile_y": tile.y,
+		})
 	var p: Node2D = PlaceableScene.instantiate()
 	p.configure(placeable_id)
 	p.attach_sector(sector)
@@ -295,15 +331,36 @@ func _on_enemy_due(enemy_type: String, slot_index: int) -> void:
 	var e: Node2D = EnemyScene.instantiate()
 	e.configure(enemy_type)
 	e.attach_sector(sector)
-	e.died.connect(_on_enemy_died)
+	e.died.connect(_on_enemy_died.bind(enemy_type))
 	e.reached_core.connect(_on_enemy_reached_core)
+	# Bind enemy_type so the telemetry hook knows what hit the hero
+	# without re-reading the (possibly freed) enemy node.
+	e.damaged_target.connect(_on_enemy_damaged_target.bind(enemy_type))
 	add_child(e)
 	e.place_at_tile(entry_tile)
 	wave_director.note_enemy_spawned()
 
-func _on_enemy_died(enemy: Node) -> void:
+func _on_enemy_died(enemy: Node, enemy_type: String) -> void:
 	wave_director.note_enemy_killed()
 	_enemies_felled += 1
+	if telemetry != null:
+		telemetry.log("hero_killed_enemy", {
+			"enemy_type": enemy_type,
+		})
+
+func _on_enemy_damaged_target(target_ref, amount: float, enemy_type: String) -> void:
+	if target_ref == null or not is_instance_valid(target_ref):
+		return
+	if not target_ref.is_in_group("hero"):
+		return
+	if telemetry == null:
+		return
+	telemetry.log("hero_damage_taken", {
+		"amount": amount,
+		"hp_after": float(target_ref.hp),
+		"hp_max": float(target_ref.hp_max),
+		"source_enemy_type": enemy_type,
+	})
 
 func _on_enemy_reached_core(enemy: Node2D) -> void:
 	if not is_instance_valid(enemy):
@@ -312,16 +369,29 @@ func _on_enemy_reached_core(enemy: Node2D) -> void:
 	wave_director.note_enemy_killed()
 	enemy.queue_free()
 
-func _on_wave_started(_round_index: int, _composition: Dictionary) -> void:
-	pass  # HUD reacts to the day_night phase; nothing extra needed here.
+func _on_wave_started(round_index: int, composition: Dictionary) -> void:
+	# HUD reacts to the day_night phase; only telemetry needs anything here.
+	if telemetry != null:
+		var summary: Dictionary = {}
+		for entry in composition.get("enemies", []):
+			summary[String(entry.type)] = int(summary.get(entry.type, 0)) + int(entry.count)
+		telemetry.log("wave_start", {
+			"round_index": round_index,
+			"composition": summary,
+		})
 
-func _on_wave_ended(_round_index: int) -> void:
+func _on_wave_ended(round_index: int) -> void:
 	# Sweep any wolves still on the board — dawn ended the night, the
 	# pack retreats. Keeps day-1-into-day-2 transitions clean.
 	for n in get_tree().get_nodes_in_group("enemies"):
 		if is_instance_valid(n):
 			n.queue_free()
 	_nights_survived += 1
+	if telemetry != null:
+		telemetry.log("wave_end", {
+			"round_index": round_index,
+			"nights_survived": _nights_survived,
+		})
 
 # ── Day/night plumbing ───────────────────────────────────────────────
 func _on_phase_changed(_phase: int, _day_index: int) -> void:
@@ -331,6 +401,13 @@ func _on_cycle_complete(_nights: int) -> void:
 	GameState.set_phase(GameState.Phase.RUN_COMPLETE)
 	end_screen.set_stats(_nights_survived, _resources_gathered, _enemies_felled)
 	end_screen.show_victory()
+	if telemetry != null:
+		telemetry.end_run({
+			"outcome": "victory",
+			"nights_survived": _nights_survived,
+			"resources_gathered": _resources_gathered,
+			"enemies_felled": _enemies_felled,
+		})
 
 # ── Run-end plumbing ─────────────────────────────────────────────────
 func _on_hero_downed() -> void:
@@ -347,6 +424,13 @@ func _run_defeat() -> void:
 	GameState.set_phase(GameState.Phase.RUN_ENDED)
 	end_screen.set_stats(_nights_survived, _resources_gathered, _enemies_felled)
 	end_screen.show_defeat()
+	if telemetry != null:
+		telemetry.end_run({
+			"outcome": "defeat",
+			"nights_survived": _nights_survived,
+			"resources_gathered": _resources_gathered,
+			"enemies_felled": _enemies_felled,
+		})
 
 func _on_restart_requested() -> void:
 	for n in get_tree().get_nodes_in_group("enemies"):
