@@ -26,6 +26,7 @@ const HeroSelectScene := preload("res://scenes/ui/hero_select.tscn")
 const AbilityRailScene := preload("res://scenes/ui/ability_rail.tscn")
 const WaveCompPanelScene := preload("res://scenes/ui/wave_comp_panel.tscn")
 const HelpBannerScene := preload("res://scenes/ui/help_banner.tscn")
+const LodgeScene := preload("res://scenes/ui/lodge.tscn")
 
 # Logic
 var economy
@@ -42,6 +43,7 @@ var hero_select
 var ability_rail
 var wave_comp_panel
 var help_banner
+var lodge
 var building_node: Node = null  # at most one in v0
 # Signature ability cooldown — counted down each frame in _process while a
 # wave is live. Zero means "ready to cast".
@@ -96,6 +98,8 @@ func _build_ui() -> void:
 	ui_layer.add_child(wave_comp_panel)
 	help_banner = HelpBannerScene.instantiate()
 	ui_layer.add_child(help_banner)
+	lodge = LodgeScene.instantiate()
+	ui_layer.add_child(lodge)
 
 func _wire_signals() -> void:
 	hud.bind(economy, wave_director, sector)
@@ -114,6 +118,8 @@ func _wire_signals() -> void:
 	sector.core_destroyed.connect(_on_core_destroyed)
 	end_screen.restart_requested.connect(_on_restart_requested)
 	end_screen.change_hero_requested.connect(_on_change_hero_requested)
+	end_screen.lodge_requested.connect(_on_lodge_requested)
+	lodge.closed.connect(_on_lodge_closed)
 	hero_select.hero_selected.connect(_on_hero_selected)
 
 func _open_hero_select() -> void:
@@ -169,7 +175,7 @@ func _start_run() -> void:
 	hero.reset_hp()
 	hero.reset_position()
 	economy.reset()
-	card_system.reset(GameState.hero_id)
+	card_system.reset(GameState.hero_id, MetaProgress.build_deck_for(GameState.hero_id))
 	# wave_director.reset() emits round_started, which _on_round_started
 	# routes back into card_system.start_round(); calling it again here
 	# would double-fire hand_changed and rebuild the hand twice.
@@ -277,7 +283,12 @@ func _on_card_played(card: Dictionary, world_pos: Vector2) -> void:
 		economy.spend(int(card.cost))
 	match card.kind:
 		"unit":
-			_spawn_unit(card.payload.unit_id, world_pos)
+			# Unlock-pool cards may stamp out multiple units per play. Each
+			# spawn gets its own random formation slot so the pair/flock fans
+			# out around the leader instead of stacking on the drop point.
+			var spawn_count: int = max(1, int(card.payload.get("spawn_count", 1)))
+			for _i in spawn_count:
+				_spawn_unit(card.payload.unit_id, world_pos)
 		"building":
 			_place_or_upgrade_building(world_pos)
 		"resource":
@@ -613,11 +624,26 @@ func _on_core_destroyed() -> void:
 
 func _on_run_complete() -> void:
 	GameState.set_phase(GameState.Phase.RUN_COMPLETE)
-	end_screen.show_victory()
+	var earned: int = MetaProgress.grant_for_outcome(true)
+	end_screen.show_victory(earned)
 
 func _on_run_ended() -> void:
 	GameState.set_phase(GameState.Phase.RUN_ENDED)
-	end_screen.show_defeat()
+	var earned: int = MetaProgress.grant_for_outcome(false)
+	end_screen.show_defeat(earned)
+
+func _on_lodge_requested() -> void:
+	# Open the Lodge over the existing end-screen curtain. The Lodge handles
+	# its own visibility; end_screen stays underneath and resumes when the
+	# Lodge closes.
+	if lodge != null:
+		lodge.open()
+
+func _on_lodge_closed() -> void:
+	# Lodge closed — nothing else to do; end_screen is still there with
+	# Try-again / Change-hero buttons. Deck swaps the player just made will
+	# be picked up at the next _start_run() via MetaProgress.build_deck_for.
+	pass
 
 func _on_restart_requested() -> void:
 	# "Try again" — same hero, fresh run. Clear transients; _start_run
