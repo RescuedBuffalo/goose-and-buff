@@ -212,6 +212,11 @@ func _unhandled_input(event: InputEvent) -> void:
 	# build overlay handles the click in that case).
 	if not (event is InputEventMouseButton):
 		return
+	# Mirror the _process gate: once the run is over, swallow inputs so
+	# clicks on the end-screen scrim don't trigger swings (or telemetry
+	# events) behind the UI.
+	if GameState.phase == GameState.Phase.RUN_ENDED or GameState.phase == GameState.Phase.RUN_COMPLETE:
+		return
 	var mb: InputEventMouseButton = event
 	if not mb.pressed:
 		return
@@ -421,10 +426,20 @@ func _on_cycle_complete(_nights: int) -> void:
 func _on_hero_downed() -> void:
 	# Hero HP at 0 ends the run. The wave-defense build only banner-noted
 	# this; survival treats hero death as defeat (no respawn for MVP).
-	_run_defeat()
+	#
+	# Defer so the rest of the in-flight signal chain settles before the
+	# run is closed out. enemy._physics_process calls hero.damage() and
+	# THEN emits damaged_target — without the defer, _run_defeat would
+	# log run_end before the fatal damaged_target ever fires its
+	# hero_damage_taken event, putting the events out of order in the
+	# run file (and dropping the fatal hit if run_id were cleared).
+	_run_defeat.call_deferred()
 
 func _on_core_destroyed() -> void:
-	_run_defeat()
+	# Same rationale as _on_hero_downed — defer for symmetry and to
+	# avoid serializing run-end side-effects inside another module's
+	# signal stack.
+	_run_defeat.call_deferred()
 
 func _run_defeat() -> void:
 	if GameState.phase == GameState.Phase.RUN_ENDED or GameState.phase == GameState.Phase.RUN_COMPLETE:

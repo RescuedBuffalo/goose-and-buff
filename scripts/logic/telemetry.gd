@@ -37,12 +37,15 @@ func end_run(payload: Dictionary = {}) -> void:
 	if run_id.is_empty():
 		return
 	self.log(KIND_RUN_END, payload)
-	# run_end is terminal — clear the run_id so any straggling events
-	# (e.g. an unhandled left-click that lands after the end screen
-	# appears, since the input handler isn't phase-gated) become no-ops
-	# in log() and don't get appended to the run file behind the
-	# run_end event.
-	run_id = ""
+	# Note: run_id is intentionally NOT cleared here. Clearing it inside
+	# end_run drops in-flight events that fire later in the same call
+	# chain — most importantly the fatal hero_damage_taken on a defeat
+	# run (enemy.damage() synchronously triggers run_defeat before the
+	# enemy emits its damaged_target signal). Trailing events from
+	# subsequent frames are blocked at the wiring layer instead: the
+	# adapter defers run-end side-effects so in-flight signals settle,
+	# and main.gd phase-gates _unhandled_input so post-end-screen
+	# clicks don't swing.
 
 func log(kind: String, payload: Dictionary = {}) -> void:
 	# Drop events emitted before a run is active. start_run() is the

@@ -53,10 +53,12 @@ inventory is granted.
 ### `run_end`
 
 Fires on victory (cycle complete) or defeat (hero or lodge core down).
-Terminal: `Telemetry` clears its `run_id` after this event, so any
-straggler `log()` calls during the end-screen idle (e.g. an unhandled
-left-click after the scrim appears) are dropped — `run_end` is always
-the last entry in a run file.
+Always the final event in a run file. The wiring layer enforces this
+in two places: `main.gd` defers `_run_defeat` via `call_deferred` so
+any in-flight signal (notably the fatal hit's `hero_damage_taken`,
+emitted by the enemy adapter after `hero.damage` returns) lands in
+the buffer first, and phase-gates `_unhandled_input` so clicks on the
+end-screen scrim don't trigger trailing `ability_cast` events.
 
 | Payload field | Type | Notes |
 | --- | --- | --- |
