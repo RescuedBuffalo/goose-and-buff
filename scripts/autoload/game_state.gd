@@ -7,6 +7,7 @@ extends Node
 signal phase_changed(phase: String)
 signal hero_hp_changed(current: float, maximum: float)
 signal retreat_changed(active: bool)
+signal signature_cooldown_changed(remaining: float, maximum: float)
 
 enum Phase { PREP, WAVE, DEBRIEF, RUN_COMPLETE, RUN_ENDED }
 
@@ -20,6 +21,11 @@ var core_hp_max: float = 0.0
 # Retreat mode: when true, units ignore enemies and only follow the leader.
 # Toggled by the player; auto-cleared on wave start.
 var retreat_mode: bool = false
+# Signature ability cooldown — remaining seconds and the cooldown's full
+# length. Adapter ticks remaining down each frame; HUD reads to render the
+# AbilityRail. Both zero means "ready to cast".
+var signature_cooldown: float = 0.0
+var signature_cooldown_max: float = 0.0
 
 func reset() -> void:
 	phase = Phase.PREP
@@ -32,6 +38,7 @@ func reset() -> void:
 	core_hp = 0.0
 	core_hp_max = 0.0
 	set_retreat(false)
+	set_signature_cooldown(0.0, 0.0)
 
 func set_hero(new_hero_id: String) -> void:
 	hero_id = new_hero_id
@@ -52,6 +59,11 @@ func set_hero_hp(current: float, maximum: float) -> void:
 	hero_hp = current
 	hero_hp_max = maximum
 	hero_hp_changed.emit(current, maximum)
+
+func set_signature_cooldown(remaining: float, maximum: float) -> void:
+	signature_cooldown = remaining
+	signature_cooldown_max = maximum
+	signature_cooldown_changed.emit(remaining, maximum)
 
 static func phase_name(p: int) -> String:
 	match p:
