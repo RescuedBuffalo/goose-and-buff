@@ -139,9 +139,12 @@ func select_slot(idx: int) -> void:
 		_set_equipped_from_item(item_id)
 
 func clear_selection() -> void:
-	# Right-click clears any active placeable preview. The selection
-	# index stays where it was; this is just a "stop showing the ghost"
-	# semantic. Inventory hotkeys (1..8) still re-arm.
+	# Right-click disarms whatever placeable was selected. Has to
+	# actually mutate selected_index, not just emit -1 — build_overlay
+	# polls selected_item_id() every frame, and that reads from
+	# selected_index. Without the mutation, the ghost stays armed even
+	# though the HUD shows no highlight. Hotkeys (1..8) re-arm normally.
+	selected_index = -1
 	selected_changed.emit(-1)
 
 func selected_slot() -> Dictionary:

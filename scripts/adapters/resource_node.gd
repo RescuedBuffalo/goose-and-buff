@@ -48,10 +48,6 @@ func _ready() -> void:
 func resource_kind_id() -> String:
 	return resource_kind
 
-# GatherSystem looks for this method to extract the node's catalog id.
-func resource_kind() -> String:
-	return resource_kind_id()
-
 func update_progress(remaining: float) -> void:
 	hp = remaining
 	_gather_progress_visible = clamp(1.0 - (hp / hp_max), 0.0, 1.0)
