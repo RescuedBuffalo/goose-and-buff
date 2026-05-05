@@ -1,28 +1,24 @@
 extends Node2D
 ##
-## Hero adapter — tile-locked Buffalo (and Goose / Fox once they land in
-## Phase 2). Click anywhere walkable to walk there; pathfinding runs on the
-## sector's AStarGrid2D. The original top-down hero used WASD + free-form
-## position; the tile rebuild swaps that for a tile cursor + path queue.
+## Hero adapter — WASD-controlled Buffalo with cursor-facing for the
+## survival rebuild. The wave-defense build click-to-moved on the tile
+## grid; survival reframes the hero as a walking presence in the world,
+## so input switches to direction-of-press movement and click is reserved
+## for combat swing.
 ##
-## The sector reference is set by main.gd via attach_sector() before _ready
-## fires — without it the hero can't translate between tiles and pixels.
+## Movement is pixel-grain (smooth diagonal feel, free-form motion) but
+## current_tile is updated each frame from the rounded position so the
+## tile-aware systems (gather, build, enemy targeting) keep their
+## tile-grain contract.
 
 const Heroes := preload("res://data/heroes.gd")
 const Sectors := preload("res://data/sectors.gd")
 
-# Pixels-per-stud baseline from the top-down prototype. Hero moveSpeed is
-# stored in studs in heroes.gd; the conversion to pixels lets us reuse the
-# same number to compute tile traversal time.
 const PIXELS_PER_STUD := 12.0
-# Distance between adjacent isometric tile centers in screen pixels — used
-# as the "step" the move-speed budget pays per tile. Cardinal neighbors at
-# 64x32 tiles are sqrt(32^2 + 16^2) ≈ 35.78 px apart; we round to 35 for
-# slightly snappier movement that's still inside the original feel envelope.
-const TILE_STEP_PX := 35.0
 
 signal hero_downed()
 signal tile_changed(new_tile: Vector2i)
+signal facing_changed(new_facing: Vector2)
 
 var hero_data: Dictionary = Heroes.Buffalo
 var hp_max: float = 0.0
@@ -30,16 +26,8 @@ var hp: float = 0.0
 var is_downed: bool = false
 var move_pixels_per_second: float = 0.0
 var current_tile: Vector2i = Sectors.SPAWN_TILE
-# Path is the queue of remaining tiles to visit; the head is the next tile
-# the hero is currently moving toward (via tween). When the tween completes,
-# current_tile advances and the next tile pops.
-var _path: Array = []
-var _moving: bool = false
-var _scripted_motion: bool = false
+var facing: Vector2 = Vector2.RIGHT
 
-# Sector reference is supplied by main via attach_sector() before add_child;
-# leaving it as a plain `var` lets that early assignment survive _ready.
-# `@onready` would re-assign null at ready time and break tile→world lookups.
 var sector: Node = null
 @onready var sprite: Sprite2D = $Sprite
 
@@ -67,8 +55,6 @@ func _ready() -> void:
 	move_pixels_per_second = float(hero_data.moveSpeed) * PIXELS_PER_STUD
 	GameState.set_hero_hp(hp, hp_max)
 	add_to_group("hero")
-	# Sprite stacks on the y-sort layer above tiles so it never sits behind
-	# the floor it's standing on.
 	y_sort_enabled = true
 	if sprite != null:
 		sprite.y_sort_enabled = true
@@ -77,24 +63,49 @@ func _ready() -> void:
 		current_tile = Sectors.SPAWN_TILE
 		position = sector.tile_to_world(current_tile)
 
-# ── Public API ────────────────────────────────────────────────────────────
-func walk_to(target_tile: Vector2i) -> void:
-	# Click-to-move entry. Cancels any in-flight tween and replans from the
-	# tile we're standing on right now.
-	if sector == null or is_downed or _scripted_motion:
+func _physics_process(delta: float) -> void:
+	if is_downed or sector == null:
 		return
-	if not sector.is_tile_walkable(target_tile):
+	# Freeze movement + facing once the run ends. main.gd's _process
+	# already gates the cycle/wave/combat ticks on this; mirror it here
+	# so the hero doesn't drift behind the end-screen scrim.
+	if GameState.phase == GameState.Phase.RUN_ENDED or GameState.phase == GameState.Phase.RUN_COMPLETE:
 		return
-	if target_tile == current_tile:
-		return
-	_path = sector.find_path(current_tile, target_tile)
-	_advance()
+	# WASD → direct screen-cardinal movement. The Hades / Stardew
+	# convention: pressing "up" walks the hero straight up on the
+	# screen, regardless of how the iso tile axes are oriented. Tile
+	# coords update as a side-effect when the hero crosses boundaries.
+	var input_dir: Vector2 = _read_input_direction()
+	if input_dir != Vector2.ZERO:
+		var step: Vector2 = input_dir * move_pixels_per_second * delta
+		var proposed: Vector2 = position + step
+		var proposed_tile: Vector2i = sector.world_to_tile(proposed)
+		if sector.is_tile_walkable(proposed_tile):
+			position = proposed
+		else:
+			# Slide along the unblocked axis if any — feels less sticky
+			# than a hard stop into corners.
+			var dx_only: Vector2 = position + Vector2(step.x, 0)
+			var dy_only: Vector2 = position + Vector2(0, step.y)
+			if sector.is_tile_walkable(sector.world_to_tile(dx_only)):
+				position = dx_only
+			elif sector.is_tile_walkable(sector.world_to_tile(dy_only)):
+				position = dy_only
+		var new_tile: Vector2i = sector.world_to_tile(position)
+		if new_tile != current_tile:
+			current_tile = new_tile
+			tile_changed.emit(current_tile)
+	# Face toward cursor every frame so the swing arc reads honestly.
+	# Falling back to last facing if the cursor is somehow on top of us.
+	var mouse_world: Vector2 = get_global_mouse_position()
+	var to_cursor: Vector2 = mouse_world - position
+	if to_cursor.length_squared() > 4.0:
+		var new_facing: Vector2 = to_cursor.normalized()
+		if new_facing != facing:
+			facing = new_facing
+			facing_changed.emit(facing)
 
 func reset_position() -> void:
-	# Snap back to spawn — called on _start_run / debrief reset.
-	_path = []
-	_moving = false
-	_scripted_motion = false
 	current_tile = Sectors.SPAWN_TILE
 	if sector != null:
 		position = sector.tile_to_world(current_tile)
@@ -123,44 +134,28 @@ func damage(amount: float) -> void:
 		hero_downed.emit()
 	queue_redraw()
 
-func set_scripted_motion(active: bool) -> void:
-	_scripted_motion = active
-
 func spawn_tile() -> Vector2i:
 	return Sectors.SPAWN_TILE
 
-# ── Movement plumbing ─────────────────────────────────────────────────────
-func _advance() -> void:
-	if _moving or _path.is_empty() or sector == null:
-		return
-	if is_downed or _scripted_motion:
-		_path = []
-		return
-	var next_tile: Vector2i = _path.pop_front()
-	if not sector.is_tile_walkable(next_tile):
-		# Path was invalidated by a building drop / new obstacle. Stop and
-		# wait for the next click.
-		_path = []
-		return
-	_moving = true
-	# Explicit types needed because `sector` is typed `Node` (the adapter
-	# doesn't have a base class to dot into) — type inference can't see the
-	# returned Vector2 / float through the dynamic call.
-	var target_world: Vector2 = sector.tile_to_world(next_tile)
-	var step_seconds: float = TILE_STEP_PX / max(move_pixels_per_second, 1.0)
-	var t := create_tween()
-	t.tween_property(self, "position", target_world, step_seconds) \
-		.set_trans(Tween.TRANS_LINEAR)
-	t.tween_callback(func(): _on_step_complete(next_tile))
+# ── Input ────────────────────────────────────────────────────────────
 
-func _on_step_complete(arrived_tile: Vector2i) -> void:
-	current_tile = arrived_tile
-	tile_changed.emit(current_tile)
-	_moving = false
-	if not _path.is_empty():
-		_advance()
+func _read_input_direction() -> Vector2:
+	# Action names are registered in project.godot (move_up/down/left/right).
+	var dir := Vector2.ZERO
+	if Input.is_action_pressed("move_up"):
+		dir.y -= 1.0
+	if Input.is_action_pressed("move_down"):
+		dir.y += 1.0
+	if Input.is_action_pressed("move_left"):
+		dir.x -= 1.0
+	if Input.is_action_pressed("move_right"):
+		dir.x += 1.0
+	if dir != Vector2.ZERO:
+		dir = dir.normalized()
+	return dir
 
-# ── Sprite ────────────────────────────────────────────────────────────────
+# ── Sprite ───────────────────────────────────────────────────────────
+
 func _load_sprite() -> void:
 	var path: String = TOTEM_PATHS.get(hero_data.id, TOTEM_PATHS.Buffalo)
 	var tex: Texture2D = load(path) if ResourceLoader.exists(path) else null
@@ -169,20 +164,33 @@ func _load_sprite() -> void:
 	if tex != null:
 		sprite.texture = tex
 		sprite.scale = TOTEM_SCALE.get(hero_data.id, Vector2(0.35, 0.35))
-		# Center the placeholder portrait on the tile. The earlier (0, -28)
-		# lift made the sprite render above the tile center, which broke
-		# click-to-move intuition — clicks were resolving to the tile under
-		# the sprite's body, not the tile under its feet.
 		sprite.position = Vector2.ZERO
 	else:
 		sprite.texture = null
 		queue_redraw()
 
 func _draw() -> void:
+	# When no totem texture is available the hero is a colored disc
+	# with a small forward-facing notch so the player can see which way
+	# the swing arc will fire.
 	if sprite != null and sprite.texture != null and not is_downed:
+		_draw_facing_notch()
 		return
 	var fill: Color = Color(0.5, 0.1, 0.1) if is_downed else DesignTokens.core_color(hero_data.id)
 	draw_circle(Vector2.ZERO, 18.0, fill)
 	if is_downed:
 		draw_line(Vector2(-10, -10), Vector2(10, 10), Color(1, 0.1, 0.1, 0.9), 3.0)
 		draw_line(Vector2(-10, 0), Vector2(10, -20), Color(1, 0.1, 0.1, 0.9), 3.0)
+	else:
+		_draw_facing_notch()
+
+func _draw_facing_notch() -> void:
+	# Tiny indicator at the hero's feet pointing where they're facing —
+	# helps make swing direction legible while sprites are placeholder.
+	var tip: Vector2 = facing.normalized() * 22.0
+	var perp := Vector2(-facing.y, facing.x).normalized() * 4.0
+	var notch_color := Color(DesignTokens.PARCHMENT_0.r, DesignTokens.PARCHMENT_0.g, DesignTokens.PARCHMENT_0.b, 0.85)
+	draw_polygon(
+		PackedVector2Array([tip, tip - facing * 8.0 + perp, tip - facing * 8.0 - perp]),
+		PackedColorArray([notch_color, notch_color, notch_color]),
+	)

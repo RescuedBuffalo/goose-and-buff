@@ -1,68 +1,70 @@
 class_name WaveDirector extends RefCounted
 ##
-## Pure round / wave state machine. Mirrors the Roblox WaveDirector contract:
-## tick(dt) drives all time progression; signals announce transitions.
+## Pure wave spawn-queue driver. The wave-defense build owned phase
+## transitions itself (PREP → WAVE → DEBRIEF on internal timers); the
+## survival rebuild moves phase ownership into DayNightCycle and leaves
+## WaveDirector as a stateless-ish queue that turns on at dusk→night and
+## off at night→dawn.
 ##
-## States cycle: PREP -> WAVE -> DEBRIEF -> PREP, until either the run
-## completes (3 rounds cleared) or the core falls.
+## Public surface used by the survival adapters:
+##   reset()                       — return to IDLE, clear counters
+##   start_wave(round_index)       — externally driven entry into WAVE
+##   end_wave()                    — externally driven exit from WAVE
+##   tick(dt)                      — drains the spawn queue while in WAVE
+##   note_enemy_spawned/killed()   — adapter feedback for live counts
+##   is_wave_active()              — readback for guards
+##
+## Old PREP/DEBRIEF logic + auto round-advance was removed during the
+## conversion (BUF-136). The composition data and spawn queue mechanics
+## are unchanged — only the driving harness is.
 
 const Waves := preload("res://data/waves.gd")
 
-signal round_started(round_index: int)
 signal wave_started(round_index: int, composition: Dictionary)
 signal enemy_due(enemy_type: String, slot_index: int)
-signal wave_ended(round_index: int, victory: bool)
-signal run_complete()
-signal run_ended()
-signal prep_timer_changed(seconds_left: float)
+signal wave_ended(round_index: int)
 
-const PREP_DURATION := 30.0
-const DEBRIEF_DURATION := 5.0
+enum State { IDLE, WAVE }
 
-enum State { PREP, WAVE, DEBRIEF, COMPLETE, ENDED }
-
-var state: int = State.PREP
-var round_index: int = 1
-var _timer: float = PREP_DURATION
+var state: int = State.IDLE
+var round_index: int = 0
 var _wave_composition: Dictionary = {}
 var _spawn_queue: Array = []
 var _spawn_accum: float = 0.0
 var _enemies_alive: int = 0
-var _wave_victory_pending: bool = false
 
 func reset() -> void:
-	state = State.PREP
-	round_index = 1
-	_timer = PREP_DURATION
+	state = State.IDLE
+	round_index = 0
 	_wave_composition = {}
 	_spawn_queue = []
 	_spawn_accum = 0.0
 	_enemies_alive = 0
-	_wave_victory_pending = false
-	round_started.emit(round_index)
-	prep_timer_changed.emit(_timer)
+
+func start_wave(idx: int) -> void:
+	# Idempotent — if a wave is already running, end it first so the
+	# new one starts from a clean queue. Should not normally happen
+	# (DayNightCycle gates this), but the guard keeps state honest.
+	if state == State.WAVE:
+		_clear_queue()
+	state = State.WAVE
+	round_index = idx
+	_wave_composition = Waves.for_round(idx)
+	_spawn_queue = _build_spawn_queue(_wave_composition)
+	_spawn_accum = 0.0
+	wave_started.emit(round_index, _wave_composition)
+
+func end_wave() -> void:
+	if state != State.WAVE:
+		return
+	_clear_queue()
+	state = State.IDLE
+	wave_ended.emit(round_index)
 
 func tick(dt: float) -> void:
-	match state:
-		State.PREP:
-			_timer = max(0.0, _timer - dt)
-			prep_timer_changed.emit(_timer)
-			if _timer <= 0.0:
-				_advance_to_wave()
-		State.WAVE:
-			_advance_spawn_queue(dt)
-			if _spawn_queue.is_empty() and _enemies_alive <= 0:
-				_advance_to_debrief(true)
-		State.DEBRIEF:
-			_timer = max(0.0, _timer - dt)
-			if _timer <= 0.0:
-				_advance_to_next_round()
-
-func ready_round() -> void:
-	# Player presses Ready during prep — skip the rest of the timer.
-	if state == State.PREP:
-		_timer = 0.0
-		_advance_to_wave()
+	if state != State.WAVE:
+		return
+	_advance_spawn_queue(dt)
 
 func note_enemy_spawned() -> void:
 	_enemies_alive += 1
@@ -70,46 +72,18 @@ func note_enemy_spawned() -> void:
 func note_enemy_killed() -> void:
 	_enemies_alive = max(0, _enemies_alive - 1)
 
-func note_core_destroyed() -> void:
-	# Adapter calls this when the core's HP hits 0.
-	if state == State.WAVE or state == State.PREP:
-		_advance_to_debrief(false)
-
-func is_wave_phase() -> bool:
+func is_wave_active() -> bool:
 	return state == State.WAVE
 
-func is_prep_phase() -> bool:
-	return state == State.PREP
+func enemies_alive() -> int:
+	return _enemies_alive
 
 # ── internals ─────────────────────────────────────────────────────────
 
-func _advance_to_wave() -> void:
-	state = State.WAVE
-	_wave_composition = Waves.for_round(round_index)
-	_spawn_queue = _build_spawn_queue(_wave_composition)
+func _clear_queue() -> void:
+	_spawn_queue = []
 	_spawn_accum = 0.0
-	wave_started.emit(round_index, _wave_composition)
-
-func _advance_to_debrief(victory: bool) -> void:
-	state = State.DEBRIEF
-	_wave_victory_pending = victory
-	_timer = DEBRIEF_DURATION
-	wave_ended.emit(round_index, victory)
-
-func _advance_to_next_round() -> void:
-	if not _wave_victory_pending:
-		state = State.ENDED
-		run_ended.emit()
-		return
-	round_index += 1
-	if round_index > Waves.TOTAL_ROUNDS:
-		state = State.COMPLETE
-		run_complete.emit()
-		return
-	state = State.PREP
-	_timer = PREP_DURATION
-	round_started.emit(round_index)
-	prep_timer_changed.emit(_timer)
+	_enemies_alive = 0
 
 func _build_spawn_queue(composition: Dictionary) -> Array:
 	var queue: Array = []
@@ -126,9 +100,6 @@ func _advance_spawn_queue(dt: float) -> void:
 	if _spawn_queue.is_empty():
 		return
 	_spawn_accum += dt
-	# Subtract per spawn rather than zeroing so a long frame catches the
-	# queue up — important during stutters / breakpoints / low FPS, where
-	# zeroing would silently slow the wave below its configured rate.
 	while not _spawn_queue.is_empty():
 		var next: Dictionary = _spawn_queue[0]
 		var interval: float = float(next.interval)
