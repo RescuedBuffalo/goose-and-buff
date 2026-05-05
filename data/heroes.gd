@@ -33,7 +33,7 @@ const Fox := {
 	"name": "Fox",
 	"role": "Initiator / Recon",
 	"flavor": "First in, first out. Sees what the others can't until it's too late.",
-	"signatureAbility": "Fox flank",
+	"signatureAbility": "Snatch",
 	"baseHealth": 85,
 	"moveSpeed": 22,
 }

@@ -123,6 +123,71 @@ const StockpileCardGoose := {
 	"payload": {"coin_delta": 30},
 }
 
+# ── Fox deck ──────────────────────────────────────────────────────────────
+# Mirrors the Buffalo template: light/ranged/heavy unit, production node,
+# signature ability, stockpile. Costs follow units-data — Kit/Lynx/Badger
+# are slightly cheaper than Buffalo equivalents in line with the assassin
+# tilt (lower HP, higher per-attack damage, faster pressure).
+
+const KitCard := {
+	"id": "card.kit", "name": "Kit", "faction": "Fox",
+	"kind": "unit", "phase": "prep", "cost": 25,
+	"description": "Spawn one Kit. Quick light melee.",
+	"flavor": "Faster than it should be.",
+	"payload": {"unit_id": "Kit"},
+}
+
+const LynxCard := {
+	"id": "card.lynx", "name": "Lynx", "faction": "Fox",
+	"kind": "unit", "phase": "prep", "cost": 45,
+	"description": "Spawn one Lynx. Stalking ranged striker — bonus damage on the first hit.",
+	"flavor": "Stalks. Strikes once, hard.",
+	"payload": {"unit_id": "Lynx"},
+}
+
+const BadgerCard := {
+	"id": "card.badger", "name": "Badger", "faction": "Fox",
+	"kind": "unit", "phase": "prep", "cost": 70,
+	"description": "Spawn one Badger. Stocky bruiser with a chance to dodge.",
+	"flavor": "Stocky and stubborn. Hard to pin down.",
+	"payload": {"unit_id": "Badger"},
+}
+
+const ProductionNodeCardFox := {
+	"id": "card.production_node_fox", "name": "Production node", "faction": "Fox",
+	"kind": "building", "phase": "prep", "cost": 50,
+	"description": "Generates 5 coin per second. One per sector.",
+	"flavor": "Quiet hum at the back of the den.",
+	"payload": {"building_id": "ProductionNode", "coin_per_second": 5.0},
+}
+
+const SnatchCard := {
+	"id": "card.snatch", "name": "Snatch", "faction": "Fox",
+	"kind": "ability", "phase": "wave", "cost": 0,
+	"description": "Dash to a target. Strike on arrival; bonus damage from behind.",
+	"flavor": "Pick the seam, take what's loose.",
+	"payload": {
+		"ability_id": "Snatch",
+		# Pixels — caps the dash so Snatch doesn't substitute for movement.
+		# Roughly one second of Fox's run speed (22 studs * 12 px/stud).
+		"max_dash": 240.0,
+		# Strike radius around the dash endpoint.
+		"strike_radius": 44.0,
+		"damage": 22.0,
+		# Backstab fires when the hero ends up at-or-behind the enemy along
+		# the enemy's facing direction (enemies face left toward the core).
+		"backstab_multiplier": 2.0,
+	},
+}
+
+const StockpileCardFox := {
+	"id": "card.stockpile_fox", "name": "Stockpile", "faction": "Fox",
+	"kind": "resource", "phase": "prep", "cost": 0,
+	"description": "Adds 30 coin to the balance immediately.",
+	"flavor": "Cached for the lean week.",
+	"payload": {"coin_delta": 30},
+}
+
 const ALL := {
 	"card.calf": CalfCard,
 	"card.ostrich": OstrichCard,
@@ -136,12 +201,20 @@ const ALL := {
 	"card.production_node_goose": ProductionNodeCardGoose,
 	"card.dive": DiveCard,
 	"card.stockpile_goose": StockpileCardGoose,
+	"card.kit": KitCard,
+	"card.lynx": LynxCard,
+	"card.badger": BadgerCard,
+	"card.production_node_fox": ProductionNodeCardFox,
+	"card.snatch": SnatchCard,
+	"card.stockpile_fox": StockpileCardFox,
 }
 
 # Starter decks per hero. id repeated `count` times.
 # Buffalo holds the canonical 4-3-2-3-2-1 template.
 # Goose tilts a Heron slot into a Gosling (5-2-2-3-2-1) — same total, leans
 # the hand swarm-heavy as called out in BUF-106.
+# Fox follows the Buffalo template (4-3-2-3-2-1) — its faction tilt comes
+# from per-unit stats (assassin: low HP, high damage) rather than deck shape.
 const STARTER_DECKS := {
 	"Buffalo": [
 		{"id": "card.calf", "count": 4},
@@ -158,6 +231,14 @@ const STARTER_DECKS := {
 		{"id": "card.production_node_goose", "count": 3},
 		{"id": "card.dive", "count": 2},
 		{"id": "card.stockpile_goose", "count": 1},
+	],
+	"Fox": [
+		{"id": "card.kit", "count": 4},
+		{"id": "card.lynx", "count": 3},
+		{"id": "card.badger", "count": 2},
+		{"id": "card.production_node_fox", "count": 3},
+		{"id": "card.snatch", "count": 2},
+		{"id": "card.stockpile_fox", "count": 1},
 	],
 }
 

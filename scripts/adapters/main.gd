@@ -209,6 +209,8 @@ func _resolve_ability(ability_id: String, target_pos: Vector2) -> void:
 			"damage_in_cone":
 				_apply_cone_damage(fx)
 				_show_dive_cone(fx.from, fx.direction, fx.length, fx.half_angle)
+			"dash_and_strike":
+				_apply_dash_and_strike(fx)
 
 func _apply_capsule_damage(fx: Dictionary) -> void:
 	var from: Vector2 = fx.from
@@ -273,6 +275,58 @@ func _show_dive_cone(apex: Vector2, dir: Vector2, length: float, half_angle: flo
 	var tween := create_tween()
 	tween.tween_property(poly, "modulate:a", 0.0, 0.45)
 	tween.tween_callback(poly.queue_free)
+
+const SNATCH_DASH_DURATION := 0.12
+
+func _apply_dash_and_strike(fx: Dictionary) -> void:
+	# Tween the hero to the dash endpoint so the strike reads as a real
+	# pounce rather than a teleport, then resolve damage. Damage is applied
+	# from the endpoint so a Fox who dashes through gets backstab credit.
+	var to: Vector2 = fx.to
+	var radius: float = float(fx.radius)
+	var base_damage: float = float(fx.damage)
+	var backstab_mult: float = float(fx.backstab_multiplier)
+	hero.set_scripted_motion(true)
+	var t := create_tween()
+	t.tween_property(hero, "position", to, SNATCH_DASH_DURATION) \
+		.set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+	t.tween_callback(_release_scripted_motion.bind(hero))
+	t.tween_callback(_resolve_snatch_strike.bind(to, radius, base_damage, backstab_mult, fx.direction))
+	_show_dash_trail(fx.from, to)
+
+func _resolve_snatch_strike(end_pos: Vector2, radius: float, base_damage: float,
+		backstab_mult: float, dir: Vector2) -> void:
+	for n in get_tree().get_nodes_in_group("enemies"):
+		var e := n as Node2D
+		if e == null or not is_instance_valid(e):
+			continue
+		if e.position.distance_to(end_pos) > radius:
+			continue
+		# Enemies face left (toward the core). The hero is "behind" if they
+		# ended up on the enemy's right — i.e. the hero passed through it.
+		var is_backstab: bool = end_pos.x >= e.position.x
+		var dmg := base_damage * (backstab_mult if is_backstab else 1.0)
+		e.damage(dmg)
+		if is_instance_valid(e):
+			# Light shove away from the strike to sell the hit. Direction is
+			# the dash vector — punch them along the path Fox came in on.
+			e.apply_knockback(dir, 24.0 if is_backstab else 12.0)
+
+func _show_dash_trail(from: Vector2, to: Vector2) -> void:
+	# A thin streak from start to end that fades in under a quarter-second.
+	# Lighter than the Buffalo charge line so the two abilities read as
+	# distinct silhouettes (line AoE vs. precision dash).
+	var line := Line2D.new()
+	line.add_point(from)
+	line.add_point(to)
+	line.width = 6.0
+	var accent := DesignTokens.core_color(GameState.hero_id)
+	line.default_color = Color(accent.r, accent.g, accent.b, 0.7)
+	line.z_index = 5
+	add_child(line)
+	var tween := create_tween()
+	tween.tween_property(line, "modulate:a", 0.0, 0.3)
+	tween.tween_callback(line.queue_free)
 
 func _show_charge_line(from: Vector2, to: Vector2, width: float) -> void:
 	var line := Line2D.new()
