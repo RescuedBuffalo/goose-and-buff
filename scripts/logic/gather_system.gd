@@ -34,10 +34,16 @@ var _active_kind: String = ""
 var _active_hp: float = 0.0
 var _active_hp_max: float = 0.0
 var _rng: RandomNumberGenerator = RandomNumberGenerator.new()
+# Effective-stat multiplier for gather speed (BUF-147). 1.0 = base.
+var _speed_mult: float = 1.0
 
 func reset() -> void:
 	cancel_active()
 	_rng.randomize()
+	_speed_mult = 1.0
+
+func set_speed_multiplier(mult: float) -> void:
+	_speed_mult = max(0.01, mult)
 
 func is_active() -> bool:
 	return _active_node != null and is_instance_valid(_active_node)
@@ -74,7 +80,7 @@ func tick(dt: float, hero_tile: Vector2i, node_tile: Vector2i, equipped_weapon_i
 		cancel_active()
 		return
 	var multiplier: float = _affinity_for_kind(_active_kind, equipped_weapon_id)
-	var rate: float = BASE_GATHER_RATE * multiplier
+	var rate: float = BASE_GATHER_RATE * multiplier * _speed_mult
 	_active_hp = max(0.0, _active_hp - rate * dt)
 	gather_progress.emit(_active_node, _active_hp, _active_hp_max)
 	if _active_hp <= 0.0:

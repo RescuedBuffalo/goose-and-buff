@@ -72,6 +72,7 @@ func record_run(
 	resources_gathered: int,
 	enemies_felled: int,
 	duration_seconds: float,
+	seed: int = 0,
 ) -> void:
 	var now := int(Time.get_unix_time_from_system())
 	var record := SaveStateClass.make_run_record(
@@ -82,6 +83,7 @@ func record_run(
 		enemies_felled,
 		duration_seconds,
 		now,
+		seed,
 	)
 	data = SaveStateClass.append_run(data, record)
 	# Every completed run leaves a mark — victory or defeat (BUF-130). The
@@ -99,6 +101,36 @@ func _draw_artifact_id() -> String:
 	var rng := RandomNumberGenerator.new()
 	rng.randomize()
 	return ArtifactsData.draw(rng)
+
+# ── M2: embers + upgrades (BUF-147) ──────────────────────────────────────
+
+func add_embers(amount: int) -> int:
+	# Mutates + persists. Returns the new balance.
+	data = SaveStateClass.add_embers(data, amount)
+	save()
+	return SaveStateClass.embers(data)
+
+func purchase_upgrade(upgrade_id: String) -> Dictionary:
+	# Pure stat-system computes the new state; the adapter persists it.
+	# Returns the same {ok, embers, owned_upgrades, reason} dict the
+	# pure logic produces so callers can render rejection states.
+	var StatSystemClass := load("res://scripts/logic/stat_system.gd")
+	var result: Dictionary = StatSystemClass.apply_purchase(
+		upgrade_id,
+		SaveStateClass.embers(data),
+		SaveStateClass.owned_upgrades(data),
+	)
+	if result.ok:
+		data = SaveStateClass.set_embers(data, int(result.embers))
+		data = SaveStateClass.set_owned_upgrades(data, result.owned_upgrades)
+		save()
+	return result
+
+func embers() -> int:
+	return SaveStateClass.embers(data)
+
+func owned_upgrades() -> Array:
+	return SaveStateClass.owned_upgrades(data)
 
 # ── Accessors ────────────────────────────────────────────────────────────
 

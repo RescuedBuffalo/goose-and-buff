@@ -14,7 +14,13 @@ class_name InventorySystem extends RefCounted
 
 const Items := preload("res://data/items.gd")
 
+# Default slot count (the v1 size). The lodge "Extra pouch" upgrade
+# (BUF-147) bumps the active count up via set_slot_count() before
+# reset(); the HUD reads `inventory.slot_count` (instance) so the
+# strip widens to match. Class-level constant kept for back-compat
+# callers that haven't migrated to the instance variable yet.
 const SLOT_COUNT := 8
+const MAX_SLOT_COUNT := 12
 
 signal slot_changed(slot_index: int, slot: Dictionary)
 signal selected_changed(slot_index: int)
@@ -26,14 +32,24 @@ signal added_item(item_id: String, count: int)
 var slots: Array = []
 var selected_index: int = 0
 var equipped_weapon_id: String = "bare_hands"
+# Live slot count, mutable via set_slot_count() between runs. Init to
+# the v1 default so callers that don't touch it behave like before.
+var slot_count: int = SLOT_COUNT
+
+func set_slot_count(new_count: int) -> void:
+	# Clamped to [SLOT_COUNT, MAX_SLOT_COUNT]. Lodge upgrades only grow
+	# the inventory; shrinking would risk dropping items mid-run, which
+	# we don't want to model in M2. Apply BEFORE reset() at run-start so
+	# the slots array is built at the new size.
+	slot_count = clamp(new_count, SLOT_COUNT, MAX_SLOT_COUNT)
 
 func reset() -> void:
 	slots = []
-	for i in SLOT_COUNT:
+	for i in slot_count:
 		slots.append({"item_id": "", "count": 0})
 	selected_index = 0
 	equipped_weapon_id = "bare_hands"
-	for i in SLOT_COUNT:
+	for i in slot_count:
 		slot_changed.emit(i, slots[i])
 	selected_changed.emit(selected_index)
 	equipped_changed.emit(equipped_weapon_id)
@@ -48,7 +64,7 @@ func add(item_id: String, count: int) -> int:
 	var max_stack: int = Items.max_stack(item_id)
 	var remaining := count
 	# First pass: top up existing.
-	for i in SLOT_COUNT:
+	for i in slot_count:
 		if remaining <= 0: break
 		var slot: Dictionary = slots[i]
 		if slot.item_id != item_id: continue
@@ -59,7 +75,7 @@ func add(item_id: String, count: int) -> int:
 		remaining -= deposit
 		slot_changed.emit(i, slot)
 	# Second pass: claim empties.
-	for i in SLOT_COUNT:
+	for i in slot_count:
 		if remaining <= 0: break
 		var slot: Dictionary = slots[i]
 		if not slot.item_id.is_empty(): continue
@@ -77,7 +93,7 @@ func has_at_least(item_id: String, count: int) -> bool:
 	if count <= 0:
 		return true
 	var total: int = 0
-	for i in SLOT_COUNT:
+	for i in slot_count:
 		var slot: Dictionary = slots[i]
 		if slot.item_id == item_id:
 			total += int(slot.count)
@@ -94,7 +110,7 @@ func remove_item(item_id: String, count: int) -> bool:
 	if not has_at_least(item_id, count):
 		return false
 	var remaining := count
-	for i in SLOT_COUNT:
+	for i in slot_count:
 		if remaining <= 0: break
 		var slot: Dictionary = slots[i]
 		if slot.item_id != item_id: continue
@@ -161,7 +177,7 @@ func equipped_weapon() -> String:
 # ── internals ─────────────────────────────────────────────────────────
 
 func _is_valid_index(idx: int) -> bool:
-	return idx >= 0 and idx < SLOT_COUNT
+	return idx >= 0 and idx < slot_count
 
 func _set_equipped_from_item(item_id: String) -> void:
 	var item: Dictionary = Items.get_item(item_id)

@@ -1,91 +1,97 @@
 # Prototype notes — survival rebuild
 
-Phase 1 conversion from wave-defense to cozy-tactical survival on the
-isometric tile grid (Linear: BUF-131..BUF-138). Same engine, same data
-layer, same architecture rules. Card hand and phase button are gone;
-day/night, gather, build, and a hand-grain combat swing replace them.
+Phase 1 was the wave-defense → cozy-tactical-survival conversion
+(BUF-131..138). M2 is the content-depth pass: procgen world, stat
+upgrades, biome variety, seed sharing, weapon tiers (BUF-144..149).
 
 ## Run it
 
-Open `project.godot` in Godot 4.6. WASD walks the hero. Cursor sets
-facing. Left-click swings the equipped weapon (or places a placeable
-when one is selected). Hold E next to a tree / rock / bush to gather.
-1..8 selects an inventory slot; right-click clears the build preview.
+Open `project.godot` in Godot 4.6. The boot scene is the run-start
+screen — pick a totem, optionally paste a watch seed, click Start.
+WASD walks the hero. Cursor sets facing. Left-click swings (or fires
+arrows when a bow is equipped). Hold E to gather. 1..8 selects an
+inventory slot; right-click clears the build preview. F3 toggles the
+chunk debug overlay; F4 dumps the current WorldDef to `user://debug/`.
 
-## Ships
+## Ships in M2
 
-- **Day/night cycle** — DAY 60s / DUSK 5s / NIGHT 30s / DAWN 5s, 3
-  nights to victory. Lighting tints world via CanvasModulate.
-- **Inventory** — 8 slots + equipped slot. Stack semantics, hotkeys.
-- **Combat** — cone-arc swing, weapons table, cooldowns, damage flash.
-- **Gather** — hold-E pulls trees/rocks/bushes into inventory at
-  tool-affinity rate. Hand axe = 3x wood; bare hands = 1x base.
-- **Build** — ghost preview, recipe deduct, AStar update on place.
-- **World** — 25x25 hand-crafted: lodge core center, treeline north,
-  rocks east, water west, berries + open ground south. Wolves spawn
-  at the south edge during night, path to the lodge.
-- **HUD restyle** — top band: hero HP, lodge HP, "Day N — gather and
-  prepare" / "Night N — hold the line", phase countdown. Bottom band:
-  inventory grid + equipped slot. End screens show stats.
+- **Procgen world (BUF-144)** — `scripts/logic/world_generator.gd`
+  stamps 14 chunk templates (5×5 tiles each) onto a 5×5 chunk grid.
+  Lodge plaza fixed at the center; spawn road across the south. Same
+  seed → same world. Generation completes in <10 ms.
+- **Stat upgrades (BUF-147)** — `data/upgrades.gd` + `scripts/logic/
+  stat_system.gd`. 24 upgrades across Buffalo / Goose / Fox / Shared
+  tabs, three tiers deep with prereqs. Flat-then-percent composition.
+  Caching: `effective_stats` recomputes only when owned set changes.
+- **Seed sharing + debug (BUF-145)** — run-start screen takes an
+  optional watch seed (8-char hex). Run-end screen shows the seed +
+  Copy button. F3 overlay highlights chunk borders + climate; F4 dumps
+  the WorldDef.
+- **Lodge tree UI (BUF-148)** — per-hero tabs, owned/available/locked
+  states distinct, prereq lines drawn dashed. "Light this ember?"
+  confirm dialog before spending.
+- **Upgrade pool + weapons (BUF-149)** — iron axe, steel axe, long
+  spear, hunter's bow + arrows. Bow ranged combat: projectile path,
+  ammo from inventory, single new branch in the swing resolver. Earn
+  rate produces ~5–10 embers per typical run via `data/run_economy.gd`.
+- **Biome variety + cold deepening (BUF-146)** — three climate variants
+  (temperate / frosted / frozen) at gen-time; canvas modulate adds an
+  ice-blue overlay that strengthens across days 1→3. Day banners use
+  the locked seasonal language ("Day 2 — the long cold, gather and
+  prepare").
 
-## Pure-logic changes during the conversion
+## Calls I made on my own
 
-`wave_director.gd` was the load-bearing edit. The PREP / DEBRIEF
-internal timers and auto-round-advance logic were removed; new
-`start_wave(round)` / `end_wave()` entry points let DayNightCycle
-drive transitions externally. Spawn-queue mechanics and the
-composition data are unchanged. `card_system.gd`, `economy.gd`,
-`ability_resolver.gd` all preserved verbatim — dormant in MVP.
-
-## Stubbed / out of MVP scope
-
-- Wolves don't attack walls (path around them). Walls function as
-  reroutes only. Hero abilities (Q-bound Charge / Dive / Snatch) not
-  wired — `AbilityResolver` intact for the follow-up.
-- Coin economy + production node still in code; HUD doesn't surface
-  coins anymore (demoted per brief).
-- Inventory overflow drops to a `push_warning`, not a world pickup.
-- Owl + bear archetypes designed in `data/enemies.gd` (Bruiser etc)
-  but only the four wolf variants — `FrostWolf`, `DireWolf`,
-  `FrostStalker`, `AlphaWolf` — ship in waves today.
-
-## Design calls I made on my own
-
-- WASD walks **screen-cardinal** (Hades / Stardew). Iso tile-axis
-  movement felt squirrelly in playtest — straight-up screen up matches
-  player intuition. Tile coords update as the hero crosses boundaries.
-- Hero faces **the cursor at all times** (cleanest read for the swing
-  arc). Last-movement-direction fallback was dropped — the cursor
-  always provides a vector unless it's literally on the hero.
-- Hero death **ends the run**. No respawn / down state. Survival MVP
-  needs the stakes to land.
-- Starter inventory: hand axe (slot 0) + 4 walls (slot 1). Lets day 1
-  feel productive without a tool-discovery loop.
+- **World generates ONCE per run on day-1 weights.** The brief gave
+  three per-day distributions; per-day regen would wipe placed walls
+  and gathered resources mid-run. Instead, the world has day-1
+  variety and the lighting adapter ramps cold-tint each successive
+  night. Per-day chunk regen is a parking-lot for M3 if the visual
+  shift doesn't land.
+- **Chunk borders are walkable by design.** No T/R/W on the outer
+  ring of any non-center chunk. AStar reachability from spawn to lodge
+  is therefore guaranteed without a validate-and-retry loop.
+- **`inventory_slots` is wired end-to-end.** `InventorySystem.slot_count`
+  is mutable via `set_slot_count()`; main applies the upgrade before
+  reset; the HUD reads the live count and widens the strip. Slots 9+
+  are storage-only (only hotbar_1..hotbar_8 are registered actions).
+- **First-pass ember earn rates.** 6 victory + 1 per night survived on
+  defeat + small stretch bonuses. Real numbers need playtest data.
+- **Climate cold-tint amounts** (lighting_adapter.gd) are picked by
+  eye, not from design tokens. Real values when art lands.
 
 ## Open questions for Aidan
 
-- **What does the lodge core do besides die at HP 0?** Passive
-  production? Heal aura? Currently inert except as a damage target.
-- **Wave intensity scaling.** BUF-114 broke the three nights into named
-  archetypes — Night 1 = PROBE (6 FrostWolves), Night 2 = RUSH (12
-  DireWolves) or SKIRMISH (4 FrostWolves + 5 FrostStalkers, 50/50
-  roll), Night 3 = SIEGE (6 FrostWolves + 3 DireWolves + 1 AlphaWolf
-  mini-boss). Counts and intervals in `data/waves.gd` are still a
-  first-pass guess — needs a real playtest pass.
-- **Pickup-on-floor for inventory overflow.** Brief says drop a
-  `world_pickup`; deferred to a follow-up — currently logs and drops.
-- **Wolves vs walls.** Walls reroute; should they also take damage?
-  If yes, walls become a real economy of wood, not a one-time pour.
+- **Ember earn curve.** Are 5–10 embers/run the right pace, or should
+  victory feel more rewarding to push harder builds?
+- **Per-day chunk regen vs. overlay.** The overlay reads cold-deepening
+  cleanly; if you want sharper biome shift between days, regen is the
+  honest answer.
+- **Bow + spear balance.** Ranged is generous (14 px hit radius).
+  Tighten on playtest.
+- **Goose/Fox ability cooldown stat is wired into effective_stats but
+  no abilities are bound yet** — once Q-bound abilities ship, the
+  cooldown stat will land.
 
-## 30-second playtest impression
+## 2-minute playtest impression
 
-It reads as survival, not wave-defense in a tile costume. Walking
-into the world to find trees, watching the light shift toward dusk,
-hearing the night start — those are different shapes than "press
-button to begin wave." The lodge-center framing is doing real work.
+The run-start screen lands the seasonal frame immediately — picking a
+totem and committing a watch seed feels like a decision. The procgen
+world reads as varied without being chaotic; chunks are large enough
+that the player builds spatial memory inside a single run. The stat
+tree is short but legible; spending the first ember is a clear
+moment ("more HP this watch"). Bow ranged combat changes the pace —
+holding a tile against wolves now has both reach and melee shapes.
 
-What's still wave-defense-shaped: the lodge HP bar dominates as the
-primary failure state, and night raids feel like waves more than
-ambient threats. Whether that becomes "survival" or stays "tile
-wave-defense" depends on what M2 layers on — variable threats, hero
-abilities, lodge upgrades. The shape now supports either.
+The cold-deepening across days reads on a quick comparison (day 1 vs
+day 3), but in flow the shift is subtle. Real biome tile art will do
+more of the work than the canvas tint alone.
+
+## Stubbed / out of MVP scope
+
+- 3-player multiplayer, real biome tile art, real upgrade icons,
+  sorcerer-demon enemies, exploration / fog-of-war, weather, respec,
+  achievements, daily seed challenges, server telemetry, sound.
+- Hero abilities (Q-bound charge / dive / snatch). The cooldown stat
+  is plumbed via `GameState.signature_cooldown_max`; wiring is
+  BUF-150-ish.

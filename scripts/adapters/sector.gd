@@ -1,35 +1,45 @@
 extends Node2D
 ##
 ## Sector adapter — owns the TileMapLayer, the procedurally-built
-## TileSet, and the AStarGrid2D pathfinding graph. The survival rebuild
-## widens the grid to 25x25 and paints biome tiles (grass, treeline,
-## rocks, water, sand) so the world reads as more than a flat arena.
+## TileSet, and the AStarGrid2D pathfinding graph. After M2 (BUF-144),
+## the sector is purely an adapter: it consumes a WorldDef from the
+## world generator and paints + builds AStar from that.
 ##
 ## Resource nodes (trees / rocks / bushes) are NOT tiles — they are
-## Node2D children placed on top of grass tiles by the world adapter.
-## The sector exposes block_tile / unblock_tile so those adapters can
+## Node2D children placed on top by the world_builder adapter. The
+## sector exposes block_tile / unblock_tile so those adapters can
 ## hook into AStar without reaching across layers.
 ##
-## Tile coords come from data/sectors.gd. The atlas is procedural so the
-## prototype runs without imported tile artwork.
+## Tile coords come from data/sectors.gd. The atlas is procedural so
+## the prototype runs without imported tile artwork; tile colors per
+## (biome, climate) come from a token-driven palette so design adjusts
+## the look without editor work.
 
 const Sectors := preload("res://data/sectors.gd")
+const WorldDefClass := preload("res://data/world_def.gd")
 
 signal core_destroyed()
 signal core_hp_changed(current: float, maximum: float)
 
-# Atlas coordinates — one row of tiles in the procedural texture.
-const ATLAS_GRASS := Vector2i(0, 0)
-const ATLAS_LODGE := Vector2i(1, 0)
-const ATLAS_ENTRY := Vector2i(2, 0)
-const ATLAS_WATER := Vector2i(3, 0)
-const ATLAS_SAND := Vector2i(4, 0)
-const ATLAS_ROCK := Vector2i(5, 0)
-const ATLAS_LEAF := Vector2i(6, 0)
+# Atlas coordinates — one row of (biome × climate) variants in the
+# procedural texture. Climate band offset on the y-axis lets the same
+# biome tile shift between temperate/frosted/frozen tinting without a
+# per-tile shader.
+const BIOMES_IN_ORDER := [
+	WorldDefClass.BIOME_GRASS,
+	WorldDefClass.BIOME_LODGE,
+	WorldDefClass.BIOME_ENTRY,
+	WorldDefClass.BIOME_WATER,
+	WorldDefClass.BIOME_SAND,
+	WorldDefClass.BIOME_TREES,
+	WorldDefClass.BIOME_ROCKS,
+	WorldDefClass.BIOME_BERRIES,
+]
 
-const ATLAS_KEYS := [
-	ATLAS_GRASS, ATLAS_LODGE, ATLAS_ENTRY,
-	ATLAS_WATER, ATLAS_SAND, ATLAS_ROCK, ATLAS_LEAF,
+const CLIMATES_IN_ORDER := [
+	WorldDefClass.CLIMATE_TEMPERATE,
+	WorldDefClass.CLIMATE_FROSTED,
+	WorldDefClass.CLIMATE_FROZEN,
 ]
 
 const SOURCE_ID := 0
@@ -42,6 +52,10 @@ var _tile_layer: TileMapLayer
 var _build_highlight_tile: Vector2i = Vector2i(-1, -1)
 var _build_highlight_valid: bool = true
 
+# Cached world def from the generator. Stored so debug overlays and
+# downstream lookups can read climate/biome without re-querying.
+var world_def: Dictionary = {}
+
 func _ready() -> void:
 	add_to_group("sector")
 	# The world is now larger than the screen — anchor the TileMap at
@@ -51,11 +65,6 @@ func _ready() -> void:
 	_tile_layer.tile_set = _build_tile_set(hero_id)
 	_tile_layer.y_sort_enabled = true
 	add_child(_tile_layer)
-	_paint_floor()
-	_build_astar()
-	GameState.core_hp = core_hp
-	GameState.core_hp_max = core_hp_max
-	queue_redraw()
 
 # ── Identity ──────────────────────────────────────────────────────────────
 func set_hero(new_hero_id: String) -> void:
@@ -64,7 +73,20 @@ func set_hero(new_hero_id: String) -> void:
 	hero_id = new_hero_id
 	if _tile_layer != null:
 		_tile_layer.tile_set = _build_tile_set(hero_id)
-		_paint_floor()
+		if not world_def.is_empty():
+			_paint_floor_from_world(world_def)
+	queue_redraw()
+
+# ── World def adoption ──────────────────────────────────────────────────
+##
+## Called by main.gd after world_generator.generate() runs. Re-paints
+## the tile layer and rebuilds AStar from the def's tile grid + lodge
+## tile + water tiles.
+
+func adopt_world(def: Dictionary) -> void:
+	world_def = def
+	_paint_floor_from_world(def)
+	_build_astar_from_world(def)
 	queue_redraw()
 
 # ── Tile coordinate API ───────────────────────────────────────────────────
@@ -154,7 +176,12 @@ func damage_core(amount: float) -> void:
 	if core_hp <= 0.0:
 		core_destroyed.emit()
 
-func reset_core() -> void:
+func reset_core(max_hp: float = -1.0) -> void:
+	# Optional max_hp lets stat-system upgrades scale lodge HP per run
+	# without the sector knowing about the upgrade pool. -1 means "use
+	# the existing max" (back-compat default).
+	if max_hp > 0.0:
+		core_hp_max = max_hp
 	core_hp = core_hp_max
 	GameState.core_hp = core_hp
 	GameState.core_hp_max = core_hp_max
@@ -213,37 +240,74 @@ func _build_tile_set(hero: String) -> TileSet:
 	var atlas := TileSetAtlasSource.new()
 	atlas.texture = _build_atlas_texture(hero)
 	atlas.texture_region_size = Sectors.TILE_PIXELS
-	for k in ATLAS_KEYS:
-		atlas.create_tile(k)
+	for cy in CLIMATES_IN_ORDER.size():
+		for bx in BIOMES_IN_ORDER.size():
+			atlas.create_tile(Vector2i(bx, cy))
 	ts.add_source(atlas, SOURCE_ID)
 	return ts
 
 func _build_atlas_texture(hero: String) -> Texture2D:
 	var tw: int = Sectors.TILE_PIXELS.x
 	var th: int = Sectors.TILE_PIXELS.y
-	var tile_count: int = ATLAS_KEYS.size()
-	var img := Image.create(tw * tile_count, th, false, Image.FORMAT_RGBA8)
+	var biome_count: int = BIOMES_IN_ORDER.size()
+	var climate_count: int = CLIMATES_IN_ORDER.size()
+	var img := Image.create(tw * biome_count, th * climate_count, false, Image.FORMAT_RGBA8)
 	img.fill(Color(0, 0, 0, 0))
-	# Color recipes per atlas index — kept warm so the lit-by-lantern
-	# palette holds up. Neutral-leaning tones for treeline/rocks so the
-	# Buffalo floor still reads as the dominant ground.
-	var palette := {
-		ATLAS_GRASS: [Color8(94, 110, 76), Color8(60, 70, 48)],
-		ATLAS_LODGE: [DesignTokens.core_color(hero), DesignTokens.NIGHT_0],
-		ATLAS_ENTRY: [Color(DesignTokens.HP_CRIT.r, DesignTokens.HP_CRIT.g, DesignTokens.HP_CRIT.b, 0.55),
-				DesignTokens.NIGHT_0],
-		ATLAS_WATER: [Color8(54, 88, 120), Color8(28, 52, 80)],
-		ATLAS_SAND:  [Color8(180, 156, 110), Color8(120, 96, 64)],
-		ATLAS_ROCK:  [Color8(118, 110, 100), Color8(60, 56, 50)],
-		ATLAS_LEAF:  [Color8(72, 96, 64), Color8(40, 56, 40)],
-	}
-	for i in tile_count:
-		var key: Vector2i = ATLAS_KEYS[i]
-		var pair = palette.get(key, [DesignTokens.NIGHT_2, DesignTokens.NIGHT_0])
-		_paint_diamond(img, i * tw, tw, th, pair[0], pair[1])
+	for cy in climate_count:
+		var climate: String = CLIMATES_IN_ORDER[cy]
+		for bx in biome_count:
+			var biome: String = BIOMES_IN_ORDER[bx]
+			var pair: Array = _palette_for(biome, climate, hero)
+			_paint_diamond(img, bx * tw, cy * th, tw, th, pair[0], pair[1])
 	return ImageTexture.create_from_image(img)
 
-func _paint_diamond(img: Image, x_off: int, tw: int, th: int, fill: Color, edge: Color) -> void:
+func _palette_for(biome: String, climate: String, hero: String) -> Array:
+	# Token-driven biome × climate palette. Temperate is the canonical
+	# warm palette; frosted blends toward pale-blue; frozen pushes
+	# further into ice-blue. Lodge / entry / water tiles ignore climate
+	# (they read as fixed beats on the map).
+	match biome:
+		WorldDefClass.BIOME_LODGE:
+			return [DesignTokens.core_color(hero), DesignTokens.NIGHT_0]
+		WorldDefClass.BIOME_ENTRY:
+			return [
+				Color(DesignTokens.HP_CRIT.r, DesignTokens.HP_CRIT.g, DesignTokens.HP_CRIT.b, 0.55),
+				DesignTokens.NIGHT_0,
+			]
+		WorldDefClass.BIOME_WATER:
+			return _climate_shift([Color8(54, 88, 120), Color8(28, 52, 80)], climate)
+		WorldDefClass.BIOME_SAND:
+			return _climate_shift([Color8(180, 156, 110), Color8(120, 96, 64)], climate)
+		WorldDefClass.BIOME_TREES:
+			return _climate_shift([Color8(72, 96, 64), Color8(40, 56, 40)], climate)
+		WorldDefClass.BIOME_ROCKS:
+			return _climate_shift([Color8(118, 110, 100), Color8(60, 56, 50)], climate)
+		WorldDefClass.BIOME_BERRIES:
+			return _climate_shift([Color8(94, 110, 76), Color8(60, 70, 48)], climate)
+		_:  # grass + fallback
+			return _climate_shift([Color8(94, 110, 76), Color8(60, 70, 48)], climate)
+
+func _climate_shift(pair: Array, climate: String) -> Array:
+	# Linear blend toward a cool tint. Frosted is a gentle shift; frozen
+	# is a strong shift — the player should feel the cold deepen across
+	# the world even before art lands. Numbers picked by eye, no design
+	# token at this shade yet (BUF-146 calls them placeholder).
+	var fill: Color = pair[0]
+	var edge: Color = pair[1]
+	var frost_tint := Color(0.74, 0.84, 0.96, 1.0)
+	var freeze_tint := Color(0.66, 0.86, 1.00, 1.0)
+	match climate:
+		WorldDefClass.CLIMATE_FROSTED:
+			fill = fill.lerp(frost_tint, 0.22)
+			edge = edge.lerp(frost_tint, 0.18)
+		WorldDefClass.CLIMATE_FROZEN:
+			fill = fill.lerp(freeze_tint, 0.42)
+			edge = edge.lerp(freeze_tint, 0.32)
+		_:
+			pass
+	return [fill, edge]
+
+func _paint_diamond(img: Image, x_off: int, y_off: int, tw: int, th: int, fill: Color, edge: Color) -> void:
 	var hx := float(tw) * 0.5
 	var hy := float(th) * 0.5
 	for py in th:
@@ -253,53 +317,37 @@ func _paint_diamond(img: Image, x_off: int, tw: int, th: int, fill: Color, edge:
 			var sum := dx + dy
 			if sum <= 1.0:
 				if sum >= 0.92:
-					img.set_pixel(x_off + px, py, edge)
+					img.set_pixel(x_off + px, y_off + py, edge)
 				else:
-					img.set_pixel(x_off + px, py, fill)
+					img.set_pixel(x_off + px, y_off + py, fill)
 
-func _paint_floor() -> void:
+func _paint_floor_from_world(def: Dictionary) -> void:
+	if _tile_layer == null:
+		return
 	_tile_layer.clear()
-	for tile in Sectors.all_floor_tiles():
-		var atlas_coord: Vector2i = _atlas_for_tile(tile)
-		_tile_layer.set_cell(tile, SOURCE_ID, atlas_coord)
+	var tiles: Array = def.get("tiles", [])
+	for ty in tiles.size():
+		var row: Array = tiles[ty]
+		for tx in row.size():
+			var cell: Dictionary = row[tx]
+			var atlas_coord: Vector2i = _atlas_coord_for(String(cell.get("biome", "grass")), String(cell.get("climate", "temperate")))
+			_tile_layer.set_cell(Vector2i(tx, ty), SOURCE_ID, atlas_coord)
 
-func _atlas_for_tile(tile: Vector2i) -> Vector2i:
-	# Order: lodge → entry → water → rocks → trees (leaf) → grass.
-	# Sand/beach is reserved for adjacency to water.
-	if tile == Sectors.LODGE_TILE:
-		return ATLAS_LODGE
-	if Sectors.ENEMY_ENTRY_TILES.has(tile):
-		return ATLAS_ENTRY
-	var biome: String = Sectors.biome_at(tile)
-	match biome:
-		"water": return ATLAS_WATER
-		"rocks": return ATLAS_ROCK
-		"trees": return ATLAS_LEAF
-		"berries": return ATLAS_GRASS  # bushes sit on grass
-		"open": return ATLAS_GRASS
-		_:
-			# Sand band along the water edge for legibility.
-			if _is_water_adjacent(tile):
-				return ATLAS_SAND
-			return ATLAS_GRASS
-
-func _is_water_adjacent(tile: Vector2i) -> bool:
-	for dx in [-1, 0, 1]:
-		for dy in [-1, 0, 1]:
-			if dx == 0 and dy == 0: continue
-			var probe := Vector2i(tile.x + dx, tile.y + dy)
-			if Sectors.biome_at(probe) == "water":
-				return true
-	return false
+func _atlas_coord_for(biome: String, climate: String) -> Vector2i:
+	var bx: int = max(0, BIOMES_IN_ORDER.find(biome))
+	var cy: int = max(0, CLIMATES_IN_ORDER.find(climate))
+	return Vector2i(bx, cy)
 
 # ── AStarGrid2D ──────────────────────────────────────────────────────────
-func rebuild_astar() -> void:
+func rebuild_astar_from_world() -> void:
 	# Public re-entry point used on run restart, after every placeable
 	# and resource node has been queue_freed. Replays the initial
-	# blocking pattern (lodge core + water tiles) on a fresh grid.
-	_build_astar()
+	# blocking pattern (lodge core + water tiles) on a fresh grid using
+	# the current world def.
+	if not world_def.is_empty():
+		_build_astar_from_world(world_def)
 
-func _build_astar() -> void:
+func _build_astar_from_world(def: Dictionary) -> void:
 	astar = AStarGrid2D.new()
 	astar.region = Rect2i(Vector2i.ZERO, Sectors.TILE_GRID_SIZE)
 	astar.cell_size = Vector2(1, 1)
@@ -307,7 +355,13 @@ func _build_astar() -> void:
 	astar.update()
 	# Block the lodge core itself.
 	astar.set_point_solid(Sectors.LODGE_TILE, true)
-	# Block water tiles — they're terrain obstacles by definition.
-	for tile in Sectors.all_floor_tiles():
-		if Sectors.biome_at(tile) == "water":
-			astar.set_point_solid(tile, true)
+	# Block water tiles from the world def — they're terrain obstacles
+	# by definition. Resource-node blocking happens later, when the
+	# resource node Node2D is placed (it calls block_tile() itself).
+	var tiles: Array = def.get("tiles", [])
+	for ty in tiles.size():
+		var row: Array = tiles[ty]
+		for tx in row.size():
+			var cell: Dictionary = row[tx]
+			if WorldDefClass.is_blocking_biome(String(cell.get("biome", ""))):
+				astar.set_point_solid(Vector2i(tx, ty), true)

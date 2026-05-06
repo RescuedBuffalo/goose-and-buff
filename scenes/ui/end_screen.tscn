@@ -43,5 +43,19 @@ horizontal_alignment = 1
 text = ""
 horizontal_alignment = 1
 
+[node name="EmbersEarned" type="Label" parent="Center/Panel/V"]
+text = ""
+horizontal_alignment = 1
+
+[node name="SeedRow" type="HBoxContainer" parent="Center/Panel/V"]
+alignment = 1
+
+[node name="SeedLabel" type="Label" parent="Center/Panel/V/SeedRow"]
+text = ""
+
+[node name="CopySeed" type="Button" parent="Center/Panel/V/SeedRow"]
+text = "Copy seed"
+custom_minimum_size = Vector2(120, 32)
+
 [node name="RestartButton" type="Button" parent="Center/Panel/V"]
 text = "Run again"

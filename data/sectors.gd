@@ -1,16 +1,13 @@
 class_name SectorsData extends RefCounted
 ##
-## Sector geometry for the survival rebuild. Coordinates are tile-space
-## Vector2i. Adapters convert tile→pixel via the TileMapLayer's map_to_local.
+## Sector geometry. Coordinates are tile-space Vector2i. Adapters
+## convert tile→pixel via the TileMapLayer's map_to_local.
 ##
-## The Phase 1 wave-defense build used a 16x12 grid with the spawn pad on
-## the low-x side and the core on the high-x side. The survival rebuild
-## widens to 25x25 and recenters the lodge core, with terrain biomes
-## seeded around it: treeline north, rocks east, water west, open ground
-## south where night raids enter.
-##
-## Hero / enemy pathfinding treats every floor tile as walkable except
-## where blocked by the lodge core, water tiles, or placed obstacles.
+## After M2 (BUF-144), terrain is no longer hand-crafted here — the
+## procgen world generator (scripts/logic/world_generator.gd) produces
+## a WorldDef that the sector adapter consumes. This file keeps only
+## the *fixed* geometry: grid size, tile pixel ratio, lodge/spawn/entry
+## tiles, hero palette keys.
 
 # ── Tile grid geometry ────────────────────────────────────────────────────
 const TILE_GRID_SIZE := Vector2i(25, 25)
@@ -21,9 +18,7 @@ const TILE_PIXELS := Vector2i(64, 32)  # standard isometric ratio (2:1)
 const LODGE_TILE := Vector2i(12, 12)
 const SPAWN_TILE := Vector2i(12, 14)
 
-# Backwards-compat alias — the old prototype called this CORE_TILE; some
-# adapters still read it during the transition. Will be cleaned up once
-# every consumer is on LODGE_TILE.
+# Backwards-compat alias — the old prototype called this CORE_TILE.
 const CORE_TILE := LODGE_TILE
 
 # Default tile the (deprecated) production node card snapped to when the
@@ -42,33 +37,17 @@ const ENEMY_ENTRY_TILES: Array[Vector2i] = [
 ]
 
 # Lodge core HP — same value as the wave-defense build so balance carries
-# while the survival shape is being tested.
+# while the survival shape is being tested. (M2 stat upgrades modulate
+# this via the lodge_hp_max stat.)
 const CORE_HEALTH := 1000.0
 
 # Camera frame bounds in tile space — keeps the camera from showing void
 # outside the world. The adapter clamps to (margin, grid - margin).
 const CAMERA_MARGIN_TILES := Vector2i(6, 4)
 
-# ── Terrain biomes (seeded resource zones) ────────────────────────────────
-##
-## Biomes are descriptive: the world adapter reads these zones to decide
-## where to scatter trees, rocks, bushes, and water. They are NOT a
-## per-tile floor map — every tile is walkable grass by default; obstacles
-## live as Node2D children placed on top.
-##
-## Zones overlap intentionally — a treeline can run alongside a rock
-## outcrop. The adapter resolves overlaps by precedence (water > rocks >
-## trees > bushes > clear) so a water tile never has a tree on it.
-
-const BIOME_TREELINE := Rect2i(2, 1, 21, 5)         # north, wide band
-const BIOME_ROCKS := Rect2i(20, 6, 5, 12)            # east outcrop
-const BIOME_WATER := Rect2i(0, 6, 4, 12)             # west water cluster
-const BIOME_BERRIES := Rect2i(6, 18, 13, 4)          # south-of-lodge meadow
-const BIOME_OPEN := Rect2i(5, 21, 15, 4)             # south spawn-ground
-
 # Tiles that must never have any obstacle on them — the lodge tile itself
 # and its 8-neighborhood, plus the hero's spawn tile and a small breathing
-# room around it. The world seeder consults this set before placing
+# room around it. The world generator consults this set before placing
 # resource nodes.
 const PROTECTED_RADIUS := 2  # Chebyshev distance from LODGE_TILE
 
@@ -103,10 +82,9 @@ static func is_tile_in_grid(tile: Vector2i) -> bool:
 		and tile.y >= 0 and tile.y < TILE_GRID_SIZE.y)
 
 static func is_tile_blocked(tile: Vector2i) -> bool:
-	# Lodge core is the only fixed obstacle at geometry level. Water and
-	# resource-node blocking are decided by the world adapter at seed-time
-	# via AStar.set_point_solid; geometry treats them as terrain hints, not
-	# rules.
+	# Lodge core is the only fixed obstacle at geometry level. Resource
+	# blocking and water tiles are decided by the world generator and
+	# applied via AStar.set_point_solid in the sector adapter.
 	return tile == LODGE_TILE
 
 static func is_tile_protected(tile: Vector2i) -> bool:
@@ -121,21 +99,3 @@ static func all_floor_tiles() -> Array[Vector2i]:
 		for y in TILE_GRID_SIZE.y:
 			out.append(Vector2i(x, y))
 	return out
-
-static func is_in_rect(tile: Vector2i, rect: Rect2i) -> bool:
-	return rect.has_point(tile)
-
-static func biome_at(tile: Vector2i) -> String:
-	# Precedence: water > rocks > trees > berries > open. Adapter uses
-	# this to pick a tile color and decide what (if anything) to place.
-	if is_in_rect(tile, BIOME_WATER):
-		return "water"
-	if is_in_rect(tile, BIOME_ROCKS):
-		return "rocks"
-	if is_in_rect(tile, BIOME_TREELINE):
-		return "trees"
-	if is_in_rect(tile, BIOME_BERRIES):
-		return "berries"
-	if is_in_rect(tile, BIOME_OPEN):
-		return "open"
-	return "grass"

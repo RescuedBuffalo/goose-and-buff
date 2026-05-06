@@ -9,6 +9,8 @@ class_name SaveState extends RefCounted
 ##     "unlocks": Dictionary,           # reserved (BUF-113 re-port + future)
 ##     "lodge_artifacts": Array[ArtifactRecord], # append-only across runs
 ##     "current_variants": Dictionary,  # reserved for BUF-129 (hero_id → variant_id)
+##     "embers": int,                   # M2 meta-currency (BUF-147)
+##     "owned_upgrades": Array,         # M2 lodge upgrade ids (BUF-147)
 ##   }
 ##
 ## RunRecord shape:
@@ -20,6 +22,7 @@ class_name SaveState extends RefCounted
 ##     "resources_gathered": int,
 ##     "enemies_felled": int,
 ##     "duration_seconds": float,
+##     "seed": int,                     # M2 (BUF-145) — run's procgen seed
 ##   }
 ##
 ## ArtifactRecord shape:
@@ -32,7 +35,7 @@ class_name SaveState extends RefCounted
 ## Pure: no FileAccess, no scene tree, no autoloads. The save_io adapter
 ## owns the JSON file; this module owns the shape.
 
-const SCHEMA_VERSION := 1
+const SCHEMA_VERSION := 2
 const MAX_RUNS := 10
 
 const OUTCOME_VICTORY := "victory"
@@ -47,6 +50,8 @@ static func empty() -> Dictionary:
 		"unlocks": {},
 		"lodge_artifacts": [],
 		"current_variants": {},
+		"embers": 0,
+		"owned_upgrades": [],
 	}
 
 static func make_artifact_record(
@@ -68,6 +73,7 @@ static func make_run_record(
 	enemies_felled: int,
 	duration_seconds: float,
 	ended_at_epoch: int,
+	seed: int = 0,
 ) -> Dictionary:
 	return {
 		"ended_at": ended_at_epoch,
@@ -77,6 +83,7 @@ static func make_run_record(
 		"resources_gathered": resources_gathered,
 		"enemies_felled": enemies_felled,
 		"duration_seconds": duration_seconds,
+		"seed": seed,
 	}
 
 # ── Mutators (pure: return a new state, do not mutate the input) ────────
@@ -103,6 +110,35 @@ static func append_artifact(state: Dictionary, record: Dictionary) -> Dictionary
 	out["lodge_artifacts"] = artifacts
 	out["version"] = SCHEMA_VERSION
 	return out
+
+# ── M2: embers + upgrades (BUF-147) ──────────────────────────────────────
+
+static func add_embers(state: Dictionary, amount: int) -> Dictionary:
+	var out := state.duplicate(true)
+	out["embers"] = int(out.get("embers", 0)) + amount
+	return out
+
+static func set_embers(state: Dictionary, amount: int) -> Dictionary:
+	var out := state.duplicate(true)
+	out["embers"] = max(0, amount)
+	return out
+
+static func set_owned_upgrades(state: Dictionary, ids: Array) -> Dictionary:
+	var out := state.duplicate(true)
+	# Defensive copy + dedupe — array contents are persisted to disk.
+	var clean: Array = []
+	for u in ids:
+		var s: String = String(u)
+		if not clean.has(s):
+			clean.append(s)
+	out["owned_upgrades"] = clean
+	return out
+
+static func embers(state: Dictionary) -> int:
+	return int(state.get("embers", 0))
+
+static func owned_upgrades(state: Dictionary) -> Array:
+	return state.get("owned_upgrades", [])
 
 # ── Accessors ────────────────────────────────────────────────────────────
 
@@ -178,6 +214,23 @@ static func coerce(loaded: Dictionary) -> Dictionary:
 		base["lodge_artifacts"] = clean_artifacts
 	if typeof(base["current_variants"]) != TYPE_DICTIONARY:
 		base["current_variants"] = {}
+	# M2: embers + owned_upgrades. Older v1 saves don't have these — fill
+	# defaults so a player who shipped on v1 keeps their run history but
+	# starts the M2 progression at zero.
+	if typeof(base.get("embers", null)) != TYPE_INT and typeof(base.get("embers", null)) != TYPE_FLOAT:
+		base["embers"] = 0
+	else:
+		base["embers"] = int(base["embers"])
+	if typeof(base.get("owned_upgrades", null)) != TYPE_ARRAY:
+		base["owned_upgrades"] = []
+	else:
+		# Coerce array elements to strings so a save written by an older
+		# schema with malformed entries still loads cleanly.
+		var clean: Array = []
+		for u in base["owned_upgrades"]:
+			if typeof(u) == TYPE_STRING:
+				clean.append(u)
+		base["owned_upgrades"] = clean
 	base["version"] = SCHEMA_VERSION
 	return base
 
@@ -196,6 +249,8 @@ static func _coerce_run(r: Dictionary) -> Dictionary:
 	# Fill any missing per-run fields with safe defaults. A run record
 	# read back from disk through JSON.parse_string can have ints come
 	# through as floats; cast back so consumers see the types they expect.
+	# `seed` is M2-new (BUF-145) — older saves default to 0, which the
+	# lodge UI treats as "no seed recorded" and hides the seed row.
 	return {
 		"ended_at": int(r.get("ended_at", 0)),
 		"outcome": String(r.get("outcome", OUTCOME_DEFEAT)),
@@ -204,4 +259,5 @@ static func _coerce_run(r: Dictionary) -> Dictionary:
 		"resources_gathered": int(r.get("resources_gathered", 0)),
 		"enemies_felled": int(r.get("enemies_felled", 0)),
 		"duration_seconds": float(r.get("duration_seconds", 0.0)),
+		"seed": int(r.get("seed", 0)),
 	}
