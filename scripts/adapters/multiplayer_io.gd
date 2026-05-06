@@ -206,6 +206,14 @@ func _rpc_run_started(run_seed: int, assignments: Dictionary, slots: Dictionary)
 	if hero_assignments.has(local_peer_id):
 		local_hero_id = String(hero_assignments[local_peer_id])
 	GameState.set_run_config(run_seed, local_hero_id)
+	# BUF-129: each peer rolls a fresh variant for their own hero so MP
+	# runs rotate the same way solo does. The lobby/MP path skips
+	# run_start.gd, so without this call a player who already had a
+	# variant saved would keep that same look every multiplayer watch.
+	# Variants are local-only (cosmetic-only per the ticket) — no
+	# replication needed; each peer tints its own sprite.
+	if not local_hero_id.is_empty():
+		SaveIo.assign_variant_for_run(local_hero_id)
 	run_started.emit(run_seed, hero_assignments)
 
 @rpc("authority", "reliable", "call_local")

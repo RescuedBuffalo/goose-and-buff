@@ -55,6 +55,18 @@ func _ready() -> void:
 
 func _on_pick(hero_id: String) -> void:
 	_selected_hero = hero_id
+	# BUF-129: roll a fresh variant for THIS hero on pick, before the
+	# swatch repaints. Earlier we deferred rolling to _on_start, but
+	# assign_variant_for_run excludes the current variant from the pool
+	# (rotation guarantee), which meant the swatch the player saw on the
+	# button described the previous variant while the in-run sprite
+	# tinted with a *different* one. Pre-rolling here makes the swatch
+	# truthful: what you see is what you get.
+	#
+	# Rapid hero-switching just rolls more silent variants, which is
+	# still consistent with "no UI announcement".
+	SaveIo.assign_variant_for_run(hero_id)
+	_attach_variant_swatches()
 	_refresh_buttons()
 
 func _refresh_buttons() -> void:
@@ -72,11 +84,9 @@ func _refresh_buttons() -> void:
 func _on_start() -> void:
 	if _selected_hero.is_empty():
 		return
-	# BUF-129: roll a fresh variant for the picked hero now — this is the
-	# "new campaign begins" moment. Successive runs of the same hero
-	# silently rotate looks. Other heroes' variants are left alone so the
-	# select-screen swatches stay stable across un-picked totems.
-	SaveIo.assign_variant_for_run(_selected_hero)
+	# Variant was rolled on hero pick (so the swatch matches the in-run
+	# look). Nothing else to do for variants here — main.gd will read it
+	# via SaveIo.current_variant when the hero adapter loads its sprite.
 	var seed_text: String = _seed_input.text
 	var seed_int: int = WorldGenerator.string_to_seed(seed_text)
 	if seed_int == 0:
