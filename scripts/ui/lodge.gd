@@ -17,6 +17,7 @@ extends Control
 const SaveStateClass := preload("res://scripts/logic/save_state.gd")
 const ArtifactsData := preload("res://data/lodge_artifacts.gd")
 const UpgradeTreeScript := preload("res://scripts/ui/upgrade_tree.gd")
+const WorldGenerator := preload("res://scripts/logic/world_generator.gd")
 
 const RUN_START_SCENE_PATH := "res://scenes/ui/run_start.tscn"
 
@@ -183,12 +184,21 @@ func _format_stats(r: Dictionary) -> String:
 	# Tabular numerals — single line, separator middots match the existing
 	# end-screen voice. "Nights" framing kept since the verb tense ("we
 	# survived") tells the player how to read it.
-	return "Nights survived: %d  ·  resources gathered: %d  ·  enemies felled: %d  ·  run time: %s" % [
+	#
+	# Seed appended at the end so the player can recover the watch
+	# seed from the lodge after the end-screen auto-transition closes.
+	# Older v1 saves don't carry a seed; show only when a non-zero
+	# value is present.
+	var line: String = "Nights survived: %d  ·  resources gathered: %d  ·  enemies felled: %d  ·  run time: %s" % [
 		int(r.get("nights_survived", 0)),
 		int(r.get("resources_gathered", 0)),
 		int(r.get("enemies_felled", 0)),
 		_format_duration(float(r.get("duration_seconds", 0.0))),
 	]
+	var seed_int: int = int(r.get("seed", 0))
+	if seed_int != 0:
+		line += "  ·  watch seed " + WorldGenerator.seed_to_string(seed_int)
+	return line
 
 func _format_history_line(r: Dictionary) -> String:
 	var outcome_word := "Held" if String(r.get("outcome", "")) == SaveStateClass.OUTCOME_VICTORY else "Broke"

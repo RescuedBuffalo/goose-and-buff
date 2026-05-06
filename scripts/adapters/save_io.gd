@@ -72,6 +72,7 @@ func record_run(
 	resources_gathered: int,
 	enemies_felled: int,
 	duration_seconds: float,
+	seed: int = 0,
 ) -> void:
 	var now := int(Time.get_unix_time_from_system())
 	var record := SaveStateClass.make_run_record(
@@ -82,6 +83,7 @@ func record_run(
 		enemies_felled,
 		duration_seconds,
 		now,
+		seed,
 	)
 	data = SaveStateClass.append_run(data, record)
 	# Every completed run leaves a mark — victory or defeat (BUF-130). The

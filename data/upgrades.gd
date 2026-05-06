@@ -28,6 +28,14 @@ class_name UpgradesData extends RefCounted
 ## Voice rule: upgrade names use sentence case + warm + nouns-first.
 ## Skip RPG-menu language ("Mastery I"), prefer image-bearing ("Iron-shod
 ## boots", "Lantern oil reserve").
+##
+## ability_cooldown disclosure: hero abilities (Q-bound charge / dive /
+## snatch) aren't wired in M2 — `effective_stats.ability_cooldown` is
+## stamped into GameState.signature_cooldown_max at run start so the
+## value lands at the contract point abilities will read once they ship
+## (BUF-150-ish). Until then, upgrades that touch ability_cooldown say
+## so in their description so the player isn't misled into spending an
+## ember on a stat with no live consumer.
 
 const HERO_BUFFALO := "Buffalo"
 const HERO_GOOSE := "Goose"
@@ -215,7 +223,7 @@ const ALL := [
 		"prereq": "buffalo_thick_hide",
 		"cost": 2,
 		"display_name": "Charge practice",
-		"description": "Buffalo's charge cooldown comes down with use.",
+		"description": "Buffalo's charge cooldown comes down with use. (Lands when the charge ability ships.)",
 		"modifiers": [
 			{"stat": "ability_cooldown", "kind": "pct", "amount": -0.20},
 		],
@@ -257,7 +265,7 @@ const ALL := [
 		"prereq": "",
 		"cost": 1,
 		"display_name": "Loud call",
-		"description": "Goose's dive cooldown shortens.",
+		"description": "Goose's dive cooldown shortens. (Lands when the dive ability ships.)",
 		"modifiers": [
 			{"stat": "ability_cooldown", "kind": "pct", "amount": -0.15},
 		],
@@ -325,7 +333,7 @@ const ALL := [
 		"prereq": "fox_keen_eyes",
 		"cost": 2,
 		"display_name": "Cutpurse",
-		"description": "Snatch comes back to the hand sooner.",
+		"description": "Snatch comes back to the hand sooner. (Lands when the snatch ability ships.)",
 		"modifiers": [
 			{"stat": "ability_cooldown", "kind": "pct", "amount": -0.20},
 		],

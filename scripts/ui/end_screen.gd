@@ -12,6 +12,11 @@ extends Control
 const WorldGenerator := preload("res://scripts/logic/world_generator.gd")
 
 signal restart_requested()
+# Emitted when the player interacts with the end screen (Copy seed,
+# Run again). main.gd listens and cancels the auto-transition timer
+# so the screen sits open as long as the player wants. Without this,
+# the 1.6s default closes the seed Copy button before anyone can hit it.
+signal player_engaged()
 
 @onready var _headline: Label = $Center/Panel/V/Headline
 @onready var _sub: Label = $Center/Panel/V/Sub
@@ -77,9 +82,15 @@ func show_defeat() -> void:
 	visible = true
 
 func _on_restart_pressed() -> void:
+	player_engaged.emit()
 	restart_requested.emit()
 
 func _on_copy_seed_pressed() -> void:
+	# Cancel the lodge auto-transition before doing the copy. If the
+	# player took the time to click Copy, they want to *read* the seed
+	# back too — let them take that time without the screen sliding
+	# out from under them.
+	player_engaged.emit()
 	if _displayed_seed == 0:
 		return
 	var seed_text: String = WorldGenerator.seed_to_string(_displayed_seed)

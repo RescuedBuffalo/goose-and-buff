@@ -43,7 +43,13 @@ const LODGE_SCENE_PATH := "res://scenes/lodge/lodge.tscn"
 # Pause before the scene swap so the player sees what just happened —
 # without a beat, victory/defeat reads as a tab switch rather than a
 # story moment. The end-screen scrim covers the world during the wait.
-const RUN_END_TO_LODGE_DELAY_SECONDS := 1.6
+#
+# Bumped from the original 1.6s so the new Copy-seed button (BUF-145)
+# is reachable. Any end-screen interaction (Copy seed, Run again)
+# cancels the timer via player_engaged so the player can read + copy
+# at their own pace. The seed is also surfaced in the lodge's
+# last-watch row so missing the window isn't fatal.
+const RUN_END_TO_LODGE_DELAY_SECONDS := 6.0
 # Where dump_world() writes the WorldDef JSON during F3 debug mode.
 const DEBUG_DUMP_DIR := "user://debug"
 
@@ -81,6 +87,12 @@ var _world_def: Dictionary = {}
 var _effective_stats: Dictionary = {}
 var _starter_items: Array = []
 var _embers_awarded_this_run: int = 0
+# Set to true when the player engages with the end-screen (Copy seed,
+# any other interaction). The pending auto-transition reads this and
+# bails so the seed-share UI sits open as long as the player wants it.
+# "Run again" button advances directly via _on_restart_requested and
+# ignores this flag.
+var _run_end_auto_transition_cancelled: bool = false
 
 const DEFAULT_HERO_ID := "Buffalo"
 
@@ -194,6 +206,7 @@ func _wire_signals() -> void:
 	sector.core_destroyed.connect(_on_core_destroyed)
 	hero.hero_downed.connect(_on_hero_downed)
 	end_screen.restart_requested.connect(_on_restart_requested)
+	end_screen.player_engaged.connect(_cancel_run_end_transition)
 	build_overlay.place_requested.connect(_on_place_requested)
 	build_logic.placed.connect(_on_placed)
 	gather.gather_progress.connect(_on_gather_progress)
@@ -239,6 +252,13 @@ func _apply_stats_to_systems() -> void:
 		gather.set_speed_multiplier(float(stats.gather_speed))
 	if sector != null:
 		sector.reset_core(float(stats.lodge_hp_max))
+	# Stamp the upgrade-modified ability cooldown into GameState so the
+	# moment Q-bound abilities land (BUF-150-ish), they read it via the
+	# existing set_signature_cooldown contract. Today no consumer fires
+	# the ability — the upgrades disclose this in their description.
+	# Setting the *max* (not the remaining) so cooldown ticks land at
+	# the right ceiling whenever the resolver finally connects.
+	GameState.set_signature_cooldown(0.0, float(stats.ability_cooldown))
 
 func _build_starter_items(hero_id: String) -> Array:
 	# Pick the best axe the player has unlocked at the lodge. Default
@@ -672,11 +692,26 @@ func _record_run_and_go_to_lodge(outcome: String) -> void:
 		_resources_gathered,
 		_enemies_felled,
 		duration,
+		_run_seed,
 	)
-	get_tree().create_timer(RUN_END_TO_LODGE_DELAY_SECONDS).timeout.connect(_go_to_lodge)
+	# Auto-transition reads _run_end_auto_transition_cancelled so the
+	# end-screen Copy button + any future end-screen interactions can
+	# stop it. SceneTreeTimer can't be unregistered, so we use a flag.
+	_run_end_auto_transition_cancelled = false
+	get_tree().create_timer(RUN_END_TO_LODGE_DELAY_SECONDS).timeout.connect(_auto_transition_to_lodge)
 
-func _go_to_lodge() -> void:
+func _cancel_run_end_transition() -> void:
+	# Fired by end_screen.player_engaged when the player clicks Copy
+	# seed (or Run again, but that path advances manually anyway). Lets
+	# the player sit on the end screen as long as they want.
+	_run_end_auto_transition_cancelled = true
+
+func _auto_transition_to_lodge() -> void:
+	if _run_end_auto_transition_cancelled:
+		return
 	get_tree().change_scene_to_file(LODGE_SCENE_PATH)
 
 func _on_restart_requested() -> void:
-	_go_to_lodge()
+	# Manual "Run again" — advance directly, regardless of the auto-
+	# transition flag.
+	get_tree().change_scene_to_file(LODGE_SCENE_PATH)
