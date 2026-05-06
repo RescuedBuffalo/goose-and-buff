@@ -229,7 +229,14 @@ func apply_revive(hp_ratio: float) -> void:
 	# would wipe BUF-129's per-run reskin on every revive. _apply_variant_tint
 	# falls back to white when no variant is set.
 	_apply_variant_tint()
-	GameState.set_hero_hp(hp, hp_max)
+	# PR #41 review: only the local hero feeds GameState — that singleton
+	# drives the local HUD chip. Without this gate, a teammate's revive
+	# (or dawn respawn at FALLEN_RESPAWN_HP_RATIO) overwrote the local
+	# player's HP chip with the teammate's revived HP until the next
+	# local damage event refreshed it. Mirrors the existing gate in
+	# damage(), which has read this same lesson.
+	if not is_remote_puppet:
+		GameState.set_hero_hp(hp, hp_max)
 	queue_redraw()
 
 func apply_fallen() -> void:

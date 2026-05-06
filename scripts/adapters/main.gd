@@ -567,6 +567,15 @@ func _unhandled_input(event: InputEvent) -> void:
 	# from the local combat.resolve_swing call — that's purely visual,
 	# damage application happens off the broadcast.
 	if MpIo.is_multiplayer() and not MpIo.is_host():
+		# Cooldown gate (PR #41 review follow-up). Without can_swing()
+		# here, a client could spam click events faster than the weapon
+		# allows — the host's resolver runs in a fresh CombatSystem per
+		# remote peer (host_resolve_remote_swing) so it never rejects on
+		# the client's behalf. Calling note_swing_cooldown after the
+		# emit stamps the same cooldown the host's resolver will, so
+		# client and host stay in lockstep without an extra round trip.
+		if not combat.can_swing():
+			return
 		# Local visual flash — emit swing_started so combat_visuals draws
 		# the arc immediately. Don't apply damage; host will broadcast.
 		var weapon: Dictionary = Weapons.get_weapon(equipped)
@@ -587,6 +596,7 @@ func _unhandled_input(event: InputEvent) -> void:
 			if not ammo_id.is_empty():
 				inventory.remove_item(ammo_id, 1)
 		combat.swing_started.emit(equipped, hero.position, dir, length_px, half_angle_rad)
+		combat.note_swing_cooldown(equipped)
 		replication.client_request_swing(equipped, hero.position, hero.facing, ammo_count)
 		return
 	var swing_result: Dictionary = combat.resolve_swing(hero.position, hero.facing, equipped, enemies, ammo_count)
@@ -1335,7 +1345,18 @@ func _try_fire_signature_ability() -> void:
 	var target_pos: Vector2 = get_global_mouse_position()
 	# Stamp cooldown locally so the HUD rail starts ticking immediately.
 	# Host validates again and broadcasts the effect.
-	var cd_max: float = float(data.get("signatureCooldown", 6.0))
+	#
+	# PR #41 review: read the upgrade-modified ability_cooldown from
+	# _effective_stats, not data.signatureCooldown. The base value
+	# ignores Buffalo charge practice / Goose loud call / Fox cutpurse
+	# (-15..-20% pct on ability_cooldown), so before this fix the rail
+	# snapped back to the unupgraded ceiling on every cast. Falls back
+	# to the base when effective_stats hasn't been populated (direct
+	# main.tscn launch path) so the ability still works there.
+	var cd_max: float = float(_effective_stats.get(
+		"ability_cooldown",
+		float(data.get("signatureCooldown", 6.0)),
+	))
 	GameState.set_signature_cooldown(cd_max, cd_max)
 	if MpIo.is_multiplayer() and not MpIo.is_host():
 		# Client → host: route through replication. Host applies and
