@@ -74,6 +74,9 @@ func _ready() -> void:
 	queue_redraw()
 
 func damage(amount: float) -> void:
+	# Re-entry guard — same rationale as enemy.damage().
+	if hp <= 0.0:
+		return
 	hp = max(0.0, hp - amount)
 	queue_redraw()
 	if hp <= 0.0:

@@ -16,11 +16,18 @@ var _phase: int = DayNight.PHASE_DAY
 var _phase_seconds: float = DayNight.DAY_SECONDS
 var _banner_text: String = ""
 var _banner_until: float = 0.0
+# Cached rounded-up second of _phase_seconds — we redraw only when this
+# rolls over (or when other state changes), instead of every frame. The
+# timer string only changes at second boundaries, so per-frame redraws
+# are wasted work.
+var _last_drawn_timer_int: int = -1
+var _banner_active: bool = false
 
 func bind(day_night) -> void:
 	day_night.phase_changed.connect(_on_phase_changed)
 	day_night.phase_timer_tick.connect(_on_phase_timer)
 	GameState.hero_hp_changed.connect(func(_a, _b): queue_redraw())
+	GameState.core_hp_changed.connect(func(_a, _b): queue_redraw())
 
 func _ready() -> void:
 	# Fixed band at the very top — 96 px tall is enough for two lines of
@@ -35,15 +42,33 @@ func _ready() -> void:
 	queue_redraw()
 
 func _process(_delta: float) -> void:
-	queue_redraw()
+	# Redraw only when something visible has actually changed:
+	#   - timer string crossed a second boundary
+	#   - banner just expired (so we wipe the trailing text)
+	# HP / phase changes piggy-back on signal-driven queue_redraws.
+	var timer_int: int = int(ceil(_phase_seconds))
+	var should_redraw: bool = false
+	if timer_int != _last_drawn_timer_int:
+		_last_drawn_timer_int = timer_int
+		should_redraw = true
+	var now: float = Time.get_ticks_msec() / 1000.0
+	var banner_active_now: bool = not _banner_text.is_empty() and now < _banner_until
+	if banner_active_now != _banner_active:
+		_banner_active = banner_active_now
+		should_redraw = true
+	if should_redraw:
+		queue_redraw()
 
 func show_banner(text: String, duration_seconds: float) -> void:
 	_banner_text = text
 	_banner_until = Time.get_ticks_msec() / 1000.0 + duration_seconds
+	_banner_active = true
+	queue_redraw()
 
 func _on_phase_changed(phase: int, day_index: int) -> void:
 	_phase = phase
 	_day_index = day_index
+	queue_redraw()
 	# Phase-change banners stay short and warm — sentence case, no shouts.
 	# Seasonal-frame language (BUF-146): days carry a chapter name, not a
 	# wave number. "First frost → the long cold → the deep dark → before

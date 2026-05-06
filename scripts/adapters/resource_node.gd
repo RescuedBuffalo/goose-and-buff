@@ -53,6 +53,14 @@ func update_progress(remaining: float) -> void:
 	_gather_progress_visible = clamp(1.0 - (hp / hp_max), 0.0, 1.0)
 	queue_redraw()
 
+func clear_progress() -> void:
+	# Called when a gather is cancelled (hero walked away). Drops the
+	# progress bar back to invisible so the partial sliver doesn't
+	# linger between attempts. HP is preserved — the tree only goes
+	# back to full when fully respawned (out of MVP scope).
+	_gather_progress_visible = 0.0
+	queue_redraw()
+
 func deplete() -> void:
 	if sector != null and data.get("blocks_movement", false):
 		sector.unblock_tile(current_tile)

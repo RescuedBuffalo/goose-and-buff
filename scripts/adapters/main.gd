@@ -211,6 +211,7 @@ func _wire_signals() -> void:
 	build_logic.placed.connect(_on_placed)
 	gather.gather_progress.connect(_on_gather_progress)
 	gather.gather_completed.connect(_on_gather_completed)
+	gather.gather_cancelled.connect(_on_gather_cancelled)
 	inventory.added_item.connect(_on_inventory_added)
 	combat.damage_dealt.connect(_on_combat_damage)
 	combat.projectile_requested.connect(_on_projectile_requested)
@@ -298,6 +299,11 @@ func _start_run() -> void:
 	GameState.reset()
 	GameState.set_hero(preserved_hero)
 	GameState.run_seed = _run_seed
+	# Re-stamp the upgrade-modified ability cooldown AFTER reset() (which
+	# clears it via set_signature_cooldown(0, 0)). _apply_stats_to_systems
+	# sets it pre-reset, but reset wipes it; without this re-stamp the
+	# value lands at the wrong ceiling for the upcoming run.
+	GameState.set_signature_cooldown(0.0, float(_effective_stats.get("ability_cooldown", 0.0)))
 	sector.set_hero(GameState.hero_id)
 	# Reset core uses the upgrade-scaled lodge_hp_max so the upgrade
 	# applies immediately on a fresh run.
@@ -486,6 +492,13 @@ func _on_gather_progress(node_ref, hp_remaining: float, _hp_max: float) -> void:
 	if node_ref != null and is_instance_valid(node_ref):
 		node_ref.update_progress(hp_remaining)
 
+func _on_gather_cancelled(node_ref) -> void:
+	# Hero walked out of range. Hide the half-full progress bar so the
+	# tree/rock visually reads as "untouched" again. Without this the
+	# bar lingered in its last-cancelled state until the next gather.
+	if node_ref != null and is_instance_valid(node_ref) and node_ref.has_method("clear_progress"):
+		node_ref.clear_progress()
+
 func _on_gather_completed(node_ref, yields: Dictionary) -> void:
 	var resource_kind: String = ""
 	if node_ref != null and is_instance_valid(node_ref) and node_ref.has_method("resource_kind_id"):
@@ -548,7 +561,12 @@ func _on_projectile_requested(_weapon_id: String, origin: Vector2, direction: Ve
 func _on_projectile_hit(target_ref, amount: float) -> void:
 	if target_ref == null or not is_instance_valid(target_ref):
 		return
-	target_ref.damage(amount)
+	# Route through combat.damage_dealt so the same listeners that
+	# handle melee hits (damage application + floating-number visuals)
+	# fire for ranged hits too. Without this, bow hits applied damage
+	# but never showed the floating number, since combat_visuals only
+	# listens to combat.damage_dealt.
+	combat.damage_dealt.emit(target_ref, amount)
 
 func _on_ammo_consumed(item_id: String, count: int) -> void:
 	if item_id.is_empty() or count <= 0:

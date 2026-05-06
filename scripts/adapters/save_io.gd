@@ -12,6 +12,7 @@ extends Node
 ## won't — we cap at MAX_RUNS records).
 
 const SaveStateClass := preload("res://scripts/logic/save_state.gd")
+const StatSystemClass := preload("res://scripts/logic/stat_system.gd")
 const ArtifactsData := preload("res://data/lodge_artifacts.gd")
 
 const SAVE_PATH := "user://save_data.json"
@@ -114,7 +115,6 @@ func purchase_upgrade(upgrade_id: String) -> Dictionary:
 	# Pure stat-system computes the new state; the adapter persists it.
 	# Returns the same {ok, embers, owned_upgrades, reason} dict the
 	# pure logic produces so callers can render rejection states.
-	var StatSystemClass := load("res://scripts/logic/stat_system.gd")
 	var result: Dictionary = StatSystemClass.apply_purchase(
 		upgrade_id,
 		SaveStateClass.embers(data),

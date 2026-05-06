@@ -6,6 +6,7 @@ extends Node
 
 signal phase_changed(phase: String)
 signal hero_hp_changed(current: float, maximum: float)
+signal core_hp_changed(current: float, maximum: float)
 signal retreat_changed(active: bool)
 signal signature_cooldown_changed(remaining: float, maximum: float)
 
@@ -30,10 +31,12 @@ var run_seed: int = 0
 func reset() -> void:
 	phase = Phase.PREP
 	round_index = 1
-	hero_hp = 0.0
-	hero_hp_max = 0.0
-	core_hp = 0.0
-	core_hp_max = 0.0
+	# Route through the setters so every listener (HUD, debug overlay,
+	# any future consumer) sees the same zero-state via signals. Direct
+	# var assignment kept the autoload's properties in sync but left
+	# subscribers stale until something else woke them up.
+	set_hero_hp(0.0, 0.0)
+	set_core_hp(0.0, 0.0)
 	set_retreat(false)
 	set_signature_cooldown(0.0, 0.0)
 
@@ -60,6 +63,14 @@ func set_hero_hp(current: float, maximum: float) -> void:
 	hero_hp = current
 	hero_hp_max = maximum
 	hero_hp_changed.emit(current, maximum)
+
+func set_core_hp(current: float, maximum: float) -> void:
+	# Sector mirrors core HP into GameState so the HUD doesn't need a
+	# direct sector reference. Without an emit, listeners had to rely on
+	# coarse polling. Now a single change notifies everyone.
+	core_hp = current
+	core_hp_max = maximum
+	core_hp_changed.emit(current, maximum)
 
 func set_signature_cooldown(remaining: float, maximum: float) -> void:
 	signature_cooldown = remaining

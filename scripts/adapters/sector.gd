@@ -170,7 +170,7 @@ func _nearest_walkable_neighbor(target: Vector2i, from_tile: Vector2i) -> Vector
 # ── Core HP ───────────────────────────────────────────────────────────────
 func damage_core(amount: float) -> void:
 	core_hp = max(0.0, core_hp - amount)
-	GameState.core_hp = core_hp
+	GameState.set_core_hp(core_hp, core_hp_max)
 	core_hp_changed.emit(core_hp, core_hp_max)
 	queue_redraw()
 	if core_hp <= 0.0:
@@ -183,8 +183,7 @@ func reset_core(max_hp: float = -1.0) -> void:
 	if max_hp > 0.0:
 		core_hp_max = max_hp
 	core_hp = core_hp_max
-	GameState.core_hp = core_hp
-	GameState.core_hp_max = core_hp_max
+	GameState.set_core_hp(core_hp, core_hp_max)
 	core_hp_changed.emit(core_hp, core_hp_max)
 	queue_redraw()
 
