@@ -135,6 +135,10 @@ func _make_upgrade_card(u: Dictionary, owned: Array, embers: int) -> Control:
 	var state: String = _state_for(u, owned, embers)
 	var panel := PanelContainer.new()
 	panel.mouse_filter = Control.MOUSE_FILTER_STOP
+	# Tooltip on hover (BUF-148 acceptance). Voice rule applies — sentence
+	# case, no emoji. The tooltip surfaces what the confirm dialog would,
+	# so a hesitant player can read everything before committing.
+	panel.tooltip_text = _tooltip_text_for(u, owned, state)
 	# Style the panel via a per-state stylebox so owned/available/locked
 	# read clearly. We build the styleboxes here so design tokens flow
 	# through without needing a theme resource on disk yet.
@@ -213,6 +217,76 @@ func _state_for(u: Dictionary, owned: Array, embers: int) -> String:
 	if embers < int(u.cost):
 		return "insufficient"
 	return "available"
+
+# ── Tooltip composition (BUF-148) ────────────────────────────────────
+
+func _tooltip_text_for(u: Dictionary, owned: Array, state: String) -> String:
+	# Composes the hover surface: name + description + per-modifier line +
+	# cost + prereq gate. Sentence case throughout. Voice rule:
+	# "owned" / "locked behind X" rather than RPG-menu language.
+	var lines: PackedStringArray = PackedStringArray()
+	lines.append(String(u.display_name))
+	lines.append("")
+	lines.append(String(u.description))
+	# Effect lines — one per stat the upgrade touches. Empty modifier
+	# array means a "feature unlock" upgrade (e.g. shared_iron_axe), which
+	# we describe via the unlocks field instead.
+	var modifiers: Array = u.get("modifiers", [])
+	if not modifiers.is_empty():
+		lines.append("")
+		for mod in modifiers:
+			lines.append(_format_modifier(mod))
+	var unlocks: Array = u.get("unlocks", [])
+	if not unlocks.is_empty():
+		lines.append("")
+		for u_id in unlocks:
+			lines.append("Unlocks: %s" % String(u_id).replace("_", " "))
+	# Cost — always show, even on owned cards, so the player remembers
+	# what they spent.
+	lines.append("")
+	var cost: int = int(u.cost)
+	lines.append("Cost: %d ember%s" % [cost, "" if cost == 1 else "s"])
+	# Prereq — surface only when present, as either a met or unmet line.
+	var prereq: String = String(u.get("prereq", ""))
+	if not prereq.is_empty():
+		var prereq_upgrade: Dictionary = Upgrades.by_id(prereq)
+		var prereq_label: String = String(prereq_upgrade.get("display_name", prereq))
+		if owned.has(prereq):
+			lines.append("Requires: %s (owned)" % prereq_label)
+		else:
+			lines.append("Requires: %s — not yet lit" % prereq_label)
+	# State hint at the bottom, lowercase, so the player knows why a card
+	# is dimmed without having to deduce from the border.
+	match state:
+		"owned":
+			lines.append("")
+			lines.append("Lit — carries into every watch.")
+		"insufficient":
+			lines.append("")
+			lines.append("Need more embers.")
+		"locked":
+			lines.append("")
+			lines.append("Locked — light the prerequisite first.")
+		_:
+			pass
+	return "\n".join(lines)
+
+func _format_modifier(mod: Dictionary) -> String:
+	# Voice: "+15% gather speed", "+1 inventory slot", "-20% ability cooldown".
+	# We use the underscored stat id directly; gameplay readers map them to
+	# strings here. Negative pct (cooldowns) gets a "-" sign automatically.
+	var stat: String = String(mod.get("stat", ""))
+	var amount: float = float(mod.get("amount", 0.0))
+	var kind: String = String(mod.get("kind", "flat"))
+	var stat_label: String = stat.replace("_", " ")
+	if kind == "pct":
+		var sign_str: String = "+" if amount >= 0.0 else ""
+		return "%s%.0f%% %s" % [sign_str, amount * 100.0, stat_label]
+	# flat — show signed integer for whole values, signed float otherwise.
+	var sign_str_flat: String = "+" if amount >= 0.0 else ""
+	if abs(amount - round(amount)) < 0.001:
+		return "%s%d %s" % [sign_str_flat, int(round(amount)), stat_label]
+	return "%s%.1f %s" % [sign_str_flat, amount, stat_label]
 
 # ── Confirm flow ─────────────────────────────────────────────────────
 

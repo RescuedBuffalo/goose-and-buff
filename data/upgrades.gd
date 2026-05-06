@@ -217,6 +217,22 @@ const ALL := [
 		"unlocks": [],
 	},
 	{
+		"id": "buffalo_hearthstone",
+		"hero": HERO_BUFFALO,
+		"tier": 1,
+		"prereq": "",
+		"cost": 2,
+		"display_name": "Hearthstone",
+		"description": "A warm stone keeps the lodge wall sound. Lodge HP up.",
+		# Buffalo's role is the anchor / soak — the lodge-hp passive lives
+		# under his tab so a Buffalo run feels structurally tougher even
+		# before he picks up Shared lodge upgrades.
+		"modifiers": [
+			{"stat": "lodge_hp_max", "kind": "pct", "amount": 0.15},
+		],
+		"unlocks": [],
+	},
+	{
 		"id": "buffalo_charge_practice",
 		"hero": HERO_BUFFALO,
 		"tier": 2,
@@ -226,6 +242,19 @@ const ALL := [
 		"description": "Buffalo's charge cooldown comes down with use. (Lands when the charge ability ships.)",
 		"modifiers": [
 			{"stat": "ability_cooldown", "kind": "pct", "amount": -0.20},
+		],
+		"unlocks": [],
+	},
+	{
+		"id": "buffalo_long_horns",
+		"hero": HERO_BUFFALO,
+		"tier": 2,
+		"prereq": "buffalo_heavy_steps",
+		"cost": 2,
+		"display_name": "Long horns",
+		"description": "Reach further when the swing connects. Buffalo melee range up by a tile.",
+		"modifiers": [
+			{"stat": "attack_range", "kind": "flat", "amount": 1.0},
 		],
 		"unlocks": [],
 	},
@@ -272,6 +301,21 @@ const ALL := [
 		"unlocks": [],
 	},
 	{
+		"id": "goose_open_throat",
+		"hero": HERO_GOOSE,
+		"tier": 1,
+		"prereq": "",
+		"cost": 1,
+		"display_name": "Open throat",
+		"description": "Each strike comes a touch quicker. Goose attack speed up.",
+		# Goose's lane is the aggression / IGL — attack-speed is the most
+		# legible feel-good stat for that fantasy.
+		"modifiers": [
+			{"stat": "attack_speed", "kind": "pct", "amount": 0.15},
+		],
+		"unlocks": [],
+	},
+	{
 		"id": "goose_sharper_beak",
 		"hero": HERO_GOOSE,
 		"tier": 2,
@@ -281,6 +325,19 @@ const ALL := [
 		"description": "Each hit lands harder. Goose attack damage up.",
 		"modifiers": [
 			{"stat": "attack_damage", "kind": "pct", "amount": 0.18},
+		],
+		"unlocks": [],
+	},
+	{
+		"id": "goose_arrow_feathers",
+		"hero": HERO_GOOSE,
+		"tier": 2,
+		"prereq": "goose_quick_feet",
+		"cost": 2,
+		"display_name": "Arrow feathers",
+		"description": "Range opens up. Goose attacks reach a tile further.",
+		"modifiers": [
+			{"stat": "attack_range", "kind": "flat", "amount": 1.0},
 		],
 		"unlocks": [],
 	},
@@ -327,6 +384,21 @@ const ALL := [
 		"unlocks": [],
 	},
 	{
+		"id": "fox_deep_pockets",
+		"hero": HERO_FOX,
+		"tier": 1,
+		"prereq": "",
+		"cost": 2,
+		"display_name": "Deep pockets",
+		"description": "Sewn an extra pouch into the lining. Fox carries one more slot than the others.",
+		# Fox's role is recon — extra inventory leans into the "scoots
+		# things back to the lodge" fantasy. Stacks with shared_extra_pouch.
+		"modifiers": [
+			{"stat": "inventory_slots", "kind": "flat", "amount": 1.0},
+		],
+		"unlocks": [],
+	},
+	{
 		"id": "fox_cutpurse",
 		"hero": HERO_FOX,
 		"tier": 2,
@@ -336,6 +408,19 @@ const ALL := [
 		"description": "Snatch comes back to the hand sooner. (Lands when the snatch ability ships.)",
 		"modifiers": [
 			{"stat": "ability_cooldown", "kind": "pct", "amount": -0.20},
+		],
+		"unlocks": [],
+	},
+	{
+		"id": "fox_dancing_step",
+		"hero": HERO_FOX,
+		"tier": 2,
+		"prereq": "fox_light_paws",
+		"cost": 2,
+		"display_name": "Dancing step",
+		"description": "Strikes come quicker, in and out before they answer.",
+		"modifiers": [
+			{"stat": "attack_speed", "kind": "pct", "amount": 0.15},
 		],
 		"unlocks": [],
 	},

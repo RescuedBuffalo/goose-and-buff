@@ -28,6 +28,7 @@ const TelemetryIoScript := preload("res://scripts/adapters/telemetry_io.gd")
 const WorldBuilderScript := preload("res://scripts/adapters/world_builder.gd")
 const DebugOverlayScript := preload("res://scripts/adapters/debug_overlay.gd")
 const DebugPanelScript := preload("res://scripts/adapters/debug_panel.gd")
+const StatSystemTest := preload("res://scripts/tests/stat_system_test.gd")
 const ProjectileScene := preload("res://scenes/projectile.tscn")
 
 const SectorScene := preload("res://scenes/sector.tscn")
@@ -106,6 +107,12 @@ func _ready() -> void:
 	GameState.set_hero(hero_id)
 	_run_seed = GameState.run_seed if GameState.run_seed != 0 else WorldGeneratorClass.random_seed()
 	GameState.run_seed = _run_seed
+	# Variant fallback (BUF-129). run_start.gd is the canonical place to
+	# roll a fresh variant on campaign start; this ensure_variant call
+	# only rolls one if none is set, keeping a direct main.tscn launch
+	# (skipping the run-start screen) functional without re-rolling on
+	# every loop. Players who came in via run-start already have one set.
+	SaveIo.ensure_variant(hero_id)
 	# Compute effective stats from owned upgrades BEFORE anything else
 	# touches base values — hero baseHealth, lodge HP, weapon scale, etc.
 	_effective_stats = StatSystemClass.effective_stats(hero_id, SaveIo.owned_upgrades())
@@ -382,6 +389,28 @@ func _unhandled_input(event: InputEvent) -> void:
 			# F4 = dump current WorldDef to user://debug/<seed>.json so
 			# the chunk pick / resource list can be inspected offline.
 			_dump_world()
+			return
+		# BUF-147 acceptance: QA debug commands. F5 grants 5 embers
+		# (lets the next lodge visit have something to spend without
+		# grinding); F6 grants every authored upgrade (max-stack stat
+		# composition test); Shift+F6 wipes the meta-progression so
+		# the QA loop can re-test from scratch. F12 reruns the stat-
+		# system composition test and prints to the Output panel.
+		if k.pressed and k.keycode == KEY_F5:
+			var balance: int = SaveIo.debug_grant_embers(5)
+			print("debug: granted 5 embers (balance=%d)" % balance)
+			return
+		if k.pressed and k.keycode == KEY_F6:
+			if k.shift_pressed:
+				SaveIo.debug_clear_progression()
+				print("debug: cleared embers + owned upgrades")
+			else:
+				var n: int = SaveIo.debug_grant_all_upgrades()
+				print("debug: granted all upgrades (%d owned)" % n)
+			return
+		if k.pressed and k.keycode == KEY_F12:
+			var report: Dictionary = StatSystemTest.run_all()
+			StatSystemTest.print_results(report)
 			return
 	if not (event is InputEventMouseButton):
 		return

@@ -13,6 +13,7 @@ extends Node2D
 
 const Heroes := preload("res://data/heroes.gd")
 const Sectors := preload("res://data/sectors.gd")
+const HeroVariants := preload("res://data/hero_variants.gd")
 
 const PIXELS_PER_STUD := 12.0
 
@@ -222,6 +223,21 @@ func _load_sprite() -> void:
 	else:
 		sprite.texture = null
 		queue_redraw()
+	_apply_variant_tint()
+
+func _apply_variant_tint() -> void:
+	# BUF-129: variants ship as palette tints until the M3 portrait pipeline
+	# lands. Run-start picks one of ~4 looks per hero and stores the id on
+	# save_state.current_variants[hero_id]; we read it here and modulate
+	# the sprite. Empty variant_id (assets-not-authored, save-from-pre-M2,
+	# Val) → no-op, sprite stays canonical.
+	if sprite == null:
+		return
+	var variant_id: String = SaveIo.current_variant(hero_data.id)
+	if variant_id.is_empty():
+		sprite.modulate = Color(1, 1, 1, 1)
+		return
+	sprite.modulate = HeroVariants.tint_for(variant_id)
 
 func _draw() -> void:
 	# When no totem texture is available the hero is a colored disc
