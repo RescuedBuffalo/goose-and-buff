@@ -150,13 +150,23 @@ const ROUND_STAT_SCALE := {
 
 # ── API ──────────────────────────────────────────────────────────────
 
-static func for_round(round_index: int) -> Dictionary:
+static func for_round(round_index: int, rng: RandomNumberGenerator = null) -> Dictionary:
 	# Rounds (nights) are 1-indexed in design language. Out-of-range
 	# rounds clamp to the last entry — same defensive shape the wave
 	# director relied on before BUF-114.
+	#
+	# Optional seeded RNG (BUF-151). When supplied, archetype rolls use
+	# it instead of the engine global so multiplayer peers running their
+	# own wave_director.tick produce identical compositions. Old solo
+	# callers can still call without an rng — falls back to randi().
 	var idx: int = clamp(round_index, 1, TOTAL_ROUNDS)
 	var pool: Array = ROUND_PLAN.get(idx, ["PROBE"])
-	var archetype_id: String = pool[randi() % pool.size()] if pool.size() > 1 else pool[0]
+	var archetype_id: String = pool[0]
+	if pool.size() > 1:
+		if rng != null:
+			archetype_id = String(pool[rng.randi_range(0, pool.size() - 1)])
+		else:
+			archetype_id = String(pool[randi() % pool.size()])
 	return _composition_for(idx, archetype_id)
 
 static func for_round_with_archetype(round_index: int, archetype_id: String) -> Dictionary:

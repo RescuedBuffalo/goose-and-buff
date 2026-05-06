@@ -12,12 +12,14 @@ const WorldGenerator := preload("res://scripts/logic/world_generator.gd")
 const Heroes := preload("res://data/heroes.gd")
 
 const MAIN_SCENE_PATH := "res://scenes/main.tscn"
+const LOBBY_SCENE_PATH := "res://scenes/ui/lobby.tscn"
 
 @onready var _buffalo: Button = $Margin/V/HeroRow/Buffalo
 @onready var _goose: Button = $Margin/V/HeroRow/Goose
 @onready var _fox: Button = $Margin/V/HeroRow/Fox
 @onready var _seed_input: LineEdit = $Margin/V/SeedRow/SeedInput
 @onready var _start: Button = $Margin/V/Footer/StartButton
+@onready var _multiplayer_button: Button = $Margin/V/Footer/MultiplayerButton
 
 var _selected_hero: String = ""
 
@@ -26,6 +28,13 @@ func _ready() -> void:
 	_goose.pressed.connect(_on_pick.bind("Goose"))
 	_fox.pressed.connect(_on_pick.bind("Fox"))
 	_start.pressed.connect(_on_start)
+	if _multiplayer_button != null:
+		_multiplayer_button.pressed.connect(_on_multiplayer)
+	# Solo entry point should leave any prior multiplayer session behind
+	# so the M2 single-player game runs unchanged. A dev who clicked
+	# Host, then Back, then Solo would otherwise still have a MpIo peer.
+	if MpIo.is_multiplayer():
+		MpIo.leave()
 	_refresh_buttons()
 
 func _on_pick(hero_id: String) -> void:
@@ -54,3 +63,7 @@ func _on_start() -> void:
 	GameState.set_hero(_selected_hero)
 	GameState.set_run_config(seed_int, _selected_hero)
 	get_tree().change_scene_to_file(MAIN_SCENE_PATH)
+
+func _on_multiplayer() -> void:
+	# Lobby owns the multiplayer entry — this button just hands off.
+	get_tree().change_scene_to_file(LOBBY_SCENE_PATH)

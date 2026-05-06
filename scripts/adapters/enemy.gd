@@ -121,6 +121,12 @@ func _physics_process(delta: float) -> void:
 	# tick guard. Enemies are queue_freed on restart.
 	if GameState.phase == GameState.Phase.RUN_ENDED or GameState.phase == GameState.Phase.RUN_COMPLETE:
 		return
+	# Multiplayer puppets don't run AI — the host owns enemy decisions
+	# and broadcasts position snapshots. Clients update position from
+	# replication RPCs and skip the local pathfinding tick. The meta
+	# flag is set by the replication adapter when it spawns enemies.
+	if has_meta("is_puppet") and bool(get_meta("is_puppet")):
+		return
 	# Tick cooldown even while mid-step so a moving wolf's effective
 	# attack cadence matches a stationary one. Without this, attack
 	# cooldown stalls during ~0.4s per-tile tweens, which silently
@@ -144,9 +150,16 @@ func _physics_process(delta: float) -> void:
 				# Emit *applied* damage rather than attempted: target.damage()
 				# clamps HP at zero, so a 20-dmg hit on a 5-HP hero only
 				# applies 5. Snapshot pre-damage HP to compute the delta.
-				var pre_hp: float = float(_engaged_target.get("hp", 0.0))
+				#
+				# Object.get(property) is single-arg in Godot 4 — null if
+				# the property doesn't exist; we coerce to 0.0 ourselves
+				# rather than passing a default arg.
+				var pre_val = _engaged_target.get("hp")
+				var pre_hp: float = float(pre_val) if pre_val != null else 0.0
 				_engaged_target.damage(float(data.damage))
-				var applied: float = max(0.0, pre_hp - float(_engaged_target.get("hp", 0.0)))
+				var post_val = _engaged_target.get("hp")
+				var post_hp: float = float(post_val) if post_val != null else 0.0
+				var applied: float = max(0.0, pre_hp - post_hp)
 				damaged_target.emit(_engaged_target, applied)
 			if data.get("keep_distance", false) and dist < preferred_range_tiles:
 				_step_away_from(t_tile)
