@@ -114,6 +114,12 @@ var _help_ability_cooldowns: Dictionary = {}  # peer_id → seconds remaining
 var _front_rotation_index: int = 0
 var _revive_hold_target: int = 0  # peer_id of revive target the local hero is currently reviving
 var _revive_hold_seconds: float = 0.0
+# Round index stashed by _on_wave_started so apply_wave_state can attach
+# it to telemetry. Banner rendering moved out of _on_wave_started to
+# defeat a wave-start veil leak on clients (see _on_wave_started for the
+# why); apply_wave_state needs the round index but the wave_state RPC
+# carries only the first-hit peer + composition.
+var _pending_wave_round_index: int = 0
 
 const DEFAULT_HERO_ID := "Buffalo"
 
@@ -788,25 +794,40 @@ func _on_enemy_reached_core(enemy: Node2D) -> void:
 	enemy.queue_free()
 
 func _on_wave_started(round_index: int, composition: Dictionary) -> void:
-	# Pick first-hit hero for this wave (BUF-153). Only the host
-	# computes; clients wait for the broadcast so the spine mechanic's
-	# veil decision is host-authoritative. In solo, MpIo.is_host() is
-	# false (no peer bound), so we fall through to the local pick.
+	# BUF-153: the spine. Only the host picks first-hit hero and
+	# broadcasts via _rpc_wave_state. Banner + telemetry are deferred
+	# to apply_wave_state — that's the single point of truth on every
+	# peer. Without this discipline, a client's wave_started.emit (from
+	# its own deterministic wave_director.tick) ran before the host's
+	# RPC arrived, _wave_first_hit_peer was 0, and the else branch
+	# below leaked the full directional/archetype callout to non-first-
+	# hit heroes — defeating the info-asymmetric mechanic at wave start.
+	#
+	# In solo, host-or-not-multiplayer collapses to the local pick and
+	# call_local fires apply_wave_state synchronously — single peer,
+	# single banner, no race.
+	#
+	# Stash round_index so apply_wave_state can attach it to telemetry
+	# without re-deriving from wave_director.
+	_pending_wave_round_index = round_index
 	if MpIo.is_host() or not MpIo.is_multiplayer():
-		_wave_first_hit_peer = _pick_first_hit_peer()
-		_wave_visible_to = [_wave_first_hit_peer] if _wave_first_hit_peer != 0 else []
-		_veiled_composition = composition.duplicate(true)
-		if MpIo.is_host():
-			replication.rpc("_rpc_wave_state", _wave_first_hit_peer, composition)
-	else:
-		# Client: the host's RPC will overwrite _wave_first_hit_peer
-		# in a moment. Stage the composition so the local banner can
-		# render once the host call lands.
-		_veiled_composition = composition.duplicate(true)
-	# Voice rule: the call-out for the first-hit hero uses seasonal-
-	# frame language ("the cold comes from the north") rather than
-	# "wave incoming". Non-first-hit heroes get only "in combat" — the
-	# HUD veil keeps their composition hidden until they walk to it.
+		var first_hit: int = _pick_first_hit_peer()
+		# call_local on _rpc_wave_state means apply_wave_state runs
+		# synchronously here on the host; the same code path then
+		# replays on every client when the RPC arrives over the wire.
+		if MpIo.is_multiplayer():
+			replication.rpc("_rpc_wave_state", first_hit, composition)
+		else:
+			apply_wave_state(first_hit, composition)
+	# Else (client): nothing to render yet. Stage nothing — apply_wave_state
+	# stamps composition + first_hit_peer when the host's RPC lands.
+
+func _render_wave_banner(round_index: int, composition: Dictionary) -> void:
+	# Renders the seasonal-frame call-out + telemetry for the current
+	# wave. Called from apply_wave_state once first_hit_peer is the
+	# host-authoritative value. Voice rule: the directional call-out is
+	# privileged info — only the first-hit hero (or the solo player)
+	# sees it. Everyone else hears "X is in combat. Listen for the call."
 	var shout: String = ""
 	var first_hit_hero_id: String = MpIo.resolve_hero_for_peer(_wave_first_hit_peer)
 	if MpIo.is_multiplayer() and _wave_first_hit_peer != MpIo.local_peer_id and _wave_first_hit_peer != 0:
@@ -1421,12 +1442,14 @@ func _front_direction_for(idx: int) -> String:
 func apply_wave_state(first_hit_peer: int, composition: Dictionary) -> void:
 	# Replication.gd routes the host's authoritative wave state here so
 	# every peer (including the host, via call_local) lands on the same
-	# _wave_first_hit_peer + composition. Banner + telemetry rendering
-	# already happened in _on_wave_started; this is the host-truth
-	# follow-up.
+	# _wave_first_hit_peer + composition. Banner + telemetry render
+	# from this single point so a client can't ever flash the
+	# directional callout before knowing whether they're the first-hit
+	# hero — the spine mechanic depends on this discipline.
 	_wave_first_hit_peer = first_hit_peer
 	_wave_visible_to = [first_hit_peer] if first_hit_peer != 0 else []
 	_veiled_composition = composition.duplicate(true)
+	_render_wave_banner(_pending_wave_round_index, composition)
 
 func is_wave_visible_to_local() -> bool:
 	# HUD reads this to decide between "show full composition" and

@@ -77,6 +77,15 @@ func _spawn_hero_for_peer(peer_id: int, hero_id: String, is_local: bool) -> Node
 	hero.set_meta("is_local_hero", is_local)
 	hero.set_meta("hero_id", hero_id)
 	main_node.add_child(hero)
+	# Stamp the puppet flag *after* add_child so Hero._ready has already
+	# wired the @onready camera ref. Without this, every remote hero
+	# kept reading the local keyboard each frame until the first network
+	# pose update arrived — and on the host, that also mutated the
+	# authoritative current_tile that revive/visibility/enemy-target
+	# checks consult, so a player walking around their machine could
+	# yank a teammate's hero around the world.
+	if hero.has_method("set_remote_puppet"):
+		hero.set_remote_puppet(not is_local)
 	heroes_by_peer[peer_id] = hero
 	hero_spawned.emit(peer_id, hero_id, hero, is_local)
 	return hero
