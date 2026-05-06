@@ -612,7 +612,13 @@ func _unhandled_input(event: InputEvent) -> void:
 				inventory.remove_item(ammo_id, 1)
 		combat.swing_started.emit(equipped, hero.position, dir, length_px, half_angle_rad)
 		combat.note_swing_cooldown(equipped)
-		replication.client_request_swing(equipped, hero.position, hero.facing, ammo_count)
+		# Pass the client's effective attack_speed mult so the host's
+		# per-peer cooldown gate matches the client's faster cadence
+		# when upgrades are owned. Without this, an upgraded client's
+		# legitimate swings would be rejected and bow shots would waste
+		# their already-deducted arrow (PR #43 review).
+		var client_attack_speed: float = float(_effective_stats.get("attack_speed", 1.0))
+		replication.client_request_swing(equipped, hero.position, hero.facing, ammo_count, client_attack_speed)
 		return
 	var swing_result: Dictionary = combat.resolve_swing(hero.position, hero.facing, equipped, enemies, ammo_count)
 	if telemetry != null and swing_result.get("ok", false):
@@ -1225,20 +1231,32 @@ func _request_help_ability(target_peer: int) -> void:
 # Host-only resolution paths. RPCs in replication.gd route here for
 # clients; the host's local-side calls them directly.
 
-func host_resolve_remote_swing(peer_id: int, weapon_id: String, origin: Vector2, facing: Vector2, ammo_count: int) -> void:
-	# Authoritative remote-swing resolver. PR #43 review: the previous
-	# implementation built a fresh CombatSystem per RPC, which made the
-	# can_swing() check vacuous — every "first" swing on the host is
-	# allowed. Replaced with a per-peer cached CombatSystem that ticks
-	# alongside the host's own combat, so a non-host peer that bypasses
-	# the client UI and replays _rpc_request_swing directly is rejected
-	# at the same cadence their weapon allows.
-	#
-	# Stat modifiers stay at 1.0 for v1 — per-peer effective_stats
-	# replication is M5 work. The cooldown still scales by the weapon's
-	# nominal cooldown (see CombatSystem.note_swing_cooldown), so a
-	# remote peer's spear/bow gates correctly even without their
-	# attack_speed upgrades being mirrored on the host.
+## Upper bound the host applies to a client's claimed attack_speed_mult.
+## The maximum legitimate stack of attack-speed upgrades in M2 is well
+## under 2x (Goose open_throat 0.15 + Buffalo braced_shoulders 0.10 +
+## shared_oilskin_grip 0.12 + similar = ~0.4 → 1.4x), so 2.5x leaves
+## headroom for future upgrades while still rejecting anyone trying to
+## pass a 100x-speed claim. If a client runs above this cap they'll see
+## occasional rejected swings; the cap is the right trade-off until the
+## proper per-peer effective_stats replication ships in M5.
+const MAX_REMOTE_ATTACK_SPEED_MULT := 2.5
+
+func host_resolve_remote_swing(peer_id: int, weapon_id: String, origin: Vector2, facing: Vector2, ammo_count: int, attack_speed_mult: float = 1.0) -> void:
+	# Authoritative remote-swing resolver. PR #43 review:
+	# - The previous implementation built a fresh CombatSystem per RPC,
+	#   which made the can_swing() check vacuous; replaced with a
+	#   per-peer cached CombatSystem that ticks alongside the host's own
+	#   combat (see _get_or_create_remote_combat).
+	# - The host originally used a 1.0 attack_speed modifier on the
+	#   per-peer combat, which silently rejected legitimate swings from
+	#   a client with attack-speed upgrades (the client's note_swing_cooldown
+	#   used the upgraded mult, so they sent the next intent before the
+	#   host's slower cooldown elapsed). Now the client passes its local
+	#   effective attack_speed in the swing intent and the host applies
+	#   it (capped to MAX_REMOTE_ATTACK_SPEED_MULT) before the can_swing
+	#   gate. Per-peer effective_stats replication is still M5 work —
+	#   this is the smallest fix that lets upgraded clients play correctly
+	#   without trusting an unbounded multiplier.
 	#
 	# Ammo: deliberately NOT connected on the per-peer combat. The remote
 	# peer owns its own inventory; charging a remote bow shot to the
@@ -1252,6 +1270,15 @@ func host_resolve_remote_swing(peer_id: int, weapon_id: String, origin: Vector2,
 	if caster_hero == null or not is_instance_valid(caster_hero):
 		return
 	var per_peer_combat: CombatSystem = _get_or_create_remote_combat(peer_id)
+	# Apply the client's claimed attack_speed mult, capped. damage_mult
+	# stays 1.0 (per-peer damage replication is M5); attack_range_bonus
+	# is irrelevant here because the host re-derives range from weapon +
+	# the bonus on its own combat. Setting modifiers before can_swing()
+	# means a client whose attack-speed upgrade was just purchased gets
+	# the new cooldown applied to the *current* swing's gate, not just
+	# the next one.
+	var capped_speed: float = clamp(attack_speed_mult, 0.1, MAX_REMOTE_ATTACK_SPEED_MULT)
+	per_peer_combat.set_stat_modifiers(1.0, capped_speed, 0.0)
 	if not per_peer_combat.can_swing():
 		# Reject early — drop the intent silently. The client already
 		# played its prediction-arc; if a malicious client sent the RPC
