@@ -7,11 +7,16 @@ upgrades, biome variety, seed sharing, weapon tiers (BUF-144..149).
 ## Run it
 
 Open `project.godot` in Godot 4.6. The boot scene is the run-start
-screen — pick a totem, optionally paste a watch seed, click Start.
-WASD walks the hero. Cursor sets facing. Left-click swings (or fires
-arrows when a bow is equipped). Hold E to gather. 1..8 selects an
-inventory slot; right-click clears the build preview. F3 toggles the
-chunk debug overlay; F4 dumps the current WorldDef to `user://debug/`.
+screen — pick a totem, optionally paste a watch seed, then either
+"Stand the watch alone" (solo) or "Stand it with friends"
+(multiplayer lobby). WASD walks the hero. Cursor sets facing.
+Left-click swings (or fires arrows when a bow is equipped). **F is
+gather** (moved off E in M4 — see BUF-154). **E held + click on a
+teammate / portrait** fires the help ability. **Q** fires the hero's
+signature ability (Charge / Dive / Snatch). **R held** revives a
+fallen friend within one tile. 1..8 selects an inventory slot;
+right-click clears the build preview. F3 toggles the chunk debug
+overlay; F4 dumps the current WorldDef to `user://debug/`.
 
 ## Ships in M2
 
@@ -87,11 +92,108 @@ The cold-deepening across days reads on a quick comparison (day 1 vs
 day 3), but in flow the shift is subtle. Real biome tile art will do
 more of the work than the canvas tint alone.
 
-## Stubbed / out of MVP scope
+## Ships in M4 (BUF-150..155)
 
-- 3-player multiplayer, real biome tile art, real upgrade icons,
-  sorcerer-demon enemies, exploration / fog-of-war, weather, respec,
-  achievements, daily seed challenges, server telemetry, sound.
-- Hero abilities (Q-bound charge / dive / snatch). The cooldown stat
-  is plumbed via `GameState.signature_cooldown_max`; wiring is
-  BUF-150-ish.
+- **Multiplayer foundation (BUF-150)** — `scripts/adapters/multiplayer_io.gd`
+  autoload owns the MultiplayerAPI lifecycle. Lobby scene at
+  `scenes/ui/lobby.tscn`. Host generates a 6-char code from a 31-char
+  alphabet (no 0/O/1/I/L for voice survival). Join takes a host
+  address + code; ENet direct on port 55432. Hero-select syncs across
+  peers via RPC; locked-out duplicates. "Light the lantern" broadcasts
+  run-start.
+- **World + hero replication (BUF-151)** — `scripts/adapters/replication.gd`
+  is the only place RPCs live for the gameplay scene. Determinism
+  guarantee: the host broadcasts its run seed; clients regenerate the
+  procgen world locally. WaveDirector got `set_seed` so round-2 archetype
+  rolls match across peers. Hero positions sync at 10Hz via host relay.
+  Each peer drives input for its local hero; remote heroes are puppets.
+- **Combat + downed/revive (BUF-152)** — Client swing → host resolves
+  via a per-call CombatSystem → broadcasts damage. Q-bound signatures
+  (Charge / Dive / Snatch) wired through AbilityResolver.resolve and
+  the new `_apply_signature_effect` dispatch. 0 HP → kneel + 30s timer
+  ring. Teammate within 1 tile holds R for 3s → revive at 25% HP.
+  Timer expires → fallen state. Visual ring shows both timers above
+  the hero.
+- **Sequential info-asymmetric waves (BUF-153)** — the spine. Host
+  picks first-hit hero per wave with a rotating front (north → east
+  → south) plus a hero-default-front bias from
+  `data/multiplayer.gd.HERO_FRONT_DEFAULT`. Veil discipline: the wave
+  banner reads "the cold comes from the &lt;direction&gt;" only for the
+  first-hit hero; non-first-hit teammates see only "Goose is in
+  combat. Listen for the call." Veil lifts when a teammate walks
+  within 6 tiles of any wave enemy.
+- **Cross-sector help abilities (BUF-154)** — `AbilityResolver.resolve_help`
+  produces effect dicts for `BuffaloStampede` (line charge),
+  `GooseCover` (buff zone), `FoxSteal` (mark + double damage). E held
+  + click teammate / portrait, OR double-tap E to quick-target the
+  most-in-combat teammate. 25s cooldown.
+- **Connection state copy + AI placeholder (BUF-155)** —
+  `data/multiplayer.gd.connection_copy()` maps state ids to seasonal-
+  frame strings. HUD shows the banner for ~3.5s on transition. AI
+  placeholder = freeze-in-place + "AI" badge under the totem on
+  disconnect. Host drop returns everyone to the lobby.
+
+## Calls I made during the M4 pass
+
+- **Help-ability cooldown 25s** (mid of the 20-30 spec). Tune after
+  first 3-player playtest — multiple help moments per wave may want 20.
+- **Veil lift = 6 tiles of LOS** (eyeballed). Playtest may want 4 or 8.
+- **Position sync at 10Hz** — local hero feels zero-lag from its own
+  input prediction; remote heroes snap at 100ms intervals. Can bump
+  to 20Hz if motion reads jittery.
+- **AI placeholder = freeze + badge.** Auto-attack-in-radius is M5
+  polish; currently the dropped hero just stands there. Voice still
+  carries during the 10s reconnect window.
+- **Sectors-as-fronts** (the brief's default). Flagged below for Aidan.
+- **Gather key moved E → F.** BUF-154 explicitly binds E to help; the
+  cleanest resolution. Hint label updated.
+
+## Open questions for Aidan (M4)
+
+- **Sectors-as-fronts vs. spatially-separated regions.** The current
+  build treats the world as one shared space with a rotating front
+  for first-hit calculation. After the first 3-player playtest: does
+  the rotating front read as enough sector-identity, or do players
+  treat the world as undifferentiated and the "front" abstraction
+  doesn't land?
+- **Help-ability cooldown** — 25s plays well solo; in a real wave
+  with three help moments back-to-back, 20s might land better.
+- **Reconnect flow.** v1 is "drop → AI placeholder → either reconnect
+  in 10s or fallen for the run". Mid-run rejoin is parking-lot per
+  the brief; flag for M5 if drops happen often during playtest.
+
+## Stubbed / out of M4 scope (M5+)
+
+- **Help effect mechanics.** Cover's buff zone and Steal's yank are
+  cast-and-broadcast as visuals but the actual buff (attack-speed,
+  damage-resist, position pull) isn't wired into combat. Stampede
+  damage works; the others are visual flashes for now.
+- **AI placeholder auto-attack.** Dropped heroes stand still; M5
+  wires basic auto-attack-in-radius.
+- **Host-arbitrated pickups + buildings.** Each peer's gather and
+  build flow runs locally without host reconciliation. Potential
+  desync if two players grab the same node simultaneously — flagged
+  but not exercised in solo.
+- **Per-peer combat stat modifiers in MP.** Host's `host_resolve_remote_swing`
+  uses default 1.0 multipliers when running combat for a remote peer
+  (their own lodge upgrades don't propagate to host). Solo combat is
+  unaffected.
+- **Floating damage numbers on clients** for melee hits — bound to
+  the local CombatSystem's signal which doesn't fire from RPC damage
+  application paths. Visual polish only.
+- **Dawn respawn for fallen heroes.** Fallen state is rendered; the
+  next-dawn respawn at 25% HP isn't yet hooked to `_on_phase_changed`.
+- **Real biome tile art**, sound effects for new states, sorcerer-
+  demon enemies, exploration / fog-of-war, weather, respec, daily
+  seed challenges, server-side telemetry — all unchanged from M3
+  parking-lot.
+
+## 3-player playtest impression
+
+I have not been able to run a 3-machine playtest from this worktree
+— the spine mechanic's actual feel needs three humans on three
+laptops. Solo path runs clean (M2 single-player is unchanged). The
+honest limit: until Aidan, Goose, and Beau actually play through the
+integration narrative, the "voice-comms-IS-gameplay" pillar lands
+or it doesn't. The visible scaffolding is in place; the playtest is
+the verdict.

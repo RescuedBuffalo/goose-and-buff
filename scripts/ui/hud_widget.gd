@@ -10,6 +10,7 @@ extends Control
 ## all gone. Phase progresses automatically via DayNightCycle.
 
 const DayNight := preload("res://data/day_night.gd")
+const MultiplayerDataClass := preload("res://data/multiplayer.gd")
 
 var _day_index: int = 1
 var _phase: int = DayNight.PHASE_DAY
@@ -22,12 +23,28 @@ var _banner_until: float = 0.0
 # are wasted work.
 var _last_drawn_timer_int: int = -1
 var _banner_active: bool = false
+# Connection-state banner (BUF-155). When a peer's state changes the
+# HUD shows the seasonal-frame copy for ~3 seconds in the bottom band.
+var _connection_banner: String = ""
+var _connection_banner_until: float = 0.0
+# Pulse phase for the in-combat portrait pulse (BUF-153). We don't run
+# a tween — a simple sin(time) modulator is enough.
+var _pulse_t: float = 0.0
+# Cached reference to the main scene so we can read first-hit-peer +
+# veil state for the teammate strip. main.gd has a getter for it.
+var _main_ref: Node = null
 
 func bind(day_night) -> void:
 	day_night.phase_changed.connect(_on_phase_changed)
 	day_night.phase_timer_tick.connect(_on_phase_timer)
 	GameState.hero_hp_changed.connect(func(_a, _b): queue_redraw())
 	GameState.core_hp_changed.connect(func(_a, _b): queue_redraw())
+	# Connection-state banner copy fires off MpIo when a peer connects /
+	# drops / reconnects. The autoload exists in solo too but never emits
+	# unless a peer is bound, so this listener is safe to wire always.
+	if not MpIo.peer_state_changed.is_connected(_on_peer_state_changed):
+		MpIo.peer_state_changed.connect(_on_peer_state_changed)
+	_main_ref = get_tree().current_scene
 
 func _ready() -> void:
 	# Fixed band at the very top — 96 px tall is enough for two lines of
@@ -41,7 +58,7 @@ func _ready() -> void:
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
 	queue_redraw()
 
-func _process(_delta: float) -> void:
+func _process(delta: float) -> void:
 	# Redraw only when something visible has actually changed:
 	#   - timer string crossed a second boundary
 	#   - banner just expired (so we wipe the trailing text)
@@ -55,6 +72,12 @@ func _process(_delta: float) -> void:
 	var banner_active_now: bool = not _banner_text.is_empty() and now < _banner_until
 	if banner_active_now != _banner_active:
 		_banner_active = banner_active_now
+		should_redraw = true
+	# In-combat portrait pulse — repaint every frame during a wave so
+	# the sin() modulator animates. Cheap; only the teammate strip lives
+	# in the redraw region.
+	if MpIo.is_multiplayer():
+		_pulse_t += delta
 		should_redraw = true
 	if should_redraw:
 		queue_redraw()
@@ -96,9 +119,10 @@ func _draw() -> void:
 	draw_rect(Rect2(0, 0, size.x, size.y), bg, true)
 	draw_line(Vector2(0, size.y), Vector2(size.x, size.y), DesignTokens.DIVIDER, 2.0)
 	var pad: float = float(DesignTokens.SPACE_4)
-	# Hero HP — left.
+	# Local hero HP — left chip carries the local hero's totem name.
+	var local_hero_id: String = GameState.hero_id.to_upper() if not GameState.hero_id.is_empty() else "BUFFALO"
 	_draw_label_chip(Vector2(pad, 14),
-		"BUFFALO", "%d / %d" % [int(GameState.hero_hp), int(GameState.hero_hp_max)],
+		local_hero_id, "%d / %d" % [int(GameState.hero_hp), int(GameState.hero_hp_max)],
 		DesignTokens.hp_color(_hp_ratio(GameState.hero_hp, GameState.hero_hp_max)),
 	)
 	# Lodge core HP — left of center.
@@ -121,6 +145,86 @@ func _draw() -> void:
 	var now: float = Time.get_ticks_msec() / 1000.0
 	if not _banner_text.is_empty() and now < _banner_until:
 		_draw_banner(_banner_text)
+	# Multiplayer-only surface: teammate portrait strip + connection
+	# banner. Hidden in solo so the M2 single-player look stays clean.
+	if MpIo.is_multiplayer():
+		_draw_teammate_strip(font)
+	if not _connection_banner.is_empty() and now < _connection_banner_until:
+		_draw_connection_banner(_connection_banner, font)
+
+func _draw_teammate_strip(font: Font) -> void:
+	# Three portraits along the right edge of the top band. Each cell
+	# shows the totem name + a connection-state dot. The first-hit-hero
+	# pulses (BUF-153 in-combat indicator). Veiled teammates show only
+	# this pulse — the *what's coming* stays off-screen.
+	var pad: float = float(DesignTokens.SPACE_4)
+	var cell_w: float = 130.0
+	var cell_h: float = 56.0
+	var spacing: float = 8.0
+	var first_hit: int = 0
+	if _main_ref != null and _main_ref.has_method("wave_first_hit_peer"):
+		first_hit = int(_main_ref.wave_first_hit_peer())
+	var slot_index: int = 0
+	for slot_pid in MpIo.lobby.snapshot():
+		var pid: int = int(slot_pid.peer_id)
+		if pid == 0:
+			continue
+		var hero_id: String = String(slot_pid.hero_id)
+		var x: float = size.x - pad - (cell_w + spacing) * 3.0 + (cell_w + spacing) * float(slot_index)
+		var y: float = 6.0
+		var bg_color := Color(DesignTokens.NIGHT_2.r, DesignTokens.NIGHT_2.g, DesignTokens.NIGHT_2.b, 0.78)
+		# In-combat pulse: highlight the first-hit-hero portrait while
+		# the wave is active. sin() modulates the border alpha.
+		var border := DesignTokens.DIVIDER
+		var border_w: float = 2.0
+		if pid == first_hit and _phase == DayNight.PHASE_NIGHT:
+			var pulse: float = 0.5 + 0.5 * sin(_pulse_t * 6.0)
+			border = DesignTokens.HP_CRIT
+			border_w = 3.0 + pulse * 2.0
+		draw_rect(Rect2(x, y, cell_w, cell_h), bg_color, true)
+		draw_rect(Rect2(x, y, cell_w, cell_h), border, false, border_w)
+		draw_string(font, Vector2(x + 8, y + 22), hero_id,
+			HORIZONTAL_ALIGNMENT_LEFT, -1, DesignTokens.FS_SM, DesignTokens.PARCHMENT_0)
+		# State dot — a small disc whose color reflects connection state.
+		var state_id: String = String(MpIo.peer_states.get(pid, MultiplayerDataClass.STATE_CONNECTED))
+		var dot_color: Color = _state_dot_color(state_id)
+		draw_circle(Vector2(x + cell_w - 14, y + 14), 5.0, dot_color)
+		# Local hero gets a parchment outline so each player can find
+		# themselves in the strip without reading totem names.
+		if pid == MpIo.local_peer_id:
+			draw_rect(Rect2(x + 2, y + 2, cell_w - 4, cell_h - 4), DesignTokens.PARCHMENT_2, false, 1.5)
+		slot_index += 1
+
+func _state_dot_color(state_id: String) -> Color:
+	match state_id:
+		MultiplayerDataClass.STATE_CONNECTED, MultiplayerDataClass.STATE_RECONNECTED:
+			return DesignTokens.HP_FULL
+		MultiplayerDataClass.STATE_RECONNECTING, MultiplayerDataClass.STATE_CONNECTING:
+			return DesignTokens.HP_WARN
+		MultiplayerDataClass.STATE_DROPPED, MultiplayerDataClass.STATE_HOST_DROPPED:
+			return DesignTokens.HP_CRIT
+		_:
+			return DesignTokens.FG_3
+
+func _draw_connection_banner(text: String, font: Font) -> void:
+	# Bottom-of-band centered banner. Smaller than the wave banner so
+	# they read distinct from each other.
+	var fs: int = DesignTokens.FS_MD
+	var w: float = font.get_string_size(text, HORIZONTAL_ALIGNMENT_LEFT, -1, fs).x
+	var x: float = (size.x - w) * 0.5
+	var y: float = size.y - 18.0
+	draw_string(font, Vector2(x, y), text, HORIZONTAL_ALIGNMENT_LEFT, -1, fs, DesignTokens.FG_2)
+
+func _on_peer_state_changed(_peer_id: int, state_id: String, hero_id: String) -> void:
+	# Render the seasonal-frame copy for this transition for ~3.5s.
+	# The state ids the multiplayer adapter uses come from data/
+	# multiplayer.gd — connection_copy() handles the voice mapping.
+	var copy: String = MultiplayerDataClass.connection_copy(state_id, hero_id)
+	if copy.is_empty():
+		return
+	_connection_banner = copy
+	_connection_banner_until = Time.get_ticks_msec() / 1000.0 + 3.5
+	queue_redraw()
 
 func _phase_headline() -> String:
 	# Seasonal-frame chapter names (BUF-146). "Day 1 — first frost,

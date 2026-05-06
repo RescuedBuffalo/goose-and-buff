@@ -32,6 +32,12 @@ var _wave_composition: Dictionary = {}
 var _spawn_queue: Array = []
 var _spawn_accum: float = 0.0
 var _enemies_alive: int = 0
+# Per-run RNG seeded from the run seed (BUF-151 determinism). Picking
+# a wave archetype on round 2 used to call randi() against the engine
+# global RNG — fine in solo, but in multiplayer different peers would
+# drift to different archetypes. Seeding with the run seed makes the
+# pick reproducible across machines.
+var _rng: RandomNumberGenerator = null
 
 func reset() -> void:
 	state = State.IDLE
@@ -41,6 +47,12 @@ func reset() -> void:
 	_spawn_accum = 0.0
 	_enemies_alive = 0
 
+func set_seed(seed: int) -> void:
+	# Called by main.gd after the run seed is known. Caller passes
+	# `run_seed` (BUF-151); wave_director uses it for archetype rolls.
+	_rng = RandomNumberGenerator.new()
+	_rng.seed = seed
+
 func start_wave(idx: int) -> void:
 	# Idempotent — if a wave is already running, end it first so the
 	# new one starts from a clean queue. Should not normally happen
@@ -49,7 +61,7 @@ func start_wave(idx: int) -> void:
 		_clear_queue()
 	state = State.WAVE
 	round_index = idx
-	_wave_composition = Waves.for_round(idx)
+	_wave_composition = Waves.for_round(idx, _rng)
 	_spawn_queue = _build_spawn_queue(_wave_composition)
 	_spawn_accum = 0.0
 	wave_started.emit(round_index, _wave_composition)
