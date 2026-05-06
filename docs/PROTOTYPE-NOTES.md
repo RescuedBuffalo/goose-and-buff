@@ -51,9 +51,10 @@ chunk debug overlay; F4 dumps the current WorldDef to `user://debug/`.
 - **Chunk borders are walkable by design.** No T/R/W on the outer
   ring of any non-center chunk. AStar reachability from spawn to lodge
   is therefore guaranteed without a validate-and-retry loop.
-- **`inventory_slots` is a stat but the HUD honors a fixed 8.** The
-  upgrade exists and effective_stats reflects it; wiring variable
-  slots into the inventory_hud is held for M3 polish.
+- **`inventory_slots` is wired end-to-end.** `InventorySystem.slot_count`
+  is mutable via `set_slot_count()`; main applies the upgrade before
+  reset; the HUD reads the live count and widens the strip. Slots 9+
+  are storage-only (only hotbar_1..hotbar_8 are registered actions).
 - **First-pass ember earn rates.** 6 victory + 1 per night survived on
   defeat + small stretch bonuses. Real numbers need playtest data.
 - **Climate cold-tint amounts** (lighting_adapter.gd) are picked by
@@ -92,6 +93,5 @@ more of the work than the canvas tint alone.
   sorcerer-demon enemies, exploration / fog-of-war, weather, respec,
   achievements, daily seed challenges, server telemetry, sound.
 - Hero abilities (Q-bound charge / dive / snatch). The cooldown stat
-  is plumbed; wiring is BUF-150-ish.
-- Variable inventory slots (the upgrade exists; the HUD doesn't react
-  yet).
+  is plumbed via `GameState.signature_cooldown_max`; wiring is
+  BUF-150-ish.

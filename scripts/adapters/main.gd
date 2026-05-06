@@ -252,6 +252,12 @@ func _apply_stats_to_systems() -> void:
 		gather.set_speed_multiplier(float(stats.gather_speed))
 	if sector != null:
 		sector.reset_core(float(stats.lodge_hp_max))
+	# Apply the inventory_slots upgrade BEFORE _start_run calls
+	# inventory.reset() — reset() builds the slots array at the active
+	# slot_count, so widening must happen first or the new slots won't
+	# materialize until the second run after purchase.
+	if inventory != null:
+		inventory.set_slot_count(int(stats.inventory_slots))
 	# Stamp the upgrade-modified ability cooldown into GameState so the
 	# moment Q-bound abilities land (BUF-150-ish), they read it via the
 	# existing set_signature_cooldown contract. Today no consumer fires
@@ -347,7 +353,10 @@ func _process(delta: float) -> void:
 		_try_start_gather()
 	elif Input.is_action_just_released("gather"):
 		gather.cancel_active()
-	for i in InventorySystem.SLOT_COUNT:
+	# Only the first 8 slots have hotbar bindings (hotbar_1..hotbar_8 in
+	# project.godot). Slots 9+ from the "Extra pouch" upgrade are
+	# storage-only — clickable on the HUD but not hotkey-addressable.
+	for i in min(8, inventory.slot_count):
 		if Input.is_action_just_pressed("hotbar_%d" % (i + 1)):
 			inventory.select_slot(i)
 

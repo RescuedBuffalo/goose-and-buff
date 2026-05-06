@@ -70,19 +70,26 @@ func _draw() -> void:
 	var bg := Color(DesignTokens.NIGHT_0.r, DesignTokens.NIGHT_0.g, DesignTokens.NIGHT_0.b, 0.78)
 	draw_rect(Rect2(0, 0, size.x, size.y), bg, true)
 	draw_line(Vector2(0, 0), Vector2(size.x, 0), DesignTokens.DIVIDER, 2.0)
-	# Layout: equipped slot on the right, 8 inventory slots centered.
-	var total_w: float = (SLOT_SIZE.x * InventorySystem.SLOT_COUNT) + (SLOT_GAP * (InventorySystem.SLOT_COUNT - 1))
+	# Layout: equipped slot on the right, N inventory slots centered.
+	# N reads from inventory.slot_count (live, may grow via the lodge
+	# "Extra pouch" upgrade — BUF-147), not the class constant, so the
+	# strip widens to honor purchased inventory_slots.
+	var n: int = max(1, inventory.slot_count)
+	var total_w: float = (SLOT_SIZE.x * n) + (SLOT_GAP * (n - 1))
 	var equipped_w: float = SLOT_SIZE.x + SLOT_GAP * 4.0
 	var origin_x: float = (size.x - total_w - equipped_w) * 0.5
 	var origin_y: float = (size.y - SLOT_SIZE.y) * 0.5
 	_slot_rects = []
-	for i in InventorySystem.SLOT_COUNT:
+	for i in n:
 		var r := Rect2(
 			Vector2(origin_x + i * (SLOT_SIZE.x + SLOT_GAP), origin_y),
 			SLOT_SIZE,
 		)
 		_slot_rects.append(r)
-		_draw_slot(r, inventory.slots[i], i == _selected_index, str(i + 1))
+		# Hotkey label only on the first 8 slots — only hotbar_1..hotbar_8
+		# are registered in project.godot, so slot 9+ are storage-only.
+		var hotkey: String = str(i + 1) if i < 8 else ""
+		_draw_slot(r, inventory.slots[i], i == _selected_index, hotkey)
 	# Equipped slot — shows the equipped weapon as a fixed display.
 	var eq_x: float = origin_x + total_w + SLOT_GAP * 4.0
 	_equipped_rect = Rect2(Vector2(eq_x, origin_y), SLOT_SIZE)
