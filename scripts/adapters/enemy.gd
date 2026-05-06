@@ -22,6 +22,12 @@ const PX_PER_TILE := 32.0
 signal died(self_ref: Node)
 signal reached_core(self_ref: Node)
 signal damaged_target(target_ref: Node, amount: float)
+# Multiplayer-aware damage request. Adapter emits the *intent*; main.gd
+# decides whether to apply locally (solo / unit targets) or route
+# through the replication adapter so a remote-owned hero sees the hit.
+# Without this, the host's local `target.damage()` call only mutates the
+# host's puppet of a client's hero — the owning peer keeps full HP.
+signal wants_to_damage(target_ref: Node, amount: float)
 
 var data: Dictionary
 var hp_max: float = 0.0
@@ -147,16 +153,19 @@ func _physics_process(delta: float) -> void:
 		if dist <= attack_range_tiles:
 			if _attack_cooldown <= 0.0:
 				_attack_cooldown = float(data.attackInterval)
-				# Emit *applied* damage rather than attempted: target.damage()
-				# clamps HP at zero, so a 20-dmg hit on a 5-HP hero only
-				# applies 5. Snapshot pre-damage HP to compute the delta.
+				# Damage application is owned by main.gd's wants_to_damage
+				# handler — it routes through replication so a hit on a
+				# remote-owned hero reaches the client that owns it. We
+				# still compute applied damage for the telemetry hook,
+				# but read the target's HP after the handler has run so
+				# the value reflects clamping.
 				#
 				# Object.get(property) is single-arg in Godot 4 — null if
 				# the property doesn't exist; we coerce to 0.0 ourselves
 				# rather than passing a default arg.
 				var pre_val = _engaged_target.get("hp")
 				var pre_hp: float = float(pre_val) if pre_val != null else 0.0
-				_engaged_target.damage(float(data.damage))
+				wants_to_damage.emit(_engaged_target, float(data.damage))
 				var post_val = _engaged_target.get("hp")
 				var post_hp: float = float(post_val) if post_val != null else 0.0
 				var applied: float = max(0.0, pre_hp - post_hp)

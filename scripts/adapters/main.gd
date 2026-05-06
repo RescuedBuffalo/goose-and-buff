@@ -539,6 +539,18 @@ func _unhandled_input(event: InputEvent) -> void:
 		var range_tiles: float = float(weapon.range_tiles)
 		var length_px: float = range_tiles * 35.0
 		var half_angle_rad: float = deg_to_rad(float(weapon.arc_degrees) * 0.5)
+		# Ranged: deduct one arrow from the local inventory before
+		# firing. The host doesn't touch the swinger's inventory (see
+		# host_resolve_remote_swing — ammo_consumed is intentionally
+		# unwired). Without this local debit, clients would shoot
+		# unlimited arrows. Skip the intent if we're already empty so a
+		# trigger-mash doesn't spawn projectiles the resolver will reject.
+		if Weapons.is_ranged(equipped):
+			if ammo_count < 1:
+				return
+			var ammo_id: String = Weapons.ammo_for(equipped)
+			if not ammo_id.is_empty():
+				inventory.remove_item(ammo_id, 1)
 		combat.swing_started.emit(equipped, hero.position, dir, length_px, half_angle_rad)
 		replication.client_request_swing(equipped, hero.position, hero.facing, ammo_count)
 		return
@@ -723,6 +735,11 @@ func _on_enemy_due(enemy_type: String, slot_index: int) -> void:
 	e.died.connect(_on_enemy_died.bind(enemy_type))
 	e.reached_core.connect(_on_enemy_reached_core)
 	e.damaged_target.connect(_on_enemy_damaged_target.bind(enemy_type))
+	# wants_to_damage is the application surface — the host applies the
+	# hit, routing through replication when the target is a remote-owned
+	# hero so the owning client sees the damage too. Solo collapses to a
+	# direct .damage() call.
+	e.wants_to_damage.connect(_on_enemy_wants_to_damage)
 	wave_director.note_enemy_spawned()
 
 func _on_enemy_died(enemy: Node, enemy_type: String) -> void:
@@ -732,6 +749,22 @@ func _on_enemy_died(enemy: Node, enemy_type: String) -> void:
 		telemetry.log("hero_killed_enemy", {
 			"enemy_type": enemy_type,
 		})
+
+func _on_enemy_wants_to_damage(target_ref, amount: float) -> void:
+	# Apply enemy-attack damage. In multiplayer, hero targets must go
+	# through replication so the owning peer sees the hit; without this,
+	# the host's local `target.damage()` only mutates the host's puppet
+	# of a client's hero and the owning peer keeps full HP. Lodge core,
+	# units, and other non-hero targets apply directly — they live on
+	# the host side and broadcast their state separately.
+	if target_ref == null or not is_instance_valid(target_ref):
+		return
+	if MpIo.is_host() and target_ref.is_in_group("hero"):
+		var pid: int = int(target_ref.get_meta("peer_id", 0))
+		if pid != 0:
+			replication.host_apply_hero_damage(pid, amount)
+			return
+	target_ref.damage(amount)
 
 func _on_enemy_damaged_target(target_ref, amount: float, enemy_type: String) -> void:
 	if target_ref == null or not is_instance_valid(target_ref):
@@ -816,8 +849,35 @@ func _on_wave_ended(round_index: int) -> void:
 		})
 
 # ── Day/night plumbing ───────────────────────────────────────────────
-func _on_phase_changed(_phase: int, _day_index: int) -> void:
-	pass
+func _on_phase_changed(phase: int, _day_index: int) -> void:
+	# Dawn respawn for fallen heroes (BUF-152). A hero whose downed
+	# timer expired without revive is rendered as kneeling at the
+	# lodge; at the next dawn the host pushes a revive at
+	# FALLEN_RESPAWN_HP_RATIO so they can keep playing the run. Without
+	# this, the first hero to fall is permanently removed from the
+	# watch unless every hero falls at once (which ends the run).
+	# Solo also runs this — single-hero solo can't trigger it (a downed
+	# hero ends the run), but a future "AI ally" mode would.
+	if phase != DayNightCycleClass.Phase.DAWN:
+		return
+	if not (MpIo.is_host() or not MpIo.is_multiplayer()):
+		return
+	for h in replication.all_heroes():
+		if h == null or not is_instance_valid(h):
+			continue
+		if not bool(h.get("is_fallen")):
+			continue
+		var pid: int = int(h.get_meta("peer_id", 0))
+		if pid == 0:
+			continue
+		# Snap them back to the lodge so the watch reads as one body
+		# again, then broadcast the revive at the configured ratio.
+		var spawn_world: Vector2 = sector.tile_to_world(Sectors.SPAWN_TILE)
+		h.position = spawn_world
+		h.current_tile = Sectors.SPAWN_TILE
+		replication.host_mark_hero_revived(pid, MultiplayerDataClass.FALLEN_RESPAWN_HP_RATIO)
+		if telemetry != null:
+			telemetry.log("hero_dawn_respawn", {"peer_id": pid})
 
 func _on_cycle_complete(nights: int) -> void:
 	# Defer so the rest of this frame's _process can finish without
@@ -1107,11 +1167,17 @@ func host_resolve_remote_swing(peer_id: int, weapon_id: String, origin: Vector2,
 	var temp_combat := CombatSystem.new()
 	# Connect damage_dealt + projectile_requested + swing_started to the
 	# same handlers that the host's main.gd uses, so the host applies
-	# damage and broadcasts via replication. Disconnect when done so
-	# we don't leak signal bindings.
+	# damage and broadcasts via replication.
+	#
+	# Ammo: deliberately NOT connected. The remote peer owns its own
+	# inventory; charging a remote bow shot to the host's inventory
+	# would drain the host's arrows whenever a client fires (and the
+	# client would never see its own count drop, since the swing intent
+	# never touches local inventory either). Clients deduct ammo
+	# locally before sending the intent; see the client-side swing
+	# branch in _unhandled_input.
 	temp_combat.damage_dealt.connect(_on_combat_damage)
 	temp_combat.projectile_requested.connect(_on_projectile_requested)
-	temp_combat.ammo_consumed.connect(_on_ammo_consumed)
 	# Mirror swing_started to the visual layer so the host sees the
 	# remote peer's swing arc (and so do the other clients via the
 	# replication broadcast, since combat_visuals listens locally).
