@@ -41,6 +41,11 @@ var _damage_scale: float = 1.0
 var _attack_cooldown: float = 0.0
 var _moving: bool = false
 var _engaged_target: Node2D = null
+# Set true between emitting reached_core and the queue_free completing
+# at end of frame. damage() returns early on this so a same-frame combat
+# hit can't double-credit the kill (counted once when reaching core,
+# again when damage drops hp to 0).
+var _consumed_by_core: bool = false
 
 func configure(type: String, stat_scale: Dictionary = {}) -> void:
 	enemy_type = type
@@ -72,6 +77,15 @@ func _ready() -> void:
 	queue_redraw()
 
 func damage(amount: float) -> void:
+	# Guard re-entry: a multi-hit frame (two arrows, melee + arrow) can
+	# call damage() on a node whose hp already hit 0 but whose queue_free
+	# hasn't completed yet. Without this guard, died.emit fires twice and
+	# the kill counts as two — inflating embers + telemetry.
+	# Also bail if this enemy already reached the core this frame —
+	# damage applied after reached_core would otherwise double-credit
+	# the kill (once via lodge damage, once via died.emit).
+	if hp <= 0.0 or _consumed_by_core:
+		return
 	hp = max(0.0, hp - amount)
 	queue_redraw()
 	if hp <= 0.0:
@@ -100,14 +114,22 @@ func apply_knockback(direction: Vector2, distance: float) -> void:
 		position = sector.tile_to_world(current_tile)
 
 func _physics_process(delta: float) -> void:
-	if hp <= 0.0 or sector == null or _moving:
+	if hp <= 0.0 or sector == null:
 		return
 	# Freeze enemy AI once the run ends so wolves don't keep pathing
 	# / attacking behind the end-screen scrim. Mirrors main.gd's
 	# tick guard. Enemies are queue_freed on restart.
 	if GameState.phase == GameState.Phase.RUN_ENDED or GameState.phase == GameState.Phase.RUN_COMPLETE:
 		return
+	# Tick cooldown even while mid-step so a moving wolf's effective
+	# attack cadence matches a stationary one. Without this, attack
+	# cooldown stalls during ~0.4s per-tile tweens, which silently
+	# stretched the effective interval well past `data.attackInterval`.
 	_attack_cooldown = max(0.0, _attack_cooldown - delta)
+	if _moving:
+		# Movement decision still gated — don't replan mid-step. Cooldown
+		# already ticked above.
+		return
 	# Refresh hero engagement once per tile rather than every frame.
 	if _engaged_target == null or not is_instance_valid(_engaged_target):
 		_engaged_target = _find_engageable_target()
@@ -136,6 +158,12 @@ func _physics_process(delta: float) -> void:
 	if dist_to_core <= core_range_tiles:
 		if _attack_cooldown <= 0.0:
 			_attack_cooldown = float(data.attackInterval)
+			# Mark as consumed BEFORE emit so any same-frame damage from
+			# the player (a melee swing landing on this tile, an arrow
+			# in flight) is rejected by damage(). Without this, the kill
+			# counts twice: once for lodge damage, once for the post-emit
+			# hit dropping hp to 0.
+			_consumed_by_core = true
 			reached_core.emit(self)
 		return
 	_step_toward(Sectors.LODGE_TILE)

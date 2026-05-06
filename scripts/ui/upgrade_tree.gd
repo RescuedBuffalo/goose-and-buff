@@ -25,7 +25,7 @@ const ROW_GAP := 16.0
 
 var _tabs_box: HBoxContainer
 var _content: Control
-var _confirm_panel: PanelContainer
+var _active_dialog: ConfirmationDialog = null
 var _selected_tab: String = "Shared"
 
 func _ready() -> void:
@@ -223,8 +223,11 @@ func _on_light_pressed(upgrade_id: String) -> void:
 	_show_confirm(u)
 
 func _show_confirm(u: Dictionary) -> void:
-	if _confirm_panel != null and is_instance_valid(_confirm_panel):
-		_confirm_panel.queue_free()
+	# Bail if a dialog is already open — rapid double-clicking the
+	# Light button would otherwise stack two dialogs on top of each
+	# other, with the older one trapped underneath the newer modal.
+	if _active_dialog != null and is_instance_valid(_active_dialog):
+		return
 	var dialog := ConfirmationDialog.new()
 	dialog.title = "Light this ember?"
 	dialog.dialog_text = "%s\n\n%s\n\nCost: %d ember%s." % [
@@ -236,17 +239,27 @@ func _show_confirm(u: Dictionary) -> void:
 	dialog.ok_button_text = "Light"
 	dialog.cancel_button_text = "Not yet"
 	add_child(dialog)
+	_active_dialog = dialog
 	dialog.confirmed.connect(_on_confirmed.bind(String(u.id), dialog))
-	dialog.canceled.connect(func(): dialog.queue_free())
+	dialog.canceled.connect(func(): _on_dialog_dismissed(dialog))
 	dialog.popup_centered()
 
 func _on_confirmed(upgrade_id: String, dialog: AcceptDialog) -> void:
 	var result: Dictionary = SaveIo.purchase_upgrade(upgrade_id)
 	if result.ok:
 		purchased.emit(upgrade_id)
+	_on_dialog_dismissed(dialog)
+	_render()
+
+func _on_dialog_dismissed(dialog: AcceptDialog) -> void:
+	# Single cleanup point for both confirm + cancel paths so the
+	# _active_dialog gate clears on either outcome. Without this the
+	# gate would stick "open" after a cancel and block the next purchase
+	# until something else cleared it.
 	if dialog != null and is_instance_valid(dialog):
 		dialog.queue_free()
-	_render()
+	if _active_dialog == dialog:
+		_active_dialog = null
 
 
 # ── Inner: connection-line layer ─────────────────────────────────────

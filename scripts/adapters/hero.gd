@@ -36,6 +36,7 @@ var _stat_move_speed: float = -1.0
 
 var sector: Node = null
 @onready var sprite: Sprite2D = $Sprite
+@onready var camera: Camera2D = $Camera
 
 const TOTEM_PATHS := {
 	"Buffalo": "res://assets/totems/buffalo.png",
@@ -69,6 +70,39 @@ func _ready() -> void:
 	if sector != null:
 		current_tile = Sectors.SPAWN_TILE
 		position = sector.tile_to_world(current_tile)
+		_apply_camera_limits()
+
+func _apply_camera_limits() -> void:
+	# Constrain the camera to the world's iso bounding box so panning
+	# along the south/north edges doesn't reveal void. Iso tile world
+	# positions form a diamond — compute the four corner world positions
+	# and use the min/max for the rectangular camera limit.
+	if camera == null or sector == null:
+		return
+	var grid: Vector2i = Sectors.TILE_GRID_SIZE
+	var corners: Array[Vector2] = [
+		sector.tile_to_world(Vector2i(0, 0)),
+		sector.tile_to_world(Vector2i(grid.x - 1, 0)),
+		sector.tile_to_world(Vector2i(0, grid.y - 1)),
+		sector.tile_to_world(Vector2i(grid.x - 1, grid.y - 1)),
+	]
+	var min_x: float = corners[0].x
+	var max_x: float = corners[0].x
+	var min_y: float = corners[0].y
+	var max_y: float = corners[0].y
+	for c in corners:
+		min_x = min(min_x, c.x)
+		max_x = max(max_x, c.x)
+		min_y = min(min_y, c.y)
+		max_y = max(max_y, c.y)
+	# Pad by half a tile so the very edge tile still has some breathing
+	# room around it visually.
+	var pad_x: float = float(Sectors.TILE_PIXELS.x) * 0.5
+	var pad_y: float = float(Sectors.TILE_PIXELS.y) * 0.5
+	camera.limit_left = int(min_x - pad_x)
+	camera.limit_right = int(max_x + pad_x)
+	camera.limit_top = int(min_y - pad_y)
+	camera.limit_bottom = int(max_y + pad_y)
 
 func _physics_process(delta: float) -> void:
 	if is_downed or sector == null:
