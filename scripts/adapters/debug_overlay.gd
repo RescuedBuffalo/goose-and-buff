@@ -15,6 +15,10 @@ extends Node2D
 
 const Sectors := preload("res://data/sectors.gd")
 const Chunks := preload("res://data/chunks.gd")
+const WorldGeneratorClass := preload("res://scripts/logic/world_generator.gd")
+
+# Where dump_world() writes the WorldDef JSON.
+const DEBUG_DUMP_DIR := "user://debug"
 
 var sector: Node = null
 var visible_overlay: bool = false
@@ -63,3 +67,48 @@ func _color_for_climate(climate: String) -> Color:
 		"frosted":   return Color(0.7, 0.85, 1.0, 0.85)
 		"frozen":    return Color(0.7, 0.95, 1.0, 0.95)
 		_:           return Color(1.0, 1.0, 1.0, 0.6)
+
+# ── F4: WorldDef dump for offline inspection ─────────────────────────
+
+func dump_world(run_seed: int) -> void:
+	if world_def.is_empty():
+		return
+	DirAccess.make_dir_recursive_absolute(DEBUG_DUMP_DIR)
+	var seed_str: String = WorldGeneratorClass.seed_to_string(run_seed)
+	var path: String = "%s/world_%s.json" % [DEBUG_DUMP_DIR, seed_str]
+	var f := FileAccess.open(path, FileAccess.WRITE)
+	if f == null:
+		push_warning("debug: could not open %s" % path)
+		return
+	# Vector2i / Vector2 don't json natively — flatten into [x, y] pairs.
+	f.store_string(JSON.stringify(_flatten_for_json(world_def), "\t"))
+	f.close()
+	print("debug: wrote ", path)
+
+func _flatten_for_json(def: Dictionary) -> Dictionary:
+	var copy: Dictionary = {}
+	for k in def.keys():
+		var v = def[k]
+		if v is Vector2i:
+			copy[k] = [v.x, v.y]
+		elif typeof(v) == TYPE_ARRAY and not (v as Array).is_empty() and (v as Array)[0] is Vector2i:
+			var pts: Array = []
+			for p in v:
+				pts.append([p.x, p.y])
+			copy[k] = pts
+		elif k == "tiles":
+			# Tile dicts pass through cleanly.
+			copy[k] = v
+		elif k == "resources":
+			var rs: Array = []
+			for r in v:
+				rs.append({"kind": String(r.kind), "tile": [r.tile.x, r.tile.y]})
+			copy[k] = rs
+		elif k == "chunks":
+			var cs: Array = []
+			for c in v:
+				cs.append({"chunk_pos": [c.chunk_pos.x, c.chunk_pos.y], "template_id": c.template_id, "climate": c.climate})
+			copy[k] = cs
+		else:
+			copy[k] = v
+	return copy
