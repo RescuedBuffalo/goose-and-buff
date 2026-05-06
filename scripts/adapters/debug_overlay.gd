@@ -39,10 +39,12 @@ func _draw() -> void:
 	for entry in chunks:
 		var cpos: Vector2i = entry.chunk_pos
 		var origin_tile := Vector2i(cpos.x * Chunks.CHUNK_SIZE, cpos.y * Chunks.CHUNK_SIZE)
-		var top := sector.tile_to_world(origin_tile)
-		var right := sector.tile_to_world(origin_tile + Vector2i(Chunks.CHUNK_SIZE, 0))
-		var bottom := sector.tile_to_world(origin_tile + Vector2i(Chunks.CHUNK_SIZE, Chunks.CHUNK_SIZE))
-		var left := sector.tile_to_world(origin_tile + Vector2i(0, Chunks.CHUNK_SIZE))
+		# Sector is typed as `Node` so `:=` can't infer the return type
+		# of tile_to_world. Annotate explicitly so the parser is happy.
+		var top: Vector2 = sector.tile_to_world(origin_tile)
+		var right: Vector2 = sector.tile_to_world(origin_tile + Vector2i(Chunks.CHUNK_SIZE, 0))
+		var bottom: Vector2 = sector.tile_to_world(origin_tile + Vector2i(Chunks.CHUNK_SIZE, Chunks.CHUNK_SIZE))
+		var left: Vector2 = sector.tile_to_world(origin_tile + Vector2i(0, Chunks.CHUNK_SIZE))
 		# Chunk color: temperate=warm, frosted=cool, frozen=ice. Easy
 		# to scan at a glance which climate landed where.
 		var color: Color = _color_for_climate(String(entry.climate))

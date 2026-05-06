@@ -19,6 +19,7 @@ const WorldGenerator := preload("res://scripts/logic/world_generator.gd")
 const HeroVariants := preload("res://data/hero_variants.gd")
 
 const MAIN_SCENE_PATH := "res://scenes/main.tscn"
+const LOBBY_SCENE_PATH := "res://scenes/ui/lobby.tscn"
 
 # Diameter of the variant accent swatch drawn next to the hero name.
 const VARIANT_SWATCH_DIAMETER := 18.0
@@ -28,6 +29,7 @@ const VARIANT_SWATCH_DIAMETER := 18.0
 @onready var _fox: Button = $Margin/V/HeroRow/Fox
 @onready var _seed_input: LineEdit = $Margin/V/SeedRow/SeedInput
 @onready var _start: Button = $Margin/V/Footer/StartButton
+@onready var _multiplayer_button: Button = $Margin/V/Footer/MultiplayerButton
 
 var _selected_hero: String = ""
 
@@ -36,6 +38,13 @@ func _ready() -> void:
 	_goose.pressed.connect(_on_pick.bind("Goose"))
 	_fox.pressed.connect(_on_pick.bind("Fox"))
 	_start.pressed.connect(_on_start)
+	if _multiplayer_button != null:
+		_multiplayer_button.pressed.connect(_on_multiplayer)
+	# Solo entry point should leave any prior multiplayer session behind
+	# so the M2 single-player game runs unchanged. A dev who clicked
+	# Host, then Back, then Solo would otherwise still have a MpIo peer.
+	if MpIo.is_multiplayer():
+		MpIo.leave()
 	# BUF-129: ensure each hero has a variant assigned so the buttons can
 	# render their accent swatch. ensure_variant only rolls when missing —
 	# already-rolled heroes keep their look until a run resets them.
@@ -75,6 +84,10 @@ func _on_start() -> void:
 	GameState.set_hero(_selected_hero)
 	GameState.set_run_config(seed_int, _selected_hero)
 	get_tree().change_scene_to_file(MAIN_SCENE_PATH)
+
+func _on_multiplayer() -> void:
+	# Lobby owns the multiplayer entry — this button just hands off.
+	get_tree().change_scene_to_file(LOBBY_SCENE_PATH)
 
 # ── BUF-129: variant swatches ───────────────────────────────────────────
 

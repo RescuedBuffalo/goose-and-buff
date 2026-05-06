@@ -163,16 +163,26 @@ func owned_upgrades() -> Array:
 
 func assign_variant_for_run(hero_id: String) -> String:
 	# Picks a fresh variant for the active hero and persists it. Called
-	# from run_start when the player confirms a hero — rolls regardless
-	# of any prior value so successive runs "dress the hero differently"
-	# (the rotation requirement in BUF-129). Empty pool → "" so the data
+	# from run_start when the player confirms a hero — guarantees the new
+	# pick differs from the previous one when the pool has more than one
+	# entry, so the rotation requirement in BUF-129 lands deterministically
+	# instead of "different ~75% of the time". Empty pool → "" so the data
 	# layer can ship before assets do.
 	var pool: Array = HeroVariants.for_hero(hero_id)
 	if pool.is_empty():
 		return ""
+	var current: String = current_variant(hero_id)
+	# Exclude the current variant if we have alternatives; otherwise the
+	# single-entry pool falls back to itself (no rotation possible).
+	var candidates: Array = pool
+	if pool.size() > 1 and not current.is_empty():
+		candidates = []
+		for v in pool:
+			if String(v.get("id", "")) != current:
+				candidates.append(v)
 	var rng := RandomNumberGenerator.new()
 	rng.randomize()
-	var pick: Dictionary = pool[rng.randi_range(0, pool.size() - 1)]
+	var pick: Dictionary = candidates[rng.randi_range(0, candidates.size() - 1)]
 	var picked_id: String = String(pick.get("id", ""))
 	data = SaveStateClass.set_variant(data, hero_id, picked_id)
 	save()

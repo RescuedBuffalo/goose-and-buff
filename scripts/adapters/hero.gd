@@ -14,10 +14,12 @@ extends Node2D
 const Heroes := preload("res://data/heroes.gd")
 const Sectors := preload("res://data/sectors.gd")
 const HeroVariants := preload("res://data/hero_variants.gd")
+const MultiplayerDataClass := preload("res://data/multiplayer.gd")
 
 const PIXELS_PER_STUD := 12.0
 
 signal hero_downed()
+signal hero_fallen()
 signal tile_changed(new_tile: Vector2i)
 signal facing_changed(new_facing: Vector2)
 
@@ -25,9 +27,31 @@ var hero_data: Dictionary = Heroes.Buffalo
 var hp_max: float = 0.0
 var hp: float = 0.0
 var is_downed: bool = false
+# Fallen = downed timer expired and no revive landed. Hero waits at the
+# lodge until dawn, then respawns at FALLEN_RESPAWN_HP_RATIO. is_downed
+# remains true while is_fallen is true so combat/input gates stay closed.
+var is_fallen: bool = false
+# Revive timer ticks down only while downed. When it hits 0 and the
+# hero hasn't been revived, they transition to fallen.
+var downed_seconds_remaining: float = 0.0
+# Revive-in-progress accumulator. Set by main.gd when a teammate stands
+# in range holding R; reset when they release. The hero adapter just
+# carries the value so the HUD overlay can read it without main.gd
+# needing to push it via signal.
+var revive_progress_seconds: float = 0.0
 var move_pixels_per_second: float = 0.0
 var current_tile: Vector2i = Sectors.SPAWN_TILE
 var facing: Vector2 = Vector2.RIGHT
+# Multiplayer puppet support. When false, this hero is the local player
+# and reads input + drives _physics_process movement. When true, this is
+# a remote teammate's puppet and position is overwritten by replication
+# RPCs at the configured sync rate.
+var is_remote_puppet: bool = false
+# AI placeholder behavior — set when the owning peer disconnects and the
+# hero needs to keep "playing" until they reconnect or the run ends.
+var is_ai_placeholder: bool = false
+# Cached identity for HUD lookups + telemetry.
+var peer_id: int = 0
 
 # Effective-stat overrides (BUF-147). main.gd calls apply_stats() at
 # run-start with the resolved values from stat_system.effective_stats.
@@ -106,12 +130,26 @@ func _apply_camera_limits() -> void:
 	camera.limit_bottom = int(max_y + pad_y)
 
 func _physics_process(delta: float) -> void:
-	if is_downed or sector == null:
+	if sector == null:
 		return
 	# Freeze movement + facing once the run ends. main.gd's _process
 	# already gates the cycle/wave/combat ticks on this; mirror it here
 	# so the hero doesn't drift behind the end-screen scrim.
 	if GameState.phase == GameState.Phase.RUN_ENDED or GameState.phase == GameState.Phase.RUN_COMPLETE:
+		return
+	# Downed-timer countdown ticks regardless of authority — it's the
+	# same on every peer because the host broadcasts the down/revive
+	# transitions and clients run the visual countdown locally for HUD
+	# display. The actual fallen transition fires only on the host (see
+	# main.gd) so the puppet branch here just renders.
+	if is_downed and not is_fallen:
+		downed_seconds_remaining = max(0.0, downed_seconds_remaining - delta)
+	if is_downed:
+		return
+	# Remote puppets and AI placeholders don't read local input. Their
+	# pose is overwritten by replication RPCs (apply_remote_pose) on the
+	# configured cadence; they still y-sort + draw normally.
+	if is_remote_puppet or is_ai_placeholder:
 		return
 	# WASD → direct screen-cardinal movement. The Hades / Stardew
 	# convention: pressing "up" walks the hero straight up on the
@@ -147,6 +185,64 @@ func _physics_process(delta: float) -> void:
 			facing = new_facing
 			facing_changed.emit(facing)
 
+func apply_remote_pose(new_pos: Vector2, new_facing: Vector2) -> void:
+	# Replication adapter calls this with the host-rebroadcast position
+	# for remote heroes. Direct write — at 10Hz over a 1080p viewport the
+	# eye barely catches the lack of interpolation, and the local hero
+	# always has zero perceived lag because its own _physics_process
+	# drives it.
+	position = new_pos
+	if new_facing.length_squared() > 0.01 and new_facing != facing:
+		facing = new_facing
+		facing_changed.emit(facing)
+	if sector != null:
+		var new_tile: Vector2i = sector.world_to_tile(position)
+		if new_tile != current_tile:
+			current_tile = new_tile
+			tile_changed.emit(current_tile)
+
+func set_remote_puppet(remote: bool) -> void:
+	is_remote_puppet = remote
+	# Remote puppets shouldn't carry the local viewport's camera. The
+	# scene leaves the Camera2D node parented underneath, so toggling
+	# is_current keeps it in the tree but stops it from being the active
+	# camera when the local hero respawns next to it.
+	if camera != null:
+		camera.enabled = not remote and not is_ai_placeholder
+
+func set_ai_placeholder(active: bool) -> void:
+	is_ai_placeholder = active
+	if camera != null:
+		camera.enabled = not is_remote_puppet and not is_ai_placeholder
+	queue_redraw()
+
+func apply_revive(hp_ratio: float) -> void:
+	# Snap the hero out of downed/fallen and refill HP to the supplied
+	# ratio. Replication broadcasts this so every peer sees the same
+	# transition.
+	is_downed = false
+	is_fallen = false
+	downed_seconds_remaining = 0.0
+	revive_progress_seconds = 0.0
+	hp = clamp(hp_ratio, 0.05, 1.0) * hp_max
+	# Variant tint must be reapplied here — clearing modulate to white
+	# would wipe BUF-129's per-run reskin on every revive. _apply_variant_tint
+	# falls back to white when no variant is set.
+	_apply_variant_tint()
+	GameState.set_hero_hp(hp, hp_max)
+	queue_redraw()
+
+func apply_fallen() -> void:
+	# Downed timer expired without a revive. The hero stays kneeling at
+	# the lodge until dawn, then respawns at FALLEN_RESPAWN_HP_RATIO.
+	is_fallen = true
+	is_downed = true
+	revive_progress_seconds = 0.0
+	if sprite != null:
+		sprite.modulate = Color(0.4, 0.2, 0.2, 0.5)
+	hero_fallen.emit()
+	queue_redraw()
+
 func reset_position() -> void:
 	current_tile = Sectors.SPAWN_TILE
 	if sector != null:
@@ -155,9 +251,16 @@ func reset_position() -> void:
 
 func reset_hp() -> void:
 	is_downed = false
+	is_fallen = false
+	downed_seconds_remaining = 0.0
+	revive_progress_seconds = 0.0
 	hp = hp_max
-	if sprite != null:
-		sprite.modulate = Color(1, 1, 1, 1)
+	# main.gd._start_run() calls reset_hp() right after run-start, before
+	# the player ever sees the hero. Without _apply_variant_tint here, the
+	# downed-modulate-was-white reset stripped BUF-129's variant tint and
+	# every run looked canonical. _apply_variant_tint handles the no-variant
+	# case by setting modulate to white.
+	_apply_variant_tint()
 	GameState.set_hero_hp(hp, hp_max)
 	queue_redraw()
 
@@ -181,9 +284,15 @@ func damage(amount: float) -> void:
 	if is_downed:
 		return
 	hp = max(0.0, hp - amount)
-	GameState.set_hero_hp(hp, hp_max)
+	# Only the local hero's HP feeds GameState — that singleton drives
+	# the local HUD chip, which is per-peer. Remote heroes update their
+	# own visual state but don't overwrite the local HUD's HP read.
+	if not is_remote_puppet:
+		GameState.set_hero_hp(hp, hp_max)
 	if hp <= 0.0:
 		is_downed = true
+		downed_seconds_remaining = MultiplayerDataClass.DOWNED_TIMER_SECONDS
+		revive_progress_seconds = 0.0
 		if sprite != null:
 			sprite.modulate = Color(1.0, 0.3, 0.3, 0.65)
 		hero_downed.emit()
@@ -240,19 +349,62 @@ func _apply_variant_tint() -> void:
 	sprite.modulate = HeroVariants.tint_for(variant_id)
 
 func _draw() -> void:
-	# When no totem texture is available the hero is a colored disc
-	# with a small forward-facing notch so the player can see which way
-	# the swing arc will fire.
-	if sprite != null and sprite.texture != null and not is_downed:
-		_draw_facing_notch()
-		return
-	var fill: Color = Color(0.5, 0.1, 0.1) if is_downed else DesignTokens.core_color(hero_data.id)
-	draw_circle(Vector2.ZERO, 18.0, fill)
+	# Downed/fallen heroes get the kneel marker even with a sprite — it's
+	# a bold timer ring above the totem so teammates can read "this hero
+	# needs help" from across the world.
 	if is_downed:
-		draw_line(Vector2(-10, -10), Vector2(10, 10), Color(1, 0.1, 0.1, 0.9), 3.0)
-		draw_line(Vector2(-10, 0), Vector2(10, -20), Color(1, 0.1, 0.1, 0.9), 3.0)
-	else:
+		_draw_downed_overlay()
+		return
+	if sprite != null and sprite.texture != null:
 		_draw_facing_notch()
+		_draw_ai_badge_if_needed()
+		return
+	var fill: Color = DesignTokens.core_color(hero_data.id)
+	draw_circle(Vector2.ZERO, 18.0, fill)
+	_draw_facing_notch()
+	_draw_ai_badge_if_needed()
+
+func _draw_downed_overlay() -> void:
+	# Red kneel cross + circular timer ring above the hero. Ring shrinks
+	# clockwise as downed_seconds_remaining ticks down so teammates can
+	# eyeball "how long do they have left?" without checking a HUD chip.
+	var fill: Color = Color(0.5, 0.1, 0.1) if not is_fallen else Color(0.3, 0.05, 0.05)
+	draw_circle(Vector2.ZERO, 18.0, fill)
+	draw_line(Vector2(-10, -10), Vector2(10, 10), Color(1, 0.1, 0.1, 0.9), 3.0)
+	draw_line(Vector2(-10, 0), Vector2(10, -20), Color(1, 0.1, 0.1, 0.9), 3.0)
+	if not is_fallen and downed_seconds_remaining > 0.0:
+		var ratio: float = clamp(downed_seconds_remaining / MultiplayerDataClass.DOWNED_TIMER_SECONDS, 0.0, 1.0)
+		_draw_arc_ring(Vector2(0, -32), 12.0, ratio, DesignTokens.HP_WARN)
+	if revive_progress_seconds > 0.0:
+		var ratio: float = clamp(revive_progress_seconds / MultiplayerDataClass.REVIVE_HOLD_SECONDS, 0.0, 1.0)
+		_draw_arc_ring(Vector2(0, -32), 14.0, ratio, DesignTokens.HP_FULL)
+	if is_fallen:
+		var label_color: Color = DesignTokens.FG_2
+		var font: Font = ThemeDB.fallback_font
+		draw_string(font, Vector2(-26, -42), "fallen", HORIZONTAL_ALIGNMENT_LEFT, -1, DesignTokens.FS_XS, label_color)
+
+func _draw_arc_ring(center: Vector2, radius: float, ratio: float, color: Color) -> void:
+	# Clockwise arc from 12 o'clock proportional to ratio. Approximated
+	# with a polyline since draw_arc uses point counts not pixel widths.
+	var points := PackedVector2Array()
+	var segments: int = 20
+	var end_segments: int = int(round(float(segments) * ratio))
+	for i in range(end_segments + 1):
+		var theta: float = -PI / 2.0 + (TAU * float(i) / float(segments))
+		points.append(center + Vector2(cos(theta), sin(theta)) * radius)
+	for i in range(points.size() - 1):
+		draw_line(points[i], points[i + 1], color, 2.5)
+
+func _draw_ai_badge_if_needed() -> void:
+	if not is_ai_placeholder:
+		return
+	# Small "AI" tag below the hero — voice rule: the badge is two
+	# letters, no emoji. Renders for both the local view of a remote AI
+	# placeholder and the host's view of a dropped client.
+	var font: Font = ThemeDB.fallback_font
+	var label: String = "AI"
+	var color := DesignTokens.FG_3
+	draw_string(font, Vector2(-8, 28), label, HORIZONTAL_ALIGNMENT_LEFT, -1, DesignTokens.FS_XS, color)
 
 func _draw_facing_notch() -> void:
 	# Tiny indicator at the hero's feet pointing where they're facing —
