@@ -375,48 +375,97 @@ func _load_sprite() -> void:
 		queue_redraw()
 	_apply_variant_tint()
 
-const _PORTRAIT_CHROMA_KEY_SHADER := preload("res://assets/shaders/portrait_chroma_key.gdshader")
+# Sampled cream from the portrait corners — every portrait's parchment
+# falls within ~10 RGB units of this. Used as the chroma-key key color
+# during the alpha-mask preprocess.
+const _PORTRAIT_CREAM_KEY := Vector3(0.988, 0.969, 0.910)
+# RGB Euclidean-distance threshold (in 0-1 unit space) under which a
+# pixel is considered background. 0.12 catches the parchment + the
+# anti-aliased near-cream pixels at silhouette edges without eating
+# Buffalo's lightest fur (which lands ~0.18+ away in RGB space).
+const _PORTRAIT_KEY_THRESHOLD := 0.12
 
-func _apply_portrait(tex: Texture2D) -> void:
+# Cache so we don't re-scan the same portrait every time a hero is
+# instanced (run-start, respawn, remote puppet creation). Keyed by
+# portrait path; values are ImageTextures with the cream already alpha-
+# masked. The Phase 3 rig pipeline doesn't need this — once parts ship
+# with proper alpha, this whole path is dead code we can rip out.
+static var _masked_portrait_cache: Dictionary = {}
+
+func _apply_portrait(src: Texture2D) -> void:
 	# Anchor the portrait bottom-center on the hero's world position. Scale
 	# is auto-fit so every portrait reads at TARGET_CHARACTER_HEIGHT_PX
 	# regardless of source resolution — the rigging sheets and portraits
 	# vary in canvas size and we don't want per-character scale magic.
-	sprite.texture = tex
-	var tex_h: float = float(tex.get_height())
+	var portrait_path: String = CHARACTER_PORTRAIT_PATHS.get(hero_data.id, "")
+	var masked: Texture2D = _get_masked_portrait(portrait_path, src)
+	sprite.texture = masked
+	var tex_h: float = float(masked.get_height())
 	var auto_scale: float = TARGET_CHARACTER_HEIGHT_PX / max(tex_h, 1.0)
 	sprite.scale = Vector2(auto_scale, auto_scale)
 	sprite.position = Vector2.ZERO
 	# offset is in pre-scale texture space. Shifting up by half-height lands
 	# the texture's bottom edge on the hero origin (the feet).
 	sprite.offset = Vector2(0, -tex_h * 0.5)
-	# Strip the cream parchment background. Placeholder-only — Phase 3 rigs
-	# render from AtlasTexture parts with proper alpha and won't need this.
-	sprite.material = _make_chroma_key_material()
+	# Pre-processed alpha mask gives clean edges through GPU filtering;
+	# no shader material needed.
+	sprite.material = null
 	_resize_shadow_for_sprite()
 
-func _make_chroma_key_material() -> ShaderMaterial:
-	var mat := ShaderMaterial.new()
-	mat.shader = _PORTRAIT_CHROMA_KEY_SHADER
-	# Default uniforms in the shader are tuned to the cream the portraits
-	# ship with; per-character overrides can be set here if a future
-	# portrait drifts off-palette.
-	return mat
+func _get_masked_portrait(path: String, src: Texture2D) -> Texture2D:
+	# Strip the cream parchment by writing alpha=0 into matching pixels of
+	# a copy of the source image. Doing this in CPU before the GPU sees the
+	# texture lets bilinear filtering operate on the alpha channel directly,
+	# which avoids the cream-halo artifact you get when chroma-keying in a
+	# fragment shader after the GPU has already blurred cream + body
+	# together at the silhouette edge.
+	if path != "" and _masked_portrait_cache.has(path):
+		return _masked_portrait_cache[path]
+	if src == null:
+		return null
+	var img: Image = src.get_image()
+	if img == null:
+		return src
+	if img.is_compressed():
+		img.decompress()
+	img.convert(Image.FORMAT_RGBA8)
+	var w: int = img.get_width()
+	var h: int = img.get_height()
+	var threshold_sq: float = _PORTRAIT_KEY_THRESHOLD * _PORTRAIT_KEY_THRESHOLD
+	for y in h:
+		for x in w:
+			var c: Color = img.get_pixel(x, y)
+			var dr: float = c.r - _PORTRAIT_CREAM_KEY.x
+			var dg: float = c.g - _PORTRAIT_CREAM_KEY.y
+			var db: float = c.b - _PORTRAIT_CREAM_KEY.z
+			if dr * dr + dg * dg + db * db < threshold_sq:
+				img.set_pixel(x, y, Color(0, 0, 0, 0))
+	var masked: ImageTexture = ImageTexture.create_from_image(img)
+	if path != "":
+		_masked_portrait_cache[path] = masked
+	return masked
 
 func _resize_shadow_for_sprite() -> void:
 	if shadow == null:
 		return
-	# Shadow ellipse sized off the sprite's effective on-screen footprint.
-	# Width ~55% of rendered sprite width reads natural at the feet; height
-	# is a flat ~5px disk so it stays grounded under the tilt-feel zoom.
+	# Shadow sized off the character's apparent FOOT footprint, not the
+	# full sprite width — portraits include arm/horn/tail extents that
+	# shouldn't cast a body-sized shadow on the ground. 18% of rendered
+	# sprite width keeps the shadow comfortably inside one iso tile face
+	# (TILE_PIXELS = 64x32) so it doesn't spill into neighbors. Vertical
+	# squash to ~30% gives a flat ground-disk read under the tilt-feel
+	# zoom rather than a floating circle.
 	if sprite != null and sprite.texture != null:
 		var rendered_w: float = float(sprite.texture.get_width()) * sprite.scale.x
-		var rx: float = max(rendered_w * 0.275, 8.0)
+		var rx: float = clamp(rendered_w * 0.18, 6.0, 22.0)
 		shadow.set("radius_x", rx)
-		shadow.set("radius_y", max(rx * 0.32, 4.0))
+		shadow.set("radius_y", max(rx * 0.30, 3.0))
 	else:
-		shadow.set("radius_x", 16.0)
-		shadow.set("radius_y", 5.0)
+		shadow.set("radius_x", 12.0)
+		shadow.set("radius_y", 4.0)
+	# Slightly softer alpha than the initial pass — 0.28 reads as ground
+	# contact without dominating against the iso terrain colors.
+	shadow.set("alpha", 0.28)
 	shadow.queue_redraw()
 
 func _apply_variant_tint() -> void:
