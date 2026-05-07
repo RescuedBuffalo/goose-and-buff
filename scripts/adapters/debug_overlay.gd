@@ -19,6 +19,7 @@ const WorldGeneratorClass := preload("res://scripts/logic/world_generator.gd")
 const StatSystemTest := preload("res://scripts/tests/stat_system_test.gd")
 const WorldGeneratorTest := preload("res://scripts/tests/world_generator_test.gd")
 const RunEconomyTest := preload("res://scripts/tests/run_economy_test.gd")
+const AbilityResolverTest := preload("res://scripts/tests/ability_resolver_test.gd")
 
 # Where dump_world() writes the WorldDef JSON.
 const DEBUG_DUMP_DIR := "user://debug"
@@ -161,6 +162,8 @@ func handle_debug_key(event: InputEventKey) -> bool:
 			WorldGeneratorTest.print_results(world_report)
 			var economy_report: Dictionary = RunEconomyTest.run_all()
 			RunEconomyTest.print_results(economy_report)
+			var ability_report: Dictionary = AbilityResolverTest.run_all()
+			AbilityResolverTest.print_results(ability_report)
 			return true
 	return false
 

@@ -51,6 +51,40 @@ const ChargeCard := {
 	},
 }
 
+# BUF-156: Dive (Goose) and Snatch (Fox) payloads. AbilityResolver reads
+# these directly from the cards file so all three signature abilities
+# share one tuning surface. v1 numbers — Dive is a wide cone with a
+# slightly harder opener than Charge; Snatch trades range for precision
+# (smaller hit zone, backstab bonus when the dash steps past the enemy).
+# Tune after first 3-hero playtest.
+const DiveCard := {
+	"id": "card.dive", "name": "Dive", "faction": "Goose",
+	"kind": "ability", "phase": "wave", "cost": 0,
+	"description": "Cone strike in front of Goose. Opens with a hard hit.",
+	"flavor": "Loud, fast, gets there first.",
+	"payload": {
+		"ability_id": "Dive",
+		"length": 240.0,
+		"half_angle_deg": 30.0,
+		"damage": 35.0,
+		"knockback": 32.0,
+	},
+}
+
+const SnatchCard := {
+	"id": "card.snatch", "name": "Snatch", "faction": "Fox",
+	"kind": "ability", "phase": "wave", "cost": 0,
+	"description": "Dash to a target, strike on arrival, double damage from behind.",
+	"flavor": "First in, first out.",
+	"payload": {
+		"ability_id": "Snatch",
+		"max_dash": 280.0,
+		"strike_radius": 56.0,
+		"damage": 40.0,
+		"backstab_multiplier": 2.0,
+	},
+}
+
 const StockpileCard := {
 	"id": "card.stockpile", "name": "Stockpile", "faction": "Buffalo",
 	"kind": "resource", "phase": "prep", "cost": 0,
@@ -65,6 +99,8 @@ const ALL := {
 	"card.longhorn": LonghornCard,
 	"card.production_node": ProductionNodeCard,
 	"card.charge": ChargeCard,
+	"card.dive": DiveCard,
+	"card.snatch": SnatchCard,
 	"card.stockpile": StockpileCard,
 }
 

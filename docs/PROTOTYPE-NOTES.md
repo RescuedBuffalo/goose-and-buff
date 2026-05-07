@@ -74,9 +74,6 @@ overlay; F4 dumps the current WorldDef to `user://debug/`.
   honest answer.
 - **Bow + spear balance.** Ranged is generous (14 px hit radius).
   Tighten on playtest.
-- **Goose/Fox ability cooldown stat is wired into effective_stats but
-  no abilities are bound yet** — once Q-bound abilities ship, the
-  cooldown stat will land.
 
 ## 2-minute playtest impression
 
@@ -197,3 +194,53 @@ honest limit: until Aidan, Goose, and Beau actually play through the
 integration narrative, the "voice-comms-IS-gameplay" pillar lands
 or it doesn't. The visible scaffolding is in place; the playtest is
 the verdict.
+
+## Ships in BUF-156 (Q-bound signature abilities)
+
+Q now fires the equipped hero's signature ability end-to-end:
+
+- **Charge / Dive / Snatch all resolve.** `data/cards.gd` was missing
+  `card.dive` and `card.snatch` payloads; the resolver was crashing on
+  those branches. Added both with v1 numbers (Dive: 240 px cone, 30°
+  half-angle, 35 dmg; Snatch: 280 px max dash, 56 px strike radius, 40
+  dmg, 2× backstab). `AbilityResolver.resolve()` is unchanged — it
+  already had the dispatch shape.
+- **Cooldown HUD chip.** `scripts/ui/hud_widget.gd` draws a third chip
+  between LODGE and the centered headline. Sentence-case "Q — Charge /
+  Dive / Snatch" label, "Ready" or `0:04` value (voice rule), thin rail
+  underneath that fills as the cooldown drains. All colors come from
+  `DesignTokens` — `PARCHMENT_0` for ready, `FG_3` for muted.
+- **Telemetry contract.** `ability_cast` events now carry
+  `hero_id, ability_id, day_index, phase, caster_peer`. The router
+  reads day_index + phase via a `day_night_provider` Callable so the
+  resolver itself stays scene-tree-free (BUF-156 acceptance #4).
+- **Wiring test.** `scripts/tests/ability_resolver_test.gd` runs four
+  cases on F12 — one per ability plus the unknown-id fallback. Locks
+  in the cards.gd → resolver contract so a missing payload won't go
+  silent again.
+
+## Calls I made on my own (BUF-156)
+
+- **Dive / Snatch tuning numbers** — picked by analogy with Charge.
+  Snatch hits hardest single-target (40) because its cone is small and
+  its range cap is generous; Dive's 35 sits between Charge's 30 and
+  Snatch's 40 to differentiate the cone from the line. Tune after the
+  first 3-hero playtest.
+- **Chip placement** at `pad + 480` between the lodge and the centered
+  headline. Left-to-right scan reads HERO → LODGE → Q ABILITY → phase
+  → timer, which matches the priority order during a wave.
+- **No SFX hook.** Per the issue's out-of-scope list — sound for casts
+  is M3. The visual flash from `combat_visuals` is the only feedback.
+- **Buffalo ability label trimmed to "Charge"** so the chip reads
+  parallel across heroes ("Q — Charge / Dive / Snatch"). Heroes data
+  still calls it "Buffalo charge" everywhere else.
+
+## Open questions for Aidan (BUF-156)
+
+- **Dive / Snatch damage curves** — the 30/35/40 ladder is a guess.
+  Snatch in particular wants playtest data on how often the dash lands
+  *behind* enemies (backstab x2 makes it the highest theoretical
+  burst, but only when the geometry cooperates).
+- **Cooldown rail visibility** — at 1080p the chip reads cleanly, but
+  on a smaller display the Q chip + LODGE chip + headline sit close.
+  If the headline gets crowded, drop the rail width from 160 → 120.
