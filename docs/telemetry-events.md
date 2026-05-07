@@ -147,6 +147,43 @@ ability-style action). When signature abilities land, additional
 | `weapon_id` | `string` | Equipped weapon at swing time (e.g. `"hand_axe"`, `"bare_hands"`). |
 | `hits` | `int` | Number of enemies caught in the swing arc. |
 
+### `ember_earned`
+
+Fires once per run, just before `run_end`, after the run lifecycle has
+computed the ember award and persisted it via `SaveIo.add_embers`. The
+event lives inside the run's JSONL file (sharing the run's `run_id`)
+so analytics can join earn-rate to the same outcome / hero / seed
+context already on `run_start` / `run_end`.
+
+| Payload field | Type | Notes |
+| --- | --- | --- |
+| `outcome` | `string` | `"victory"` or `"defeat"`. |
+| `amount` | `int` | Embers awarded for this run (the same value the end screen displays). |
+| `nights_survived` | `int` | Mirrors the `run_end` field for ease of joining. |
+| `resources_gathered` | `int` | Mirrors `run_end`. |
+| `enemies_felled` | `int` | Mirrors `run_end`. |
+| `hero_id` | `string` | Active hero at run-end. |
+| `artifact_id` | `string` | Lodge artifact left behind (BUF-130). |
+| `artifact_is_new` | `bool` | True if the artifact was a first-time discovery — the trigger for the per-discovery ember bonus (BUF-149). |
+| `first_hero_run` | `bool` | True if this was the player's first ever run with `hero_id` — the trigger for the "try them out" ember bonus (BUF-149). |
+
+### `ember_spent`
+
+Fires when the player buys a lodge upgrade (BUF-148 tree). Spends
+happen between runs, outside any active `run_id`, so this event lives
+in a separate JSONL stream — `user://telemetry/lodge_events.jsonl` —
+rather than the per-run files. The envelope (`ts` / `kind` /
+`payload`) matches; `run_id` is omitted because no run is active at
+spend time.
+
+| Payload field | Type | Notes |
+| --- | --- | --- |
+| `upgrade_id` | `string` | The upgrade purchased (key into `data/upgrades.gd`). |
+| `amount` | `int` | Embers debited (= the upgrade's `cost`). |
+| `hero_scope` | `string` | `"Buffalo"` / `"Goose"` / `"Fox"` / `"Shared"` — useful for slicing spends by tab. |
+| `tier` | `int` | Tree depth (1–3). |
+| `balance_after` | `int` | Embers remaining after the spend. |
+
 ## File location
 
 Files are written to Godot's `user://` directory:

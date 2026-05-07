@@ -7,40 +7,72 @@ class_name RunEconomy extends RefCounted
 ## playtest data exists.
 ##
 ## Pure data — no scene-tree access. Economy logic lives in
-## scripts/logic/stat_system.gd's award_embers().
+## scripts/adapters/run_lifecycle.gd's _award_embers(); the call site
+## resolves the artifact-novelty + first-hero-run flags from save state
+## before invoking award_for_run().
 ##
 ## Naming note: this file is run_economy.gd (not economy.gd) because
 ## scripts/logic/economy.gd already exists for the wave-defense coin
 ## system that the survival rebuild left dormant. Renaming that file
 ## is a separate cleanup.
+##
+## Reward shape (issue spec):
+##   • 1 ember per night survived (capped at MAX_NIGHTS so a future
+##     longer cycle doesn't silently inflate rewards)
+##   • +2 embers on victory (the 3-night clear)
+##   • +1 ember when the run leaves a lodge artifact never seen before
+##     (BUF-130 guarantees an artifact every run; the reward is for
+##     *novelty*, not the draw itself, so duplicate artifacts don't
+##     pad the wallet)
+##   • +1 ember the first time a hero is taken on a run (cheap "try
+##     them out" hook; once per hero across the campaign)
+##
+## A 3-night victory with a fresh artifact + first-hero bonus tallies
+## 3 + 2 + 1 + 1 = 7 embers — comfortably inside the 5–10 target band
+## without any defeat-path stretch goals (those were the resources /
+## felled thresholds; replaced by the spec's artifact + hero levers).
 
-# Outcome rewards. Defeat earns less than victory, but never zero — a
-# total wipe still produces *something* so the trip wasn't wasted.
-const EMBERS_FOR_DEFEAT_BASE := 1
-const EMBERS_FOR_VICTORY := 6
+const DayNight := preload("res://data/day_night.gd")
 
-# Per-night-survived bonus (defeat path). 0 if you didn't even get to
-# night 1; +1 per full night you survived. Caps at MAX_NIGHTS.
+# Per-night reward, applied to BOTH outcomes. Capped at MAX_NIGHTS so
+# the math doesn't drift when day_night.MAX_NIGHTS changes; a longer
+# cycle would pay out more nights but still respects the cap.
 const EMBERS_PER_NIGHT_SURVIVED := 1
 
-# Stretch bonuses. Wide thresholds because we're tuning post-playtest;
-# these values produce ~5–10 embers/run today and are easy to nudge.
-const EMBERS_BONUS_RESOURCES_THRESHOLD := 60   # gathered ≥ 60
-const EMBERS_BONUS_RESOURCES_AMOUNT := 1
-const EMBERS_BONUS_FELLED_THRESHOLD := 25      # felled ≥ 25
-const EMBERS_BONUS_FELLED_AMOUNT := 1
+# Victory bonus on top of nights-survived. Pays for the 3-night clear
+# being the design goal; defeat earns the per-night reward only.
+const EMBERS_VICTORY_BONUS := 2
 
-static func award_for_run(outcome: String, nights_survived: int, resources_gathered: int, enemies_felled: int) -> int:
+# Per-discovery bonus. Awarded when the artifact left behind has never
+# been seen on this save before. Naturally trends to zero once the pool
+# (~30 entries in lodge_artifacts.gd) is exhausted, which is fine —
+# upgrade purchases scale with the early-campaign's larger ember intake.
+const EMBERS_NEW_ARTIFACT := 1
+
+# Per-hero "try them out" bonus. Once-per-hero, paid the first time a
+# run is recorded for that hero on this save. Three heroes × 1 ember =
+# +3 embers max from this lever across the whole campaign.
+const EMBERS_FIRST_HERO_RUN := 1
+
+static func award_for_run(
+	outcome: String,
+	nights_survived: int,
+	artifact_is_new: bool,
+	first_hero_run: bool,
+) -> int:
 	# Pure tally — same inputs always produce the same embers count.
 	# Caller persists the result via SaveIo.add_embers().
-	var earned: int = 0
+	#
+	# nights_survived is clamped to MAX_NIGHTS rather than left
+	# unbounded so a future longer cycle doesn't quietly inflate the
+	# economy. Negative inputs collapse to 0 (defensive — should never
+	# happen, the lifecycle adapter only counts up).
+	var nights: int = clamp(nights_survived, 0, DayNight.MAX_NIGHTS)
+	var earned: int = nights * EMBERS_PER_NIGHT_SURVIVED
 	if outcome == "victory":
-		earned += EMBERS_FOR_VICTORY
-	else:
-		earned += EMBERS_FOR_DEFEAT_BASE
-		earned += min(nights_survived, 3) * EMBERS_PER_NIGHT_SURVIVED
-	if resources_gathered >= EMBERS_BONUS_RESOURCES_THRESHOLD:
-		earned += EMBERS_BONUS_RESOURCES_AMOUNT
-	if enemies_felled >= EMBERS_BONUS_FELLED_THRESHOLD:
-		earned += EMBERS_BONUS_FELLED_AMOUNT
+		earned += EMBERS_VICTORY_BONUS
+	if artifact_is_new:
+		earned += EMBERS_NEW_ARTIFACT
+	if first_hero_run:
+		earned += EMBERS_FIRST_HERO_RUN
 	return earned
