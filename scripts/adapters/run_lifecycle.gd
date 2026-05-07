@@ -221,9 +221,11 @@ func on_enemy_killed(_enemy_type: String) -> void:
 func on_wave_ended(round_index: int) -> void:
 	nights_survived += 1
 	if telemetry != null:
-		telemetry.log("nights_survived_total", {
+		# Schema (docs/telemetry-events.md): wave_end carries the
+		# cumulative nights_survived count after this wave.
+		telemetry.log("wave_end", {
 			"round_index": round_index,
-			"value": nights_survived,
+			"nights_survived": nights_survived,
 		})
 
 # ── Day/night, hero state, run-end ────────────────────────────────────

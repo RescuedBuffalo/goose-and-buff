@@ -157,17 +157,15 @@ func _on_enemy_reached_core(enemy: Node2D) -> void:
 	wave_director.note_enemy_killed()
 	enemy.queue_free()
 
-func on_wave_ended(round_index: int) -> void:
+func on_wave_ended(_round_index: int) -> void:
 	# Free any enemies that didn't reach the core in time. Clients run
 	# their own wave_director.tick so they reach this branch too — the
 	# host's broadcast-driven cleanup of remote enemies is separate.
+	# Telemetry for the `wave_end` event is emitted by run_lifecycle
+	# (it owns the nights_survived counter the schema requires).
 	for n in get_tree().get_nodes_in_group("enemies"):
 		if is_instance_valid(n):
 			n.queue_free()
-	if telemetry != null:
-		telemetry.log("wave_end", {
-			"round_index": round_index,
-		})
 
 # ── Multiplayer client-swing resolution ──────────────────────────────
 
