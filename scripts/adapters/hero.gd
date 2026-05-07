@@ -365,11 +365,17 @@ func _load_sprite() -> void:
 		# Totems are HUD-style icons — center them on the hero origin (no
 		# bottom-center anchor) so they read as a token, not a body.
 		sprite.offset = Vector2.ZERO
+		# Totems ship with proper alpha; chroma-key would break them. Clear
+		# any portrait material that might be lingering from a previous
+		# load.
+		sprite.material = null
 		_resize_shadow_for_sprite()
 	else:
 		sprite.texture = null
 		queue_redraw()
 	_apply_variant_tint()
+
+const _PORTRAIT_CHROMA_KEY_SHADER := preload("res://assets/shaders/portrait_chroma_key.gdshader")
 
 func _apply_portrait(tex: Texture2D) -> void:
 	# Anchor the portrait bottom-center on the hero's world position. Scale
@@ -384,7 +390,18 @@ func _apply_portrait(tex: Texture2D) -> void:
 	# offset is in pre-scale texture space. Shifting up by half-height lands
 	# the texture's bottom edge on the hero origin (the feet).
 	sprite.offset = Vector2(0, -tex_h * 0.5)
+	# Strip the cream parchment background. Placeholder-only — Phase 3 rigs
+	# render from AtlasTexture parts with proper alpha and won't need this.
+	sprite.material = _make_chroma_key_material()
 	_resize_shadow_for_sprite()
+
+func _make_chroma_key_material() -> ShaderMaterial:
+	var mat := ShaderMaterial.new()
+	mat.shader = _PORTRAIT_CHROMA_KEY_SHADER
+	# Default uniforms in the shader are tuned to the cream the portraits
+	# ship with; per-character overrides can be set here if a future
+	# portrait drifts off-palette.
+	return mat
 
 func _resize_shadow_for_sprite() -> void:
 	if shadow == null:
