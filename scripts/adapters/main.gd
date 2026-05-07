@@ -78,17 +78,15 @@ var run_lifecycle = null
 # ── Boot ──────────────────────────────────────────────────────────────
 
 func _ready() -> void:
+	# Hero + seed come from GameState (run_start screen, BUF-145). Direct
+	# main.tscn launch falls back to defaults. In multiplayer, the host's
+	# run_started RPC has already applied set_run_config by the time we
+	# reach _ready, so reading from GameState is identical on every peer.
 	randomize()
-	# Hero + seed come from GameState (set by the run-start screen via
-	# BUF-145). Direct main.tscn launch with no run-start falls back to
-	# defaults so the scene is still runnable for development.
-	#
-	# In multiplayer, MpIo.run_started broadcasts the host's seed +
-	# hero assignments to every peer; GameState.set_run_config has
-	# already been applied by the time we reach _ready, so reading from
-	# GameState gives the same values on every machine.
 	var hero_id: String = GameState.hero_id if not GameState.hero_id.is_empty() else DEFAULT_HERO_ID
 	GameState.set_hero(hero_id)
+	# BUF-129 variant fallback: roll one only if none is set.
+	SaveIo.ensure_variant(hero_id)
 	var run_seed: int = GameState.run_seed if GameState.run_seed != 0 else WorldGeneratorClass.random_seed()
 	GameState.run_seed = run_seed
 	_build_logic()
@@ -100,11 +98,8 @@ func _ready() -> void:
 	run_lifecycle.run_seed = run_seed
 	run_lifecycle.prepare(hero_id)
 	_wire_signals()
-	# World generation runs ONCE per run on day_index = 1. The chunks
-	# stay constant across the run; the lighting adapter pushes the
-	# cold-tint forward each successive night so the world *visibly*
-	# deepens into winter (BUF-146). Determinism guarantee (BUF-151):
-	# same seed produces identical world on every machine.
+	# World gen runs once per run on day_index = 1; lighting deepens
+	# across nights (BUF-146). Determinism guaranteed by seed (BUF-151).
 	run_lifecycle.generate_world(1)
 	run_lifecycle.apply_stats_to_systems()
 	run_lifecycle.start_run()
@@ -174,8 +169,7 @@ func _build_ui() -> void:
 	debug_panel = DebugPanelScript.new()
 	debug_panel.name = "DebugPanel"
 	ui_layer.add_child(debug_panel)
-	# Telemetry IO is non-visual — parent under self so its _process
-	# tick fires and _exit_tree flushes on shutdown.
+	# Non-visual — parent under self so _process / _exit_tree fire.
 	telemetry_io = TelemetryIoScript.new()
 	telemetry_io.name = "TelemetryIO"
 	add_child(telemetry_io)
@@ -186,6 +180,7 @@ func _build_routers() -> void:
 	# consistently. Hero refs resolve on demand via a Callable so the
 	# router survives respawns / puppet rebinds.
 	var local_hero_provider := func(): return hero
+	var effective_stats_provider := func(): return run_lifecycle.effective_stats if run_lifecycle != null else {}
 	wave_veil = _add_router(WaveVeilScript, "WaveVeil")
 	wave_veil.attach(sector, replication, hud, telemetry)
 	revive_controller = _add_router(ReviveControllerScript, "ReviveController")
@@ -193,13 +188,14 @@ func _build_routers() -> void:
 	combat_router = _add_router(CombatRouterScript, "CombatRouter")
 	combat_router.attach(combat, inventory, replication, sector, telemetry, wave_director)
 	ability_router = _add_router(AbilityRouterScript, "AbilityRouter")
-	ability_router.attach(local_hero_provider, sector, replication, telemetry)
+	ability_router.attach(local_hero_provider, sector, replication, telemetry, effective_stats_provider)
 	interaction_router = _add_router(InteractionRouterScript, "InteractionRouter")
 	interaction_router.attach({
 		"sector": sector, "inventory": inventory, "combat": combat,
 		"gather": gather, "build_logic": build_logic,
 		"replication": replication, "telemetry": telemetry,
 		"placement_parent": self, "local_hero_provider": local_hero_provider,
+		"effective_stats_provider": effective_stats_provider,
 	})
 	run_lifecycle = _add_router(RunLifecycleScript, "RunLifecycle")
 	run_lifecycle.attach({
@@ -211,6 +207,7 @@ func _build_routers() -> void:
 		"world_builder": world_builder, "debug_overlay": debug_overlay,
 		"debug_panel": debug_panel, "wave_veil": wave_veil,
 		"revive_controller": revive_controller,
+		"combat_router": combat_router,
 	})
 
 func _add_router(script: Resource, node_name: String) -> Node:
@@ -255,17 +252,17 @@ func _wire_signals() -> void:
 # ── Frame loop ────────────────────────────────────────────────────────
 
 func _process(delta: float) -> void:
-	# When the run is over, freeze ticks so the end-screen scrim doesn't
-	# sit on top of a noisy world.
+	# Freeze ticks once the run ends so the end-screen scrim doesn't sit
+	# on top of a noisy world.
 	if GameState.phase == GameState.Phase.RUN_ENDED or GameState.phase == GameState.Phase.RUN_COMPLETE:
 		return
-	# Logic ticks. In multiplayer, day_night + wave_director are still
-	# *driven* on every peer to keep visible UI in sync — they're pure
-	# functions of (start time, dt) given the same starting seed and
-	# tick cadence. The host alone owns enemy spawning.
+	# Logic ticks. day_night + wave_director run on every peer for visible
+	# UI sync — same seed + tick cadence keeps them lockstep. Host alone
+	# owns enemy spawning. tick_remote_combats is host-only state.
 	day_night.tick(delta)
 	wave_director.tick(delta)
 	combat.tick(delta)
+	combat_router.tick_remote_combats(delta)
 	if replication != null:
 		replication.tick_position_sync(delta)
 	if revive_controller != null:
@@ -294,8 +291,9 @@ func _process(delta: float) -> void:
 		wave_veil.tick_visibility()
 
 func _unhandled_input(event: InputEvent) -> void:
-	# F3 toggles the debug overlay. F4 dumps WorldDef to user://debug/.
-	# Captured here rather than as a registered input action so we don't
+	# F3 toggles debug overlay + panel. F4 dumps WorldDef. F5/F6/F12 are
+	# routed through debug_overlay.handle_debug_key (BUF-147 QA hooks).
+	# Captured here rather than as registered input actions so we don't
 	# have to touch project.godot for dev-only toggles.
 	if event is InputEventKey:
 		var k: InputEventKey = event
@@ -308,6 +306,8 @@ func _unhandled_input(event: InputEvent) -> void:
 		if k.pressed and k.keycode == KEY_F4:
 			if debug_overlay != null and run_lifecycle != null:
 				debug_overlay.dump_world(run_lifecycle.run_seed)
+			return
+		if debug_overlay != null and debug_overlay.handle_debug_key(k):
 			return
 	if not (event is InputEventMouseButton):
 		return
@@ -381,8 +381,8 @@ func wave_first_hit_hero_id() -> String:
 func help_ability_cooldown_for(peer_id: int) -> float:
 	return revive_controller.help_ability_cooldown_for(peer_id)
 
-func host_resolve_remote_swing(peer_id: int, weapon_id: String, origin: Vector2, facing: Vector2, ammo_count: int) -> void:
-	combat_router.host_resolve_remote_swing(peer_id, weapon_id, origin, facing, ammo_count)
+func host_resolve_remote_swing(peer_id: int, weapon_id: String, origin: Vector2, facing: Vector2, ammo_count: int, attack_speed_mult: float = 1.0) -> void:
+	combat_router.host_resolve_remote_swing(peer_id, weapon_id, origin, facing, ammo_count, attack_speed_mult)
 
 func host_resolve_revive(caster_peer: int, target_peer: int) -> void:
 	revive_controller.host_resolve_revive(caster_peer, target_peer)

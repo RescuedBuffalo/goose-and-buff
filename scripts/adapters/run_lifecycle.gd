@@ -68,6 +68,7 @@ var debug_panel = null
 # Routers we need to reset / coordinate with on run-start.
 var wave_veil = null
 var revive_controller = null
+var combat_router = null
 
 func attach(refs: Dictionary) -> void:
 	sector = refs.get("sector")
@@ -87,6 +88,7 @@ func attach(refs: Dictionary) -> void:
 	debug_panel = refs.get("debug_panel")
 	wave_veil = refs.get("wave_veil")
 	revive_controller = refs.get("revive_controller")
+	combat_router = refs.get("combat_router")
 
 # ── Pre-run wiring (BUF-147) ──────────────────────────────────────────
 
@@ -183,6 +185,10 @@ func start_run() -> void:
 		float(effective_stats.get("attack_speed", 1.0)),
 		float(effective_stats.get("attack_range", 0.0)),
 	)
+	# Drop any lingering per-peer remote combats so a fresh run starts
+	# with a clean cooldown state for each remote peer (PR #43 review).
+	if combat_router != null:
+		combat_router.clear_remote_combats()
 	gather.reset()
 	gather.set_speed_multiplier(float(effective_stats.get("gather_speed", 1.0)))
 	telemetry.reset()

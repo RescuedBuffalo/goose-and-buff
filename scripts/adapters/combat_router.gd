@@ -5,14 +5,16 @@ extends Node
 ## damage through replication so client-owned heroes see hits.
 ##
 ## Public surface used by main.gd:
-##   attach(combat, inventory, replication, sector, telemetry)
+##   attach(combat, inventory, replication, sector, telemetry, wave_director)
 ##   on_enemy_due(enemy_type, slot_index)        — wired to wave_director
 ##   on_wave_ended(round_index)                  — wired to wave_director
-##   host_resolve_remote_swing(peer, weapon_id, origin, facing, ammo) — public,
+##   tick_remote_combats(delta)                  — host-only cooldown ticks
+##   clear_remote_combats()                      — called from run_lifecycle.start_run
+##   host_resolve_remote_swing(peer, weapon_id, origin, facing, ammo, attack_speed_mult)
 ##                                                  forwarded by main for replication.gd
 ##
 ## Signals:
-##   enemy_killed(enemy_type)   — main listens to bump _enemies_felled counter
+##   enemy_killed(enemy_type)   — main listens to bump enemies_felled counter
 ##
 ## Combat damage dealt by the local hero flows through CombatSystem's
 ## damage_dealt signal which we re-emit (after MP routing) so the visual
@@ -20,6 +22,15 @@ extends Node
 
 const Waves := preload("res://data/waves.gd")
 const ProjectileScene := preload("res://scenes/projectile.tscn")
+
+# Upper bound the host applies to a client's claimed attack_speed_mult.
+# The maximum legitimate stack of attack-speed upgrades in M2 is well
+# under 2x (Goose open_throat 0.15 + Buffalo braced_shoulders 0.10 +
+# shared_oilskin_grip 0.12 + similar = ~0.4 → 1.4x), so 2.5x leaves
+# headroom for future upgrades while still rejecting anyone trying to
+# pass a 100x-speed claim. Per-peer effective_stats replication ships
+# in M5; until then this cap is the right trade-off (PR #43 review).
+const MAX_REMOTE_ATTACK_SPEED_MULT := 2.5
 
 signal enemy_killed(enemy_type: String)
 
@@ -29,6 +40,14 @@ var replication: Node = null
 var sector: Node = null
 var telemetry: Telemetry = null
 var wave_director: WaveDirector = null
+# Per-peer cached CombatSystem instances used by host_resolve_remote_swing
+# so the host can reject swing intents that arrive faster than the
+# weapon cooldown allows. The previous implementation built a fresh
+# CombatSystem per RPC, which had no memory of the prior swing — a
+# non-host peer that bypassed the client UI could fire RPCs at any rate
+# and the host would apply damage every time. Each entry here lives for
+# the run; cleared via clear_remote_combats() on run-start (PR #43 review).
+var _remote_combat_by_peer: Dictionary = {}  # peer_id (int) → CombatSystem
 
 func attach(
 	combat_system: CombatSystem,
@@ -169,14 +188,27 @@ func on_wave_ended(_round_index: int) -> void:
 
 # ── Multiplayer client-swing resolution ──────────────────────────────
 
-func host_resolve_remote_swing(peer_id: int, weapon_id: String, origin: Vector2, facing: Vector2, ammo_count: int) -> void:
-	# Run the swing on the host using the requesting peer's facing /
-	# weapon. Note: the host's own combat.tick handles cooldown for the
-	# host's local hero — for remote peers we don't track per-peer
-	# cooldown (clients gate themselves with their local CombatSystem).
+func host_resolve_remote_swing(peer_id: int, weapon_id: String, origin: Vector2, facing: Vector2, ammo_count: int, attack_speed_mult: float = 1.0) -> void:
+	# Authoritative remote-swing resolver. PR #43 review:
+	# - The previous implementation built a fresh CombatSystem per RPC,
+	#   which made the can_swing() check vacuous; replaced with a
+	#   per-peer cached CombatSystem that ticks alongside the host's own
+	#   combat (see _get_or_create_remote_combat).
+	# - The host originally used a 1.0 attack_speed modifier on the
+	#   per-peer combat, which silently rejected legitimate swings from
+	#   a client with attack-speed upgrades (the client's note_swing_cooldown
+	#   used the upgraded mult, so they sent the next intent before the
+	#   host's slower cooldown elapsed). Now the client passes its local
+	#   effective attack_speed in the swing intent and the host applies
+	#   it (capped to MAX_REMOTE_ATTACK_SPEED_MULT) before the can_swing
+	#   gate. Per-peer effective_stats replication is still M5 work —
+	#   this is the smallest fix that lets upgraded clients play correctly
+	#   without trusting an unbounded multiplier.
 	#
-	# NOTE: stat modifiers default to 1.0 — per-peer modifier propagation
-	# is tracked in BUF-169.
+	# Ammo: deliberately NOT connected on the per-peer combat. The remote
+	# peer owns its own inventory; charging a remote bow shot to the
+	# host's inventory would drain the host's arrows whenever a client
+	# fires. Clients deduct ammo locally before sending the intent.
 	if not MpIo.is_host():
 		return
 	var enemies: Array = []
@@ -186,23 +218,47 @@ func host_resolve_remote_swing(peer_id: int, weapon_id: String, origin: Vector2,
 	var caster_hero: Node2D = replication.hero_for_peer(peer_id)
 	if caster_hero == null or not is_instance_valid(caster_hero):
 		return
-	# Use a fresh CombatSystem for client swings so the host's combat
-	# cooldown isn't blocked by a remote peer's swing.
-	var temp_combat := CombatSystem.new()
-	# Connect damage_dealt + projectile_requested to the same handlers
-	# that the host's main.gd uses, so the host applies damage and
-	# broadcasts via replication.
-	#
-	# Ammo: deliberately NOT connected. The remote peer owns its own
-	# inventory; charging a remote bow shot to the host's inventory
-	# would drain the host's arrows whenever a client fires (and the
-	# client would never see its own count drop, since the swing intent
-	# never touches local inventory either). Clients deduct ammo
-	# locally before sending the intent.
-	temp_combat.damage_dealt.connect(_on_combat_damage)
-	temp_combat.projectile_requested.connect(_on_projectile_requested)
-	# Mirror swing_started to the visual layer so the host sees the
-	# remote peer's swing arc (and so do the other clients via the
-	# replication broadcast, since combat_visuals listens locally).
-	temp_combat.swing_started.connect(combat.swing_started.emit)
-	temp_combat.resolve_swing(origin, facing, weapon_id, enemies, ammo_count)
+	var per_peer_combat: CombatSystem = _get_or_create_remote_combat(peer_id)
+	# Apply the client's claimed attack_speed mult, capped. damage_mult
+	# stays 1.0 (per-peer damage replication is M5); attack_range_bonus
+	# is irrelevant here because the host re-derives range from weapon +
+	# the bonus on its own combat. Setting modifiers before can_swing()
+	# means a client whose attack-speed upgrade was just purchased gets
+	# the new cooldown applied to the *current* swing's gate, not just
+	# the next one.
+	var capped_speed: float = clamp(attack_speed_mult, 0.1, MAX_REMOTE_ATTACK_SPEED_MULT)
+	per_peer_combat.set_stat_modifiers(1.0, capped_speed, 0.0)
+	if not per_peer_combat.can_swing():
+		# Reject early — drop the intent silently. The client already
+		# played its prediction-arc; if a malicious client sent the RPC
+		# without a local swing, dropping the damage application is the
+		# whole point.
+		return
+	per_peer_combat.resolve_swing(origin, facing, weapon_id, enemies, ammo_count)
+
+func _get_or_create_remote_combat(peer_id: int) -> CombatSystem:
+	# Lazily build a CombatSystem per remote peer the first time the host
+	# resolves a swing for them. Wires the same damage / projectile /
+	# swing-visual signals the host's local combat uses so applied damage
+	# routes through replication and the swing arc renders on every peer.
+	if _remote_combat_by_peer.has(peer_id):
+		return _remote_combat_by_peer[peer_id]
+	var c := CombatSystem.new()
+	c.damage_dealt.connect(_on_combat_damage)
+	c.projectile_requested.connect(_on_projectile_requested)
+	# Mirror swing_started to the host's combat signal so combat_visuals
+	# (which listens to the host's combat) draws the remote arc, and the
+	# replication broadcast carries it to other clients.
+	c.swing_started.connect(combat.swing_started.emit)
+	_remote_combat_by_peer[peer_id] = c
+	return c
+
+func tick_remote_combats(delta: float) -> void:
+	# Drain all per-peer cooldowns alongside the host's local one.
+	for c in _remote_combat_by_peer.values():
+		c.tick(delta)
+
+func clear_remote_combats() -> void:
+	# Reset between runs and on full teardown so a stale cooldown can't
+	# survive into the next run.
+	_remote_combat_by_peer.clear()

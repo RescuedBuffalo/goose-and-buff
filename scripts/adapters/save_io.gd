@@ -14,11 +14,24 @@ extends Node
 const SaveStateClass := preload("res://scripts/logic/save_state.gd")
 const StatSystemClass := preload("res://scripts/logic/stat_system.gd")
 const ArtifactsData := preload("res://data/lodge_artifacts.gd")
+const Upgrades := preload("res://data/upgrades.gd")
+const HeroVariants := preload("res://data/hero_variants.gd")
 
 const SAVE_PATH := "user://save_data.json"
 const SAVE_PATH_TMP := "user://save_data.json.tmp"
 
+# BUF-149: ember spends happen at the lodge between runs, so they don't
+# fit inside a per-run telemetry file. We append them to a separate
+# lodge events stream alongside the run files; offline analysis treats
+# the lodge file like any other JSONL telemetry source.
+const LODGE_EVENTS_DIR := "user://telemetry"
+const LODGE_EVENTS_PATH := "user://telemetry/lodge_events.jsonl"
+
 signal state_changed()
+# BUF-149: emitted from purchase_upgrade so any active scene-tree consumer
+# (telemetry IO, HUD pulse, etc.) can pick up the spend. The disk write
+# inside _emit_lodge_event is independent of subscribers.
+signal embers_spent(upgrade_id: String, amount: int)
 
 var data: Dictionary = {}
 
@@ -115,15 +128,29 @@ func purchase_upgrade(upgrade_id: String) -> Dictionary:
 	# Pure stat-system computes the new state; the adapter persists it.
 	# Returns the same {ok, embers, owned_upgrades, reason} dict the
 	# pure logic produces so callers can render rejection states.
+	var before_embers: int = SaveStateClass.embers(data)
 	var result: Dictionary = StatSystemClass.apply_purchase(
 		upgrade_id,
-		SaveStateClass.embers(data),
+		before_embers,
 		SaveStateClass.owned_upgrades(data),
 	)
 	if result.ok:
 		data = SaveStateClass.set_embers(data, int(result.embers))
 		data = SaveStateClass.set_owned_upgrades(data, result.owned_upgrades)
 		save()
+		# Telemetry: ember_spent (BUF-149 acceptance). Recorded against the
+		# lodge stream rather than a per-run id since spends happen between
+		# runs. Payload mirrors ember_earned plus the upgrade id.
+		var spent: int = before_embers - int(result.embers)
+		var upgrade: Dictionary = Upgrades.by_id(upgrade_id)
+		_emit_lodge_event("ember_spent", {
+			"upgrade_id": upgrade_id,
+			"amount": spent,
+			"hero_scope": String(upgrade.get("hero", "")),
+			"tier": int(upgrade.get("tier", 0)),
+			"balance_after": int(result.embers),
+		})
+		embers_spent.emit(upgrade_id, spent)
 	return result
 
 func embers() -> int:
@@ -131,6 +158,140 @@ func embers() -> int:
 
 func owned_upgrades() -> Array:
 	return SaveStateClass.owned_upgrades(data)
+
+# ── M2: hero variants (BUF-129) ──────────────────────────────────────────
+
+func assign_variant_for_run(hero_id: String) -> String:
+	# Picks a fresh variant for the active hero and persists it. Called
+	# from run_start when the player confirms a hero — guarantees the new
+	# pick differs from the previous one when the pool has more than one
+	# entry, so the rotation requirement in BUF-129 lands deterministically
+	# instead of "different ~75% of the time". Empty pool → "" so the data
+	# layer can ship before assets do.
+	var pool: Array = HeroVariants.for_hero(hero_id)
+	if pool.is_empty():
+		return ""
+	var current: String = current_variant(hero_id)
+	# Exclude the current variant if we have alternatives; otherwise the
+	# single-entry pool falls back to itself (no rotation possible).
+	var candidates: Array = pool
+	if pool.size() > 1 and not current.is_empty():
+		candidates = []
+		for v in pool:
+			if String(v.get("id", "")) != current:
+				candidates.append(v)
+	var rng := RandomNumberGenerator.new()
+	rng.randomize()
+	var pick: Dictionary = candidates[rng.randi_range(0, candidates.size() - 1)]
+	var picked_id: String = String(pick.get("id", ""))
+	data = SaveStateClass.set_variant(data, hero_id, picked_id)
+	save()
+	return picked_id
+
+func ensure_variant(hero_id: String) -> String:
+	# Returns the hero's current variant, rolling one only if none is set.
+	# Used by run_start.gd to populate the hero-select cards on first
+	# entry, and by main.gd as a fallback when main.tscn is launched
+	# directly (no preceding run_start.tscn). Stable for the run.
+	var current: String = current_variant(hero_id)
+	if not current.is_empty():
+		return current
+	return assign_variant_for_run(hero_id)
+
+func current_variant(hero_id: String) -> String:
+	return SaveStateClass.variant_for(data, hero_id)
+
+# ── M2: debug helpers (BUF-147 acceptance) ───────────────────────────────
+##
+## QA testing affordances. Bound to F5 / F6 / F12 in main.gd so a play
+## session can grant embers, fully unlock the tree, or rerun the stat-
+## composition test without leaving the running game. Saves are not
+## sandboxed — using these mutates the player's actual save file. Fine
+## for the three-friends prototype, gate by an "engine.is_editor_hint()"
+## or build flag if the project ever ships externally.
+
+func debug_grant_embers(amount: int) -> int:
+	# Adds embers without going through award_for_run. Mirrors the
+	# normal add path so listeners (lodge embers panel) repaint via the
+	# state_changed signal that save() emits.
+	if amount <= 0:
+		return embers()
+	data = SaveStateClass.add_embers(data, amount)
+	save()
+	return embers()
+
+func debug_grant_upgrade(upgrade_id: String) -> bool:
+	# Adds the upgrade id to owned without checking cost or prereqs.
+	# Returns false if the id isn't in data/upgrades.gd. Useful for
+	# probing a specific stat path mid-run; F6 grants the whole pool.
+	var u: Dictionary = Upgrades.by_id(upgrade_id)
+	if u.is_empty():
+		return false
+	var owned: Array = (SaveStateClass.owned_upgrades(data) as Array).duplicate()
+	if not owned.has(upgrade_id):
+		owned.append(upgrade_id)
+		data = SaveStateClass.set_owned_upgrades(data, owned)
+		save()
+	return true
+
+func debug_revoke_upgrade(upgrade_id: String) -> bool:
+	var owned: Array = (SaveStateClass.owned_upgrades(data) as Array).duplicate()
+	var idx: int = owned.find(upgrade_id)
+	if idx < 0:
+		return false
+	owned.remove_at(idx)
+	data = SaveStateClass.set_owned_upgrades(data, owned)
+	save()
+	return true
+
+func debug_grant_all_upgrades() -> int:
+	# Grants every authored upgrade. Returns the new owned count. Lets QA
+	# verify max-stack stat composition without grinding through embers.
+	var owned: Array = (SaveStateClass.owned_upgrades(data) as Array).duplicate()
+	for u in Upgrades.ALL:
+		var id: String = String(u.id)
+		if not owned.has(id):
+			owned.append(id)
+	data = SaveStateClass.set_owned_upgrades(data, owned)
+	save()
+	return owned.size()
+
+func debug_clear_progression() -> void:
+	# Wipes embers + owned upgrades + current_variants. Run history /
+	# artifacts are preserved so the QA flow doesn't lose context. For
+	# a full reset use reset() (defined above).
+	data = SaveStateClass.set_embers(data, 0)
+	data = SaveStateClass.set_owned_upgrades(data, [])
+	data = SaveStateClass.set_variants(data, {})
+	save()
+
+# ── Telemetry: lodge events (BUF-149) ────────────────────────────────────
+##
+## ember_spent fires from the lodge — outside of any active run. We don't
+## have a Telemetry instance to log against (those live inside main.gd's
+## logic modules), so SaveIo writes a separate JSONL file alongside the
+## per-run telemetry. The event shape mirrors Telemetry.log() so any
+## offline analysis tool can drain the lodge file the same way.
+
+func _emit_lodge_event(kind: String, payload: Dictionary) -> void:
+	DirAccess.make_dir_recursive_absolute(LODGE_EVENTS_DIR)
+	var event := {
+		"ts": Time.get_unix_time_from_system(),
+		"kind": kind,
+		"payload": payload,
+	}
+	var f: FileAccess
+	if FileAccess.file_exists(LODGE_EVENTS_PATH):
+		f = FileAccess.open(LODGE_EVENTS_PATH, FileAccess.READ_WRITE)
+		if f != null:
+			f.seek_end()
+	else:
+		f = FileAccess.open(LODGE_EVENTS_PATH, FileAccess.WRITE)
+	if f == null:
+		push_warning("SaveIo: unable to open %s for lodge telemetry" % LODGE_EVENTS_PATH)
+		return
+	f.store_line(JSON.stringify(event))
+	f.close()
 
 # ── Accessors ────────────────────────────────────────────────────────────
 

@@ -24,12 +24,17 @@ var sector: Node = null
 var replication: Node = null
 var telemetry: Telemetry = null
 var _local_hero_provider: Callable = Callable()
+# Resolves the local effective_stats dict so signature ability cooldown
+# reads the upgrade-modified value, not the base from heroes.gd. Held
+# as a Callable so respawns / run-resets don't pin a stale ref.
+var _effective_stats_provider: Callable = Callable()
 
-func attach(local_hero_provider: Callable, sector_node: Node, replication_node: Node, telemetry_node: Telemetry) -> void:
+func attach(local_hero_provider: Callable, sector_node: Node, replication_node: Node, telemetry_node: Telemetry, effective_stats_provider: Callable = Callable()) -> void:
 	_local_hero_provider = local_hero_provider
 	sector = sector_node
 	replication = replication_node
 	telemetry = telemetry_node
+	_effective_stats_provider = effective_stats_provider
 
 # ── Signature abilities (Q) ────────────────────────────────────────────
 
@@ -46,7 +51,19 @@ func try_fire_signature_ability() -> void:
 	var target_pos: Vector2 = hero.get_global_mouse_position()
 	# Stamp cooldown locally so the HUD rail starts ticking immediately.
 	# Host validates again and broadcasts the effect.
-	var cd_max: float = float(data.get("signatureCooldown", 6.0))
+	#
+	# PR #41 review: read the upgrade-modified ability_cooldown from
+	# effective_stats, not data.signatureCooldown. The base value
+	# ignores Buffalo charge practice / Goose loud call / Fox cutpurse
+	# (-15..-20% pct on ability_cooldown), so before this fix the rail
+	# snapped back to the unupgraded ceiling on every cast. Falls back
+	# to the base when effective_stats hasn't been populated (direct
+	# main.tscn launch path) so the ability still works there.
+	var stats: Dictionary = _resolve_effective_stats()
+	var cd_max: float = float(stats.get(
+		"ability_cooldown",
+		float(data.get("signatureCooldown", 6.0)),
+	))
 	GameState.set_signature_cooldown(cd_max, cd_max)
 	if MpIo.is_multiplayer() and not MpIo.is_host():
 		# Client → host: route through replication. Host applies and
@@ -208,6 +225,14 @@ func _resolve_local_hero() -> Node2D:
 	if ref == null or not is_instance_valid(ref):
 		return null
 	return ref as Node2D
+
+func _resolve_effective_stats() -> Dictionary:
+	if _effective_stats_provider.is_null():
+		return {}
+	var ref = _effective_stats_provider.call()
+	if typeof(ref) != TYPE_DICTIONARY:
+		return {}
+	return ref
 
 func _gather_enemy_refs() -> Array:
 	var enemies: Array = []

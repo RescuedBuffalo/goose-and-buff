@@ -140,6 +140,37 @@ static func embers(state: Dictionary) -> int:
 static func owned_upgrades(state: Dictionary) -> Array:
 	return state.get("owned_upgrades", [])
 
+# ── M2: hero variants (BUF-129) ──────────────────────────────────────────
+##
+## current_variants is Dict[hero_id, variant_id] — the active variant for
+## each hero across the campaign. Set on run start by SaveIo, read by
+## the hero adapter at sprite-load time and the run-start UI for the
+## hero-select swatch. Pure: returns a new state, never mutates input.
+
+static func set_variant(state: Dictionary, hero_id: String, variant_id: String) -> Dictionary:
+	var out := state.duplicate(true)
+	var variants: Dictionary = out.get("current_variants", {})
+	if typeof(variants) != TYPE_DICTIONARY:
+		variants = {}
+	variants[hero_id] = variant_id
+	out["current_variants"] = variants
+	return out
+
+static func set_variants(state: Dictionary, variants: Dictionary) -> Dictionary:
+	var out := state.duplicate(true)
+	out["current_variants"] = variants.duplicate(true)
+	return out
+
+static func variant_for(state: Dictionary, hero_id: String) -> String:
+	var variants: Dictionary = state.get("current_variants", {})
+	if typeof(variants) != TYPE_DICTIONARY:
+		return ""
+	return String(variants.get(hero_id, ""))
+
+static func variants(state: Dictionary) -> Dictionary:
+	var v: Dictionary = state.get("current_variants", {})
+	return v if typeof(v) == TYPE_DICTIONARY else {}
+
 # ── Accessors ────────────────────────────────────────────────────────────
 
 static func last_run(state: Dictionary) -> Dictionary:

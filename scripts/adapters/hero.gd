@@ -13,6 +13,7 @@ extends Node2D
 
 const Heroes := preload("res://data/heroes.gd")
 const Sectors := preload("res://data/sectors.gd")
+const HeroVariants := preload("res://data/hero_variants.gd")
 const MultiplayerDataClass := preload("res://data/multiplayer.gd")
 
 const PIXELS_PER_STUD := 12.0
@@ -224,9 +225,18 @@ func apply_revive(hp_ratio: float) -> void:
 	downed_seconds_remaining = 0.0
 	revive_progress_seconds = 0.0
 	hp = clamp(hp_ratio, 0.05, 1.0) * hp_max
-	if sprite != null:
-		sprite.modulate = Color(1, 1, 1, 1)
-	GameState.set_hero_hp(hp, hp_max)
+	# Variant tint must be reapplied here — clearing modulate to white
+	# would wipe BUF-129's per-run reskin on every revive. _apply_variant_tint
+	# falls back to white when no variant is set.
+	_apply_variant_tint()
+	# PR #41 review: only the local hero feeds GameState — that singleton
+	# drives the local HUD chip. Without this gate, a teammate's revive
+	# (or dawn respawn at FALLEN_RESPAWN_HP_RATIO) overwrote the local
+	# player's HP chip with the teammate's revived HP until the next
+	# local damage event refreshed it. Mirrors the existing gate in
+	# damage(), which has read this same lesson.
+	if not is_remote_puppet:
+		GameState.set_hero_hp(hp, hp_max)
 	queue_redraw()
 
 func apply_fallen() -> void:
@@ -252,8 +262,12 @@ func reset_hp() -> void:
 	downed_seconds_remaining = 0.0
 	revive_progress_seconds = 0.0
 	hp = hp_max
-	if sprite != null:
-		sprite.modulate = Color(1, 1, 1, 1)
+	# main.gd._start_run() calls reset_hp() right after run-start, before
+	# the player ever sees the hero. Without _apply_variant_tint here, the
+	# downed-modulate-was-white reset stripped BUF-129's variant tint and
+	# every run looked canonical. _apply_variant_tint handles the no-variant
+	# case by setting modulate to white.
+	_apply_variant_tint()
 	GameState.set_hero_hp(hp, hp_max)
 	queue_redraw()
 
@@ -325,6 +339,21 @@ func _load_sprite() -> void:
 	else:
 		sprite.texture = null
 		queue_redraw()
+	_apply_variant_tint()
+
+func _apply_variant_tint() -> void:
+	# BUF-129: variants ship as palette tints until the M3 portrait pipeline
+	# lands. Run-start picks one of ~4 looks per hero and stores the id on
+	# save_state.current_variants[hero_id]; we read it here and modulate
+	# the sprite. Empty variant_id (assets-not-authored, save-from-pre-M2,
+	# Val) → no-op, sprite stays canonical.
+	if sprite == null:
+		return
+	var variant_id: String = SaveIo.current_variant(hero_data.id)
+	if variant_id.is_empty():
+		sprite.modulate = Color(1, 1, 1, 1)
+		return
+	sprite.modulate = HeroVariants.tint_for(variant_id)
 
 func _draw() -> void:
 	# Downed/fallen heroes get the kneel marker even with a sprite — it's

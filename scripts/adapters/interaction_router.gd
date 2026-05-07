@@ -36,6 +36,10 @@ var telemetry: Telemetry = null
 # Owner of the spawned placeables (parent node). Main usually = self.
 var placement_parent: Node = null
 var _local_hero_provider: Callable = Callable()
+# Returns the local effective_stats dict so swing-click can pass the
+# client's attack_speed mult to the host. Held as a Callable so the
+# router doesn't pin a stale ref across run-start (PR #43 review).
+var _effective_stats_provider: Callable = Callable()
 
 func attach(refs: Dictionary) -> void:
 	sector = refs.get("sector")
@@ -47,6 +51,7 @@ func attach(refs: Dictionary) -> void:
 	telemetry = refs.get("telemetry")
 	placement_parent = refs.get("placement_parent")
 	_local_hero_provider = refs.get("local_hero_provider", Callable())
+	_effective_stats_provider = refs.get("effective_stats_provider", Callable())
 	# Wire signals from logic systems through this router.
 	gather.gather_progress.connect(_on_gather_progress)
 	gather.gather_completed.connect(_on_gather_completed)
@@ -156,6 +161,15 @@ func handle_swing_click() -> void:
 	# swing arc immediately from the local combat.swing_started emit —
 	# that's purely visual; damage application happens off the broadcast.
 	if MpIo.is_multiplayer() and not MpIo.is_host():
+		# Cooldown gate (PR #41 review follow-up). Without can_swing()
+		# here, a client could spam click events faster than the weapon
+		# allows — the host's resolver runs in a per-peer CombatSystem
+		# (combat_router.host_resolve_remote_swing) so it never rejects
+		# on the client's behalf. note_swing_cooldown after the emit
+		# stamps the same cooldown the host's resolver will, so client
+		# and host stay in lockstep without an extra round trip.
+		if not combat.can_swing():
+			return
 		var weapon: Dictionary = Weapons.get_weapon(equipped)
 		var dir: Vector2 = hero.facing.normalized() if hero.facing.length_squared() > 0.0001 else Vector2.RIGHT
 		var range_tiles: float = float(weapon.range_tiles)
@@ -172,7 +186,15 @@ func handle_swing_click() -> void:
 			if not ammo_id.is_empty():
 				inventory.remove_item(ammo_id, 1)
 		combat.swing_started.emit(equipped, hero.position, dir, length_px, half_angle_rad)
-		replication.client_request_swing(equipped, hero.position, hero.facing, ammo_count)
+		combat.note_swing_cooldown(equipped)
+		# Pass the client's effective attack_speed mult so the host's
+		# per-peer cooldown gate matches the client's faster cadence
+		# when upgrades are owned. Without this, an upgraded client's
+		# legitimate swings would be rejected and bow shots would waste
+		# their already-deducted arrow (PR #43 review).
+		var stats: Dictionary = _resolve_effective_stats()
+		var client_attack_speed: float = float(stats.get("attack_speed", 1.0))
+		replication.client_request_swing(equipped, hero.position, hero.facing, ammo_count, client_attack_speed)
 		return
 	var swing_result: Dictionary = combat.resolve_swing(hero.position, hero.facing, equipped, enemies, ammo_count)
 	if telemetry != null and swing_result.get("ok", false):
@@ -192,3 +214,11 @@ func _resolve_local_hero() -> Node2D:
 	if ref == null or not is_instance_valid(ref):
 		return null
 	return ref as Node2D
+
+func _resolve_effective_stats() -> Dictionary:
+	if _effective_stats_provider.is_null():
+		return {}
+	var ref = _effective_stats_provider.call()
+	if typeof(ref) != TYPE_DICTIONARY:
+		return {}
+	return ref
