@@ -188,6 +188,30 @@ static func runs(state: Dictionary) -> Array:
 static func artifacts(state: Dictionary) -> Array:
 	return state.get("lodge_artifacts", [])
 
+# ── M2: lookup helpers for ember-bonus eligibility (BUF-149) ─────────────
+##
+## These walk the prior history WITHOUT the current run record. Callers
+## must invoke them BEFORE record_run / append_artifact so a fresh run
+## doesn't make itself look like a duplicate.
+
+static func has_run_with_hero(state: Dictionary, hero_id: String) -> bool:
+	for r in state.get("runs", []):
+		if typeof(r) != TYPE_DICTIONARY:
+			continue
+		if String(r.get("hero_id", "")) == hero_id:
+			return true
+	return false
+
+static func has_artifact_with_id(state: Dictionary, artifact_id: String) -> bool:
+	if artifact_id.is_empty():
+		return false
+	for a in state.get("lodge_artifacts", []):
+		if typeof(a) != TYPE_DICTIONARY:
+			continue
+		if String(a.get("id", "")) == artifact_id:
+			return true
+	return false
+
 # ── Serialization ────────────────────────────────────────────────────────
 
 static func to_json(state: Dictionary) -> String:

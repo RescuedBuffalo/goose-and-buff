@@ -87,6 +87,7 @@ func record_run(
 	enemies_felled: int,
 	duration_seconds: float,
 	seed: int = 0,
+	artifact_id_override: String = "",
 ) -> void:
 	var now := int(Time.get_unix_time_from_system())
 	var record := SaveStateClass.make_run_record(
@@ -105,16 +106,42 @@ func record_run(
 	# the heroes do. Draw + accumulate happen in the same save call so a
 	# crash between record_run and add_artifact can't leave the run logged
 	# without its artifact (or vice versa).
-	var artifact_id := _draw_artifact_id()
+	#
+	# BUF-149: callers (run_lifecycle) pre-draw the artifact via
+	# draw_lodge_artifact() so the novelty check that gates the
+	# EMBERS_NEW_ARTIFACT bonus reads against the SAME draw the save
+	# is about to commit. Falling back to a fresh draw here keeps the
+	# legacy code path safe; passing "" still lands an artifact.
+	var artifact_id: String = artifact_id_override
+	if artifact_id.is_empty():
+		artifact_id = draw_lodge_artifact()
 	if artifact_id != "":
 		var artifact_record := SaveStateClass.make_artifact_record(artifact_id, outcome, now)
 		data = SaveStateClass.append_artifact(data, artifact_record)
 	save()
 
-func _draw_artifact_id() -> String:
+func draw_lodge_artifact() -> String:
+	# Public artifact draw (BUF-149). The run lifecycle calls this before
+	# awarding embers so it can decide whether the result is a novel
+	# discovery (worth +1 ember) — and then hand the same id back to
+	# record_run so the novelty check and the persisted artifact don't
+	# diverge if the RNG gets called twice.
 	var rng := RandomNumberGenerator.new()
 	rng.randomize()
 	return ArtifactsData.draw(rng)
+
+# ── BUF-149: ember-bonus eligibility queries ────────────────────────────
+##
+## Lookups against in-memory save data. Cheap (the runs and artifacts
+## arrays are bounded) and pure relative to the current save snapshot.
+## Callers MUST query these before record_run is called for the run in
+## flight, or the run-being-recorded will mask its own first-hero status.
+
+func has_run_with_hero(hero_id: String) -> bool:
+	return SaveStateClass.has_run_with_hero(data, hero_id)
+
+func has_artifact_with_id(artifact_id: String) -> bool:
+	return SaveStateClass.has_artifact_with_id(data, artifact_id)
 
 # ── M2: embers + upgrades (BUF-147) ──────────────────────────────────────
 

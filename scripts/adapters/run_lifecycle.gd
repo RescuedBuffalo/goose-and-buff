@@ -46,6 +46,12 @@ var resources_gathered: int = 0
 var enemies_felled: int = 0
 var nights_survived: int = 0
 var embers_awarded_this_run: int = 0
+# Pre-drawn artifact for the current run (BUF-149). Held here so
+# _award_embers can decide novelty against save history before the
+# artifact is committed, and _record_run_and_go_to_lodge hands the
+# same id to SaveIo.record_run so the novelty check and the persisted
+# artifact never diverge.
+var _run_artifact_id: String = ""
 var _run_started_msec: int = 0
 var _run_end_auto_transition_cancelled: bool = false
 
@@ -200,6 +206,7 @@ func start_run() -> void:
 	enemies_felled = 0
 	nights_survived = 0
 	embers_awarded_this_run = 0
+	_run_artifact_id = ""
 	_run_started_msec = Time.get_ticks_msec()
 	for item in starter_items:
 		inventory.add(item.id, int(item.count))
@@ -324,7 +331,29 @@ func _run_defeat() -> void:
 
 func _award_embers(outcome: String) -> void:
 	# Single-shot per run. Call only from victory/defeat paths.
-	var amount: int = RunEconomy.award_for_run(outcome, nights_survived, resources_gathered, enemies_felled)
+	#
+	# BUF-149: the issue spec ties the ember reward to four levers —
+	# nights survived, victory, artifact novelty, first run with a
+	# hero. The artifact bonus depends on a draw that the lodge would
+	# otherwise make inside SaveIo.record_run, so we pre-draw here and
+	# pass the same id forward through _record_run_and_go_to_lodge so
+	# the novelty check and the persisted artifact line up.
+	#
+	# Both flags are queried BEFORE record_run runs — once that fires,
+	# the run-being-recorded would mask its own first-hero status and
+	# the artifact-being-appended would mask its own novelty.
+	_run_artifact_id = SaveIo.draw_lodge_artifact()
+	var artifact_is_new: bool = (
+		_run_artifact_id != ""
+		and not SaveIo.has_artifact_with_id(_run_artifact_id)
+	)
+	var first_hero_run: bool = not SaveIo.has_run_with_hero(GameState.hero_id)
+	var amount: int = RunEconomy.award_for_run(
+		outcome,
+		nights_survived,
+		artifact_is_new,
+		first_hero_run,
+	)
 	embers_awarded_this_run = amount
 	if amount > 0:
 		SaveIo.add_embers(amount)
@@ -335,10 +364,18 @@ func _award_embers(outcome: String) -> void:
 			"nights_survived": nights_survived,
 			"resources_gathered": resources_gathered,
 			"enemies_felled": enemies_felled,
+			"artifact_id": _run_artifact_id,
+			"artifact_is_new": artifact_is_new,
+			"first_hero_run": first_hero_run,
+			"hero_id": GameState.hero_id,
 		})
 
 func _record_run_and_go_to_lodge(outcome: String) -> void:
 	var duration: float = float(Time.get_ticks_msec() - _run_started_msec) / 1000.0
+	# Hand the artifact id pre-drawn by _award_embers to SaveIo so the
+	# novelty bonus and the persisted artifact reference the same draw.
+	# Empty string falls through to a fresh draw inside SaveIo.record_run
+	# (legacy / never-awarded path).
 	SaveIo.record_run(
 		GameState.hero_id,
 		outcome,
@@ -347,6 +384,7 @@ func _record_run_and_go_to_lodge(outcome: String) -> void:
 		enemies_felled,
 		duration,
 		run_seed,
+		_run_artifact_id,
 	)
 	# Auto-transition reads _run_end_auto_transition_cancelled so the
 	# end-screen Copy button can stop it. SceneTreeTimer can't be

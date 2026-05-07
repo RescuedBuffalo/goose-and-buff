@@ -18,6 +18,7 @@ const Chunks := preload("res://data/chunks.gd")
 const WorldGeneratorClass := preload("res://scripts/logic/world_generator.gd")
 const StatSystemTest := preload("res://scripts/tests/stat_system_test.gd")
 const WorldGeneratorTest := preload("res://scripts/tests/world_generator_test.gd")
+const RunEconomyTest := preload("res://scripts/tests/run_economy_test.gd")
 
 # Where dump_world() writes the WorldDef JSON.
 const DEBUG_DUMP_DIR := "user://debug"
@@ -158,6 +159,8 @@ func handle_debug_key(event: InputEventKey) -> bool:
 			StatSystemTest.print_results(stat_report)
 			var world_report: Dictionary = WorldGeneratorTest.run_all()
 			WorldGeneratorTest.print_results(world_report)
+			var economy_report: Dictionary = RunEconomyTest.run_all()
+			RunEconomyTest.print_results(economy_report)
 			return true
 	return false
 
