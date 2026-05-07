@@ -11,6 +11,7 @@ extends Control
 
 const DayNight := preload("res://data/day_night.gd")
 const MultiplayerDataClass := preload("res://data/multiplayer.gd")
+const Heroes := preload("res://data/heroes.gd")
 
 var _day_index: int = 1
 var _phase: int = DayNight.PHASE_DAY
@@ -39,6 +40,10 @@ func bind(day_night) -> void:
 	day_night.phase_timer_tick.connect(_on_phase_timer)
 	GameState.hero_hp_changed.connect(func(_a, _b): queue_redraw())
 	GameState.core_hp_changed.connect(func(_a, _b): queue_redraw())
+	# Q ability cooldown rail (BUF-156). The signal fires on cast (max
+	# stamped) and on every per-frame tick the router applies, so the
+	# rail re-renders only when the cooldown actually moves.
+	GameState.signature_cooldown_changed.connect(func(_a, _b): queue_redraw())
 	# Connection-state banner copy fires off MpIo when a peer connects /
 	# drops / reconnects. The autoload exists in solo too but never emits
 	# unless a peer is bound, so this listener is safe to wire always.
@@ -130,6 +135,13 @@ func _draw() -> void:
 		"LODGE", "%d / %d" % [int(GameState.core_hp), int(GameState.core_hp_max)],
 		DesignTokens.hp_color(_hp_ratio(GameState.core_hp, GameState.core_hp_max)),
 	)
+	# Q signature ability cooldown rail (BUF-156). Sits between the lodge
+	# chip and the centered headline. Sentence-case "Q — Charge" label;
+	# the value reads "Ready" when off-cooldown and "0:04" while ticking
+	# (voice rule — never "4s"). A thin rail under the chip fills back
+	# toward the right as the cooldown drains so peripheral vision picks
+	# up "almost ready" without re-reading the timer text.
+	_draw_signature_cooldown_chip(Vector2(pad + 480, 14))
 	# Phase headline — center. "Day 2 — gather and prepare" or "Night 2 — hold the line".
 	var headline: String = _phase_headline()
 	var font: Font = ThemeDB.fallback_font
@@ -281,6 +293,48 @@ func _draw_label_chip(pos: Vector2, label: String, value: String, value_color: C
 			HORIZONTAL_ALIGNMENT_LEFT, -1, DesignTokens.FS_XS, DesignTokens.FG_3)
 	draw_string(font, pos + Vector2(0, 42), value,
 			HORIZONTAL_ALIGNMENT_LEFT, -1, DesignTokens.FS_LG, value_color)
+
+func _draw_signature_cooldown_chip(pos: Vector2) -> void:
+	# Companion to _draw_label_chip with a progress rail underneath. The
+	# label uses sentence case ("Q — Charge") so it reads as guidance, not
+	# a stat. Em dash matches the chapter-title voice elsewhere on the
+	# band. Hidden if no hero is set yet (run-start screen path).
+	var hero_id: String = GameState.hero_id
+	if hero_id.is_empty():
+		return
+	var data: Dictionary = Heroes.ALL.get(hero_id, Heroes.Buffalo)
+	# signatureAbility is the display name ("Buffalo charge" / "Dive" /
+	# "Snatch"). Buffalo's variant is verbose; trim the totem prefix so
+	# the chip reads parallel across heroes.
+	var ability_name: String = String(data.get("signatureAbility", "Charge"))
+	if ability_name.begins_with("Buffalo "):
+		ability_name = ability_name.substr(8).capitalize()
+	var label: String = "Q — %s" % ability_name
+	var value: String
+	var value_color: Color
+	if GameState.signature_cooldown <= 0.0:
+		value = "Ready"
+		value_color = DesignTokens.PARCHMENT_0
+	else:
+		value = _format_timer(GameState.signature_cooldown)
+		value_color = DesignTokens.FG_3
+	var font: Font = ThemeDB.fallback_font
+	draw_string(font, pos + Vector2(0, 14), label,
+			HORIZONTAL_ALIGNMENT_LEFT, -1, DesignTokens.FS_XS, DesignTokens.FG_3)
+	draw_string(font, pos + Vector2(0, 42), value,
+			HORIZONTAL_ALIGNMENT_LEFT, -1, DesignTokens.FS_LG, value_color)
+	# Progress rail. Fills left→right as the cooldown drains so the
+	# rail is full at the moment the chip flips to "Ready".
+	var rail_w: float = 160.0
+	var rail_h: float = 4.0
+	var rail_x: float = pos.x
+	var rail_y: float = pos.y + 56.0
+	draw_rect(Rect2(rail_x, rail_y, rail_w, rail_h), DesignTokens.NIGHT_2, true)
+	if GameState.signature_cooldown_max > 0.0 and GameState.signature_cooldown > 0.0:
+		var fill_ratio: float = clamp(1.0 - GameState.signature_cooldown / GameState.signature_cooldown_max, 0.0, 1.0)
+		draw_rect(Rect2(rail_x, rail_y, rail_w * fill_ratio, rail_h), DesignTokens.PARCHMENT_2, true)
+	else:
+		draw_rect(Rect2(rail_x, rail_y, rail_w, rail_h), DesignTokens.PARCHMENT_0, true)
 
 func _hp_ratio(current: float, maximum: float) -> float:
 	if maximum <= 0:

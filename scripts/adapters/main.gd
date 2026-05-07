@@ -188,7 +188,8 @@ func _build_routers() -> void:
 	combat_router = _add_router(CombatRouterScript, "CombatRouter")
 	combat_router.attach(combat, inventory, replication, sector, telemetry, wave_director)
 	ability_router = _add_router(AbilityRouterScript, "AbilityRouter")
-	ability_router.attach(local_hero_provider, sector, replication, telemetry, effective_stats_provider)
+	var day_night_provider := func(): return day_night
+	ability_router.attach(local_hero_provider, sector, replication, telemetry, effective_stats_provider, day_night_provider)
 	interaction_router = _add_router(InteractionRouterScript, "InteractionRouter")
 	interaction_router.attach({
 		"sector": sector, "inventory": inventory, "combat": combat,
