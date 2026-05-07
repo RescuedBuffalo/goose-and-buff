@@ -58,6 +58,11 @@ var peer_id: int = 0
 # Defaults pull from the hero's base values in heroes.gd via _ready.
 var _stat_hp_max: float = -1.0
 var _stat_move_speed: float = -1.0
+# True once a portrait sprite is loaded. The portrait body + cursor
+# already convey facing/swing direction, so the cream facing-notch
+# placeholder is suppressed in this mode (it was scaffolding for the
+# totem-icon era and reads as visual clutter against the body sprite).
+var _is_using_portrait: bool = false
 
 var sector: Node = null
 @onready var sprite: Sprite2D = $Sprite
@@ -369,6 +374,7 @@ func _load_sprite() -> void:
 		# any portrait material that might be lingering from a previous
 		# load.
 		sprite.material = null
+		_is_using_portrait = false
 		_resize_shadow_for_sprite()
 	else:
 		sprite.texture = null
@@ -410,6 +416,7 @@ func _apply_portrait(src: Texture2D) -> void:
 	# Pre-processed alpha mask gives clean edges through GPU filtering;
 	# no shader material needed.
 	sprite.material = null
+	_is_using_portrait = true
 	_resize_shadow_for_sprite()
 
 func _get_masked_portrait(path: String, src: Texture2D) -> Texture2D:
@@ -490,7 +497,10 @@ func _draw() -> void:
 		_draw_downed_overlay()
 		return
 	if sprite != null and sprite.texture != null:
-		_draw_facing_notch()
+		# Portrait body + cursor already show facing/swing direction —
+		# the notch is only useful for the totem-icon fallback.
+		if not _is_using_portrait:
+			_draw_facing_notch()
 		_draw_ai_badge_if_needed()
 		return
 	var fill: Color = DesignTokens.core_color(hero_data.id)
@@ -532,13 +542,18 @@ func _draw_arc_ring(center: Vector2, radius: float, ratio: float, color: Color) 
 func _draw_ai_badge_if_needed() -> void:
 	if not is_ai_placeholder:
 		return
-	# Small "AI" tag below the hero — voice rule: the badge is two
+	# Small "AI" tag near the hero — voice rule: the badge is two
 	# letters, no emoji. Renders for both the local view of a remote AI
 	# placeholder and the host's view of a dropped client.
+	# Position depends on anchor: portrait sprites are bottom-center
+	# anchored so the head sits high above the origin; totem icons are
+	# centered on the origin. Keep the badge legible relative to the
+	# rendered character either way.
 	var font: Font = ThemeDB.fallback_font
 	var label: String = "AI"
 	var color := DesignTokens.FG_3
-	draw_string(font, Vector2(-8, 28), label, HORIZONTAL_ALIGNMENT_LEFT, -1, DesignTokens.FS_XS, color)
+	var pos := Vector2(-8, 28) if not _is_using_portrait else Vector2(-8, -TARGET_CHARACTER_HEIGHT_PX - 6)
+	draw_string(font, pos, label, HORIZONTAL_ALIGNMENT_LEFT, -1, DesignTokens.FS_XS, color)
 
 func _draw_facing_notch() -> void:
 	# Tiny indicator at the hero's feet pointing where they're facing —
