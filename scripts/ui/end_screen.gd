@@ -96,4 +96,7 @@ func _on_copy_seed_pressed() -> void:
 	var seed_text: String = WorldGenerator.seed_to_string(_displayed_seed)
 	DisplayServer.clipboard_set(seed_text)
 	if _copy_seed != null:
-		_copy_seed.text = "Copied"
+		# BUF-145 voice: confirmation reads "Seed copied." so the player
+		# sees the same wording the ticket prescribes (and matches the
+		# rest of the run-end scrim's sentence-case voice).
+		_copy_seed.text = "Seed copied."

@@ -70,6 +70,7 @@ static func generate(seed: int, day_index: int, hero_id: String) -> Dictionary:
 				"chunk_pos": pos,
 				"template_id": String(picked.id),
 				"climate": String(picked.climate),
+				"biome": Chunks.biome_for(picked),
 			})
 	# Stamp tiles + collect resource placements.
 	var tiles: Array = _empty_tile_grid()
@@ -92,6 +93,7 @@ static func generate(seed: int, day_index: int, hero_id: String) -> Dictionary:
 		"chunk_count": chunks_layout.size(),
 		"resource_count": resources.size(),
 		"climate_distribution": _count_climates(chunks_layout),
+		"biome_distribution": _count_biomes(chunks_layout),
 	}
 	return {
 		"seed": seed,
@@ -219,6 +221,17 @@ static func _count_climates(layout: Array) -> Dictionary:
 	for entry in layout:
 		var c: String = String(entry.climate)
 		counts[c] = int(counts.get(c, 0)) + 1
+	return counts
+
+static func _count_biomes(layout: Array) -> Dictionary:
+	# Biome counts ride alongside climate counts so the debug panel can
+	# show the placeholder variant breakdown (BUF-146). Empty dict, not
+	# a fixed-key dict — winter_pine / ridge_cold only appear when the
+	# day's pool actually rolled them.
+	var counts: Dictionary = {}
+	for entry in layout:
+		var b: String = String(entry.get("biome", entry.climate))
+		counts[b] = int(counts.get(b, 0)) + 1
 	return counts
 
 # ── Seed helpers ─────────────────────────────────────────────────────

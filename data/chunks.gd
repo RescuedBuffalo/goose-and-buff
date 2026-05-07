@@ -23,6 +23,15 @@ class_name ChunksData extends RefCounted
 ## the same in any climate — frozen woods still drop wood; the look
 ## is what changes.
 ##
+## Biome tags (BUF-146): finer-grained variants under each climate
+## tier — "temperate" | "frosted" | "frozen" | "winter_pine" |
+## "ridge_cold". Locked seasonal-frame language (first frost → the
+## long cold → the deep dark → before the thaw) maps to the climate
+## tier; biome is the placeholder slot that gives a single tier a
+## couple of distinct chunk shapes so a frosted day doesn't always
+## look like the same five chunks. winter_pine sits inside the
+## frosted pool; ridge_cold sits inside the frozen pool.
+##
 ## Design rule: chunk borders are ALWAYS walkable (no `T`, `R`, or
 ## `W` on the outer ring of any non-center chunk). With 4-direction
 ## AStar, this guarantees lodge reachability from any spawn entry
@@ -47,6 +56,10 @@ const CLIMATE_WEIGHTS_BY_DAY := {
 ## Each template:
 ##   id: String — stable identifier for telemetry / debug
 ##   climate: "temperate" | "frosted" | "frozen" | "any"
+##   biome: "temperate" | "frosted" | "frozen" | "winter_pine" |
+##          "ridge_cold" | "any" — finer-grained placeholder variant
+##          that rides on top of climate (BUF-146). Defaults to climate
+##          when a template doesn't set it (use biome_for() to read).
 ##   role: "infill" | "plaza" | "spawn_road"
 ##   weight: int — relative likelihood within its climate (default 10)
 ##   tiles: Array[String] — 5 rows, 5 chars each, top-down
@@ -56,6 +69,7 @@ const ALL := [
 	{
 		"id": "plaza",
 		"climate": "any",
+		"biome": "any",
 		"role": "plaza",
 		"weight": 0,
 		"tiles": [
@@ -70,6 +84,7 @@ const ALL := [
 	{
 		"id": "spawn_road",
 		"climate": "any",
+		"biome": "any",
 		"role": "spawn_road",
 		"weight": 0,
 		"tiles": [
@@ -84,6 +99,7 @@ const ALL := [
 	{
 		"id": "open_glade",
 		"climate": "temperate",
+		"biome": "temperate",
 		"role": "infill",
 		"weight": 12,
 		"tiles": [
@@ -97,6 +113,7 @@ const ALL := [
 	{
 		"id": "scattered_pine",
 		"climate": "temperate",
+		"biome": "temperate",
 		"role": "infill",
 		"weight": 14,
 		"tiles": [
@@ -110,6 +127,7 @@ const ALL := [
 	{
 		"id": "berry_meadow",
 		"climate": "temperate",
+		"biome": "temperate",
 		"role": "infill",
 		"weight": 10,
 		"tiles": [
@@ -123,6 +141,7 @@ const ALL := [
 	{
 		"id": "low_rocks",
 		"climate": "temperate",
+		"biome": "temperate",
 		"role": "infill",
 		"weight": 8,
 		"tiles": [
@@ -136,6 +155,7 @@ const ALL := [
 	{
 		"id": "mixed_brush",
 		"climate": "temperate",
+		"biome": "temperate",
 		"role": "infill",
 		"weight": 10,
 		"tiles": [
@@ -150,6 +170,7 @@ const ALL := [
 	{
 		"id": "frosted_grove",
 		"climate": "frosted",
+		"biome": "frosted",
 		"role": "infill",
 		"weight": 12,
 		"tiles": [
@@ -163,6 +184,7 @@ const ALL := [
 	{
 		"id": "frosted_rocks",
 		"climate": "frosted",
+		"biome": "frosted",
 		"role": "infill",
 		"weight": 10,
 		"tiles": [
@@ -176,6 +198,7 @@ const ALL := [
 	{
 		"id": "stillpond",
 		"climate": "frosted",
+		"biome": "frosted",
 		"role": "infill",
 		"weight": 8,
 		"tiles": [
@@ -189,6 +212,7 @@ const ALL := [
 	{
 		"id": "thin_treeline",
 		"climate": "frosted",
+		"biome": "frosted",
 		"role": "infill",
 		"weight": 10,
 		"tiles": [
@@ -199,10 +223,29 @@ const ALL := [
 			"..T..",
 		],
 	},
+	# winter_pine — denser conifer wedge under the frosted pool. Reads
+	# as a "later in the season" pocket that's heavier than the bare
+	# thin_treeline but still within the frosted tier. Border kept open
+	# per the reachability rule.
+	{
+		"id": "winter_pine_stand",
+		"climate": "frosted",
+		"biome": "winter_pine",
+		"role": "infill",
+		"weight": 8,
+		"tiles": [
+			".....",
+			".TBT.",
+			"..T..",
+			".TBT.",
+			".....",
+		],
+	},
 	# ── Frozen infill ────────────────────────────────────────────
 	{
 		"id": "frozen_pond",
 		"climate": "frozen",
+		"biome": "frozen",
 		"role": "infill",
 		"weight": 10,
 		"tiles": [
@@ -216,6 +259,7 @@ const ALL := [
 	{
 		"id": "dead_stand",
 		"climate": "frozen",
+		"biome": "frozen",
 		"role": "infill",
 		"weight": 10,
 		"tiles": [
@@ -229,6 +273,7 @@ const ALL := [
 	{
 		"id": "rimed_outcrop",
 		"climate": "frozen",
+		"biome": "frozen",
 		"role": "infill",
 		"weight": 12,
 		"tiles": [
@@ -242,6 +287,7 @@ const ALL := [
 	{
 		"id": "frozen_clearing",
 		"climate": "frozen",
+		"biome": "frozen",
 		"role": "infill",
 		"weight": 8,
 		"tiles": [
@@ -249,6 +295,24 @@ const ALL := [
 			".....",
 			"..R..",
 			".....",
+			".....",
+		],
+	},
+	# ridge_cold — high-rock spine under the frozen pool. Two-rock walls
+	# that aren't quite a corridor pinch (interior still has lateral
+	# escape routes) so AStar treats them as terrain colour rather than
+	# choke points.
+	{
+		"id": "ridge_cold_spine",
+		"climate": "frozen",
+		"biome": "ridge_cold",
+		"role": "infill",
+		"weight": 8,
+		"tiles": [
+			".....",
+			".R.R.",
+			".....",
+			".R.R.",
 			".....",
 		],
 	},
@@ -275,3 +339,11 @@ static func climate_weights_for_day(day_index: int) -> Dictionary:
 	# Days beyond 3 just keep day-3 weights — we only ship 3-night runs
 	# but defensive lookup keeps the function honest for tests.
 	return CLIMATE_WEIGHTS_BY_DAY.get(day_index, CLIMATE_WEIGHTS_BY_DAY[3])
+
+static func biome_for(template: Dictionary) -> String:
+	# Templates added before BUF-146 don't have a `biome` key — fall
+	# back to climate so callers always get a non-empty tag.
+	var b: String = String(template.get("biome", ""))
+	if not b.is_empty():
+		return b
+	return String(template.get("climate", ""))

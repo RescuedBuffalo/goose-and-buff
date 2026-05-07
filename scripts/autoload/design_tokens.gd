@@ -66,6 +66,36 @@ const SPACE_5 := 24
 const RADIUS_2 := 8
 const RADIUS_3 := 14
 
+# ─── Biome floor palette (BUF-146 placeholder tints) ─────────────────────
+##
+## Pairs are (fill, edge) for the procedural diamond tile painter in
+## sector.gd. Each biome reads as a recognizable colour at a glance —
+## ugly on purpose; real per-biome tile art lands in M3 alongside the
+## broader visual polish pass.
+const BIOME_GRASS_FILL := Color8(94, 110, 76)
+const BIOME_GRASS_EDGE := Color8(60, 70, 48)
+const BIOME_TREES_FILL := Color8(72, 96, 64)
+const BIOME_TREES_EDGE := Color8(40, 56, 40)
+const BIOME_ROCKS_FILL := Color8(118, 110, 100)
+const BIOME_ROCKS_EDGE := Color8(60, 56, 50)
+const BIOME_BERRIES_FILL := Color8(94, 110, 76)
+const BIOME_BERRIES_EDGE := Color8(60, 70, 48)
+const BIOME_WATER_FILL := Color8(54, 88, 120)
+const BIOME_WATER_EDGE := Color8(28, 52, 80)
+const BIOME_SAND_FILL := Color8(180, 156, 110)
+const BIOME_SAND_EDGE := Color8(120, 96, 64)
+
+# Climate (seasonal-frame tier) tints lerped over the biome floors —
+# frosted nudges toward pale-blue, frozen pushes deeper into ice. Strength
+# coefficients pinned here so design can rebalance the seasonal feel
+# without touching the painter.
+const CLIMATE_FROST_TINT := Color(0.74, 0.84, 0.96, 1.0)
+const CLIMATE_FREEZE_TINT := Color(0.66, 0.86, 1.00, 1.0)
+const CLIMATE_FROST_FILL_STRENGTH := 0.22
+const CLIMATE_FROST_EDGE_STRENGTH := 0.18
+const CLIMATE_FREEZE_FILL_STRENGTH := 0.42
+const CLIMATE_FREEZE_EDGE_STRENGTH := 0.32
+
 # ─── Totem textures ───────────────────────────────────────────────────────
 const TOTEM_BUFFALO := preload("res://assets/totems/buffalo.png")
 const TOTEM_GOOSE := preload("res://assets/totems/goose.svg")
