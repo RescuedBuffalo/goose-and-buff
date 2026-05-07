@@ -50,6 +50,9 @@ inventory is granted.
 | `hero_id` | `string` | e.g. `"Buffalo"`. |
 | `max_nights` | `int` | Survival win condition (currently 3, from `data/day_night.gd`). |
 | `deck_composition` | `array` | Starter loadout entries `[{id, count}, ...]`. Cards are dormant in the survival rebuild (BUF-136), so this currently logs the seed inventory from `STARTER_ITEMS`; once cards return it will also include the chosen deck (BUF-115). |
+| `seed` | `int` | Procgen seed for this run's world (BUF-145). Same `(seed, day_index, hero_id)` reproduces the same WorldDef — analytics can re-roll a flagged run offline. |
+| `seed_string` | `string` | 8-char lowercase hex of the unsigned 32-bit seed — the share-friendly form the run-end Copy button hands the player. |
+| `owned_upgrades` | `array` | Lodge upgrade ids active for this run (BUF-147). Empty on a fresh save. |
 
 ### `run_end`
 

@@ -357,6 +357,48 @@ func _record_run_and_go_to_lodge(outcome: String) -> void:
 func cancel_run_end_transition() -> void:
 	_run_end_auto_transition_cancelled = true
 
+# ── Dev-only world regen (BUF-145) ───────────────────────────────────
+##
+## F7 binds here. Re-rolls the world for the current day_index using
+## either a fresh random seed (seed_override == 0) or a specific one.
+## Resource nodes are cleared and re-stamped, AStar rebuilds, and the
+## hero snaps back to spawn so they don't end up inside a fresh wall.
+## Player-placed structures are intentionally left alone — this is a
+## dev tool, not a "soft restart"; clearing builds would discard the
+## thing devs are usually trying to inspect against the new layout.
+
+func dev_regen_world(seed_override: int = 0) -> int:
+	# Solo only. Mid-run regen across the network would mean re-broadcasting
+	# the seed and tearing down every peer's WorldDef — a chunk of work
+	# that's out of scope for a dev tool. Refuse instead of silently
+	# desyncing host and client.
+	if MpIo.is_multiplayer():
+		print("debug: regen_world refused — multiplayer session")
+		return 0
+	var fresh_seed: int = seed_override if seed_override != 0 else WorldGeneratorClass.random_seed()
+	run_seed = fresh_seed
+	GameState.run_seed = fresh_seed
+	var current_day: int = 1
+	if day_night != null:
+		current_day = int(day_night.day_index)
+	generate_world(current_day)
+	if hero != null and is_instance_valid(hero) and sector != null and sector.has_method("tile_to_world"):
+		# Snap the local hero to the spawn tile. A regen on a tile that
+		# becomes impassable would otherwise wedge the hero in geometry
+		# the AStar rebuild now treats as solid.
+		var spawn_world: Vector2 = sector.tile_to_world(Sectors.SPAWN_TILE)
+		hero.position = spawn_world
+		if "current_tile" in hero:
+			hero.current_tile = Sectors.SPAWN_TILE
+	if telemetry != null:
+		telemetry.log("dev_regen_world", {
+			"seed": fresh_seed,
+			"seed_string": WorldGeneratorClass.seed_to_string(fresh_seed),
+			"day_index": current_day,
+		})
+	print("debug: regen_world seed=%s day=%d" % [WorldGeneratorClass.seed_to_string(fresh_seed), current_day])
+	return fresh_seed
+
 func _auto_transition_to_lodge() -> void:
 	if _run_end_auto_transition_cancelled:
 		return

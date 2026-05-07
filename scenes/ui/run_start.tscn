@@ -75,7 +75,7 @@ theme_override_colors/font_color = Color(0.84, 0.8, 0.74, 1)
 
 [node name="SeedInput" type="LineEdit" parent="Margin/V/SeedRow"]
 custom_minimum_size = Vector2(220, 36)
-placeholder_text = "blank for a fresh watch"
+placeholder_text = "Optional — leave blank for a fresh watch."
 
 [node name="Footer" type="HBoxContainer" parent="Margin/V"]
 alignment = 1

@@ -261,10 +261,11 @@ func _build_atlas_texture(hero: String) -> Texture2D:
 	return ImageTexture.create_from_image(img)
 
 func _palette_for(biome: String, climate: String, hero: String) -> Array:
-	# Token-driven biome × climate palette. Temperate is the canonical
-	# warm palette; frosted blends toward pale-blue; frozen pushes
-	# further into ice-blue. Lodge / entry / water tiles ignore climate
-	# (they read as fixed beats on the map).
+	# Token-driven biome × climate palette (BUF-146). Temperate is the
+	# canonical warm palette; frosted blends toward pale-blue; frozen
+	# pushes further into ice-blue. Lodge / entry tiles ignore climate
+	# (they read as fixed beats on the map). All colour values live in
+	# DesignTokens so design can retune without touching the painter.
 	match biome:
 		WorldDefClass.BIOME_LODGE:
 			return [DesignTokens.core_color(hero), DesignTokens.NIGHT_0]
@@ -274,34 +275,31 @@ func _palette_for(biome: String, climate: String, hero: String) -> Array:
 				DesignTokens.NIGHT_0,
 			]
 		WorldDefClass.BIOME_WATER:
-			return _climate_shift([Color8(54, 88, 120), Color8(28, 52, 80)], climate)
+			return _climate_shift([DesignTokens.BIOME_WATER_FILL, DesignTokens.BIOME_WATER_EDGE], climate)
 		WorldDefClass.BIOME_SAND:
-			return _climate_shift([Color8(180, 156, 110), Color8(120, 96, 64)], climate)
+			return _climate_shift([DesignTokens.BIOME_SAND_FILL, DesignTokens.BIOME_SAND_EDGE], climate)
 		WorldDefClass.BIOME_TREES:
-			return _climate_shift([Color8(72, 96, 64), Color8(40, 56, 40)], climate)
+			return _climate_shift([DesignTokens.BIOME_TREES_FILL, DesignTokens.BIOME_TREES_EDGE], climate)
 		WorldDefClass.BIOME_ROCKS:
-			return _climate_shift([Color8(118, 110, 100), Color8(60, 56, 50)], climate)
+			return _climate_shift([DesignTokens.BIOME_ROCKS_FILL, DesignTokens.BIOME_ROCKS_EDGE], climate)
 		WorldDefClass.BIOME_BERRIES:
-			return _climate_shift([Color8(94, 110, 76), Color8(60, 70, 48)], climate)
+			return _climate_shift([DesignTokens.BIOME_BERRIES_FILL, DesignTokens.BIOME_BERRIES_EDGE], climate)
 		_:  # grass + fallback
-			return _climate_shift([Color8(94, 110, 76), Color8(60, 70, 48)], climate)
+			return _climate_shift([DesignTokens.BIOME_GRASS_FILL, DesignTokens.BIOME_GRASS_EDGE], climate)
 
 func _climate_shift(pair: Array, climate: String) -> Array:
 	# Linear blend toward a cool tint. Frosted is a gentle shift; frozen
 	# is a strong shift — the player should feel the cold deepen across
-	# the world even before art lands. Numbers picked by eye, no design
-	# token at this shade yet (BUF-146 calls them placeholder).
+	# the world even before real per-biome art lands in M3.
 	var fill: Color = pair[0]
 	var edge: Color = pair[1]
-	var frost_tint := Color(0.74, 0.84, 0.96, 1.0)
-	var freeze_tint := Color(0.66, 0.86, 1.00, 1.0)
 	match climate:
 		WorldDefClass.CLIMATE_FROSTED:
-			fill = fill.lerp(frost_tint, 0.22)
-			edge = edge.lerp(frost_tint, 0.18)
+			fill = fill.lerp(DesignTokens.CLIMATE_FROST_TINT, DesignTokens.CLIMATE_FROST_FILL_STRENGTH)
+			edge = edge.lerp(DesignTokens.CLIMATE_FROST_TINT, DesignTokens.CLIMATE_FROST_EDGE_STRENGTH)
 		WorldDefClass.CLIMATE_FROZEN:
-			fill = fill.lerp(freeze_tint, 0.42)
-			edge = edge.lerp(freeze_tint, 0.32)
+			fill = fill.lerp(DesignTokens.CLIMATE_FREEZE_TINT, DesignTokens.CLIMATE_FREEZE_FILL_STRENGTH)
+			edge = edge.lerp(DesignTokens.CLIMATE_FREEZE_TINT, DesignTokens.CLIMATE_FREEZE_EDGE_STRENGTH)
 		_:
 			pass
 	return [fill, edge]

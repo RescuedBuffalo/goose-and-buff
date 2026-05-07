@@ -20,7 +20,7 @@ func _ready() -> void:
 	offset_left = 16
 	offset_top = 110     # below the top HUD band (96 px tall + gap)
 	offset_right = 296
-	offset_bottom = 240
+	offset_bottom = 320
 
 func set_world(def: Dictionary) -> void:
 	world_def = def
@@ -59,6 +59,23 @@ func _draw() -> void:
 				"%s %d" % [k, int(dist.get(k, 0))],
 				HORIZONTAL_ALIGNMENT_LEFT, -1, DesignTokens.FS_SM, DesignTokens.FG_2)
 		y += lh
+	# Biome distribution (BUF-146). Lives below the climate counts so the
+	# panel reads top-down: tier first, then placeholder variants. We
+	# only print tiers with a non-zero count so the panel doesn't repeat
+	# what the climate row already said.
+	var biome_dist: Dictionary = stats.get("biome_distribution", {})
+	if not biome_dist.is_empty():
+		y += 4.0
+		draw_string(font, Vector2(pad, y), "Biomes",
+				HORIZONTAL_ALIGNMENT_LEFT, -1, DesignTokens.FS_XS, DesignTokens.FG_3)
+		y += lh
+		for k in biome_dist.keys():
+			if int(biome_dist[k]) <= 0:
+				continue
+			draw_string(font, Vector2(pad + 8, y),
+					"%s %d" % [String(k), int(biome_dist[k])],
+					HORIZONTAL_ALIGNMENT_LEFT, -1, DesignTokens.FS_SM, DesignTokens.FG_2)
+			y += lh
 	draw_string(font, Vector2(pad, y),
 			"Resources %d" % int(stats.get("resource_count", 0)),
 			HORIZONTAL_ALIGNMENT_LEFT, -1, DesignTokens.FS_SM, DesignTokens.FG_2)

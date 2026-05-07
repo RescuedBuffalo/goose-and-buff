@@ -312,6 +312,16 @@ func _unhandled_input(event: InputEvent) -> void:
 			if debug_overlay != null and run_lifecycle != null:
 				debug_overlay.dump_world(run_lifecycle.run_seed)
 			return
+		if k.pressed and k.keycode == KEY_F7:
+			# F7 = regen_world (random). Shift+F7 = regen with the seed
+			# currently on the clipboard, so devs can paste a watch seed
+			# from chat or a teammate and reproduce the same world live.
+			if run_lifecycle != null:
+				var seed_override: int = 0
+				if k.shift_pressed:
+					seed_override = WorldGeneratorClass.string_to_seed(DisplayServer.clipboard_get())
+				run_lifecycle.dev_regen_world(seed_override)
+			return
 		if debug_overlay != null and debug_overlay.handle_debug_key(k):
 			return
 	if not (event is InputEventMouseButton):
