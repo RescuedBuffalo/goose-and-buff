@@ -27,6 +27,9 @@ var _tabs_box: HBoxContainer
 var _content: Control
 var _active_dialog: ConfirmationDialog = null
 var _selected_tab: String = "Shared"
+# Pulse tween for "available" cards. Re-built on every _render so the
+# tween targets only the live (non-freed) cards. Killed before rebuild.
+var _pulse_tween: Tween = null
 
 func _ready() -> void:
 	mouse_filter = Control.MOUSE_FILTER_PASS
@@ -66,8 +69,17 @@ func _on_tab_picked(hero: String) -> void:
 
 func _render() -> void:
 	# Re-render is cheap (~20 nodes); just nuke and rebuild the content
-	# control's children. No tweens — instant tab swap reads as confident.
+	# control's children. No transition tween on tab swap — instant reads
+	# as confident. The "available" pulse below is a separate, idle anim.
+	if _pulse_tween != null and _pulse_tween.is_valid():
+		_pulse_tween.kill()
+		_pulse_tween = null
+	# remove_child + queue_free instead of bare queue_free so the pulse
+	# scan below sees only the freshly built cards. queue_free is
+	# deferred to end-of-frame, which would otherwise leave the old
+	# cards in get_children() and stale-pulse them.
 	for c in _content.get_children():
+		_content.remove_child(c)
 		c.queue_free()
 	# Tab pressed-state mirror.
 	for i in _tabs_box.get_child_count():
@@ -115,6 +127,11 @@ func _render() -> void:
 	lines.size = _content.size
 	_content.add_child(lines)
 	lines.move_to_front()
+	# Slow pulse on every "available" card so the eye drifts to what the
+	# player can actually buy without painting alarm-saturated colors.
+	# BUF-148 spec: "slight pulse to draw the eye". Modulate alpha instead
+	# of position — keeps the layout still and the cue subtle.
+	_pulse_available_cards()
 	# lodge.gd re-renders the Embers balance via the purchased signal.
 
 func _build_connection_specs(list: Array, owned: Array, node_positions: Dictionary) -> Array:
@@ -138,7 +155,7 @@ func _make_upgrade_card(u: Dictionary, owned: Array, embers: int) -> Control:
 	# Tooltip on hover (BUF-148 acceptance). Voice rule applies — sentence
 	# case, no emoji. The tooltip surfaces what the confirm dialog would,
 	# so a hesitant player can read everything before committing.
-	panel.tooltip_text = _tooltip_text_for(u, owned, state)
+	panel.tooltip_text = _tooltip_text_for(u, owned, state, embers)
 	# Style the panel via a per-state stylebox so owned/available/locked
 	# read clearly. We build the styleboxes here so design tokens flow
 	# through without needing a theme resource on disk yet.
@@ -159,8 +176,18 @@ func _make_upgrade_card(u: Dictionary, owned: Array, embers: int) -> Control:
 			sb.bg_color = DesignTokens.PARCHMENT_0
 			sb.border_color = DesignTokens.PARCHMENT_2
 		"insufficient":
+			# BUF-148 spec: "outlined but greyed", "quiet, not red". Keep
+			# the card readable but muted — same warm parchment as locked,
+			# just at a higher alpha so the player can still see costs +
+			# tooltip while the gate holds. Earlier revs used HP_WARN
+			# (amber) which read as alarm next to a green-felled HUD.
 			sb.bg_color = DesignTokens.PARCHMENT_1
-			sb.border_color = DesignTokens.HP_WARN
+			sb.border_color = Color(
+				DesignTokens.PARCHMENT_2.r,
+				DesignTokens.PARCHMENT_2.g,
+				DesignTokens.PARCHMENT_2.b,
+				0.85,
+			)
 		_:  # locked
 			sb.bg_color = Color(DesignTokens.PARCHMENT_2.r, DesignTokens.PARCHMENT_2.g, DesignTokens.PARCHMENT_2.b, 0.45)
 			sb.border_color = Color(DesignTokens.PARCHMENT_2.r, DesignTokens.PARCHMENT_2.g, DesignTokens.PARCHMENT_2.b, 0.6)
@@ -199,14 +226,47 @@ func _make_upgrade_card(u: Dictionary, owned: Array, embers: int) -> Control:
 		"available":
 			action.text = "Light"
 			action.pressed.connect(_on_light_pressed.bind(String(u.id)))
+			# Marked so _pulse_available_cards can find these without
+			# re-walking the upgrade list.
+			panel.set_meta("pulse", true)
 		"insufficient":
-			action.text = "Need more"
+			# BUF-148 spec voice: "Need 3 more embers." — show the actual
+			# deficit so the player has a concrete target. Singular for 1.
+			var deficit: int = max(0, int(u.cost) - embers)
+			action.text = "Need %d more" % deficit
 			action.disabled = true
 		_:
 			action.text = "Locked"
 			action.disabled = true
 	bottom.add_child(action)
 	return panel
+
+func _pulse_available_cards() -> void:
+	# BUF-148 spec: "slight pulse to draw the eye" on available cards.
+	# Modulate alpha between 1.0 and ~0.82 over 1.6s, looped — quiet
+	# breathing rhythm, not a flashing alarm. The tween survives tab
+	# swaps because _render kills + rebuilds it alongside the cards.
+	var cards: Array = []
+	for c in _content.get_children():
+		if c is Control and (c as Control).has_meta("pulse"):
+			cards.append(c)
+	if cards.is_empty():
+		return
+	# Godot 4 tween chain pattern: set_parallel(true) makes all subsequent
+	# tweeners run together until chain() is called, which moves the next
+	# batch to "after the previous parallel group." So: fade every card
+	# out simultaneously, then fade them all back in simultaneously.
+	_pulse_tween = create_tween().set_loops().set_parallel(true)
+	for card in cards:
+		(card as Control).modulate.a = 1.0
+		_pulse_tween.tween_property(card, "modulate:a", 0.82, 0.8) \
+			.set_trans(Tween.TRANS_SINE) \
+			.set_ease(Tween.EASE_IN_OUT)
+	_pulse_tween.chain()
+	for card in cards:
+		_pulse_tween.tween_property(card, "modulate:a", 1.0, 0.8) \
+			.set_trans(Tween.TRANS_SINE) \
+			.set_ease(Tween.EASE_IN_OUT)
 
 func _state_for(u: Dictionary, owned: Array, embers: int) -> String:
 	if owned.has(String(u.id)):
@@ -220,7 +280,7 @@ func _state_for(u: Dictionary, owned: Array, embers: int) -> String:
 
 # ── Tooltip composition (BUF-148) ────────────────────────────────────
 
-func _tooltip_text_for(u: Dictionary, owned: Array, state: String) -> String:
+func _tooltip_text_for(u: Dictionary, owned: Array, state: String, embers: int) -> String:
 	# Composes the hover surface: name + description + per-modifier line +
 	# cost + prereq gate. Sentence case throughout. Voice rule:
 	# "owned" / "locked behind X" rather than RPG-menu language.
@@ -262,8 +322,14 @@ func _tooltip_text_for(u: Dictionary, owned: Array, state: String) -> String:
 			lines.append("")
 			lines.append("Lit — carries into every watch.")
 		"insufficient":
+			# BUF-148 spec voice: "Need 3 more embers." — concrete deficit
+			# beats a vague hint. Singular for 1.
+			var deficit: int = max(0, int(u.cost) - embers)
 			lines.append("")
-			lines.append("Need more embers.")
+			if deficit == 1:
+				lines.append("Need 1 more ember.")
+			else:
+				lines.append("Need %d more embers." % deficit)
 		"locked":
 			lines.append("")
 			lines.append("Locked — light the prerequisite first.")

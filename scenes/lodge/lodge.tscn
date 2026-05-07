@@ -66,7 +66,7 @@ theme_override_font_sizes/font_size = 26
 theme_override_colors/font_color = Color(0.18, 0.125, 0.086, 1)
 
 [node name="Hint" type="Label" parent="Margin/Scroll/V/EmbersPanel/EmbersRow"]
-text = "Spend embers below to light upgrades for next watch."
+text = "The Lodge keeps embers from every watch."
 theme_override_font_sizes/font_size = 14
 theme_override_colors/font_color = Color(0.317, 0.243, 0.180, 1)
 
