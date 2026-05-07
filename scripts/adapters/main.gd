@@ -231,6 +231,11 @@ func _wire_signals() -> void:
 	# Combat / interaction routers feed run_lifecycle's counters.
 	combat_router.enemy_killed.connect(run_lifecycle.on_enemy_killed)
 	interaction_router.resources_gathered.connect(run_lifecycle.add_resources_gathered)
+	# Signature ability visuals — fires on every peer, host-broadcast or
+	# locally-cast (BUF-172). Routed through combat.swing_started so
+	# combat_visuals' existing arc renderer draws the flash; capsule and
+	# sphere shapes are approximated as cones with derived params.
+	ability_router.signature_visual_played.connect(_on_signature_visual_played)
 	build_overlay.place_requested.connect(interaction_router.on_place_requested)
 	day_night.phase_changed.connect(run_lifecycle.on_phase_changed)
 	day_night.cycle_complete.connect(run_lifecycle.on_cycle_complete)
@@ -394,7 +399,41 @@ func host_resolve_signature(caster_peer: int, ability_id: String, caster_pos: Ve
 	ability_router.host_resolve_signature(caster_peer, ability_id, caster_pos, target_pos)
 
 func _apply_signature_effects(caster_peer: int, ability_id: String, caster_pos: Vector2, target_pos: Vector2) -> void:
-	# replication.gd's _rpc_signature_visual checks for this method;
-	# kept on main as a forwarder so the contract surface doesn't shift.
-	# Visual replay on remote clients is currently a no-op (BUF-172).
-	ability_router.apply_signature_effects(caster_peer, ability_id, caster_pos, target_pos)
+	# replication.gd's _rpc_signature_visual hits this on every receiving
+	# peer (clients when the host broadcasts; the host's own copy of the
+	# RPC is suppressed by call_remote). Re-runs the resolver and applies
+	# only the visual half so clients see the cone / dash without
+	# double-counting damage that the host already broadcast via
+	# _rpc_enemy_damaged (BUF-172).
+	ability_router.apply_signature_visuals_only(ability_id, caster_pos, target_pos, caster_peer)
+
+func _on_signature_visual_played(effect: Dictionary, _caster_peer: int) -> void:
+	# Translate signature effect shapes into combat.swing_started params
+	# so combat_visuals' existing cone-flash renderer draws the cast
+	# (BUF-172). Capsule = wide-but-short cone covering the line;
+	# cone = direct passthrough; dash sphere = full-circle fan at the
+	# strike point.
+	if combat == null:
+		return
+	var kind: String = String(effect.get("kind", ""))
+	match kind:
+		"damage_in_capsule":
+			var from: Vector2 = effect.from
+			var to: Vector2 = effect.to
+			var dir: Vector2 = (to - from).normalized() if (to - from).length_squared() > 0.0001 else Vector2.RIGHT
+			var length_px: float = (to - from).length()
+			var width: float = float(effect.width)
+			var half_angle_rad: float = atan(width / max(length_px, 1.0))
+			combat.swing_started.emit("BuffaloCharge", from, dir, length_px, half_angle_rad)
+		"damage_in_cone":
+			var from: Vector2 = effect.from
+			var dir: Vector2 = effect.direction
+			var length_px: float = float(effect.length)
+			var half_angle_rad: float = float(effect.half_angle)
+			combat.swing_started.emit("Dive", from, dir, length_px, half_angle_rad)
+		"dash_and_strike":
+			var to: Vector2 = effect.to
+			var radius: float = float(effect.radius)
+			combat.swing_started.emit("Snatch", to, Vector2.RIGHT, radius, PI)
+		_:
+			pass
