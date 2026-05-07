@@ -62,6 +62,18 @@ var _stat_move_speed: float = -1.0
 var sector: Node = null
 @onready var sprite: Sprite2D = $Sprite
 @onready var camera: Camera2D = $Camera
+@onready var shadow: Node2D = $Shadow
+
+# In-world character art (BUF-181 placeholder, BUF-183 rig source). Portraits
+# live under design/ with the rigging sheets — they're the canonical
+# eye-level front-facing character art. Totems are kept for HUD identity
+# chips (see design_tokens.gd).
+const CHARACTER_PORTRAIT_PATHS := {
+	"Buffalo": "res://design/assets/characters/buffalo_character.png",
+	"Goose": "res://design/assets/characters/goose_character.png",
+	"Fox": "res://design/assets/characters/fox_character.png",
+	"Val": "res://design/assets/characters/val_character.png",
+}
 
 const TOTEM_PATHS := {
 	"Buffalo": "res://assets/totems/buffalo.png",
@@ -74,6 +86,11 @@ const TOTEM_SCALE := {
 	"Goose": Vector2(0.40, 0.40),
 	"Fox": Vector2(0.40, 0.40),
 }
+
+# Target on-screen height for the eye-level character against TILE_PIXELS=
+# (64,32). ~72px reads as ~2.25 tile-heights — the Don't-Starve register.
+# Tunable per drop-test feedback.
+const TARGET_CHARACTER_HEIGHT_PX := 72.0
 
 func attach_sector(sector_node: Node) -> void:
 	sector = sector_node
@@ -328,18 +345,62 @@ func _read_input_direction() -> Vector2:
 # ── Sprite ───────────────────────────────────────────────────────────
 
 func _load_sprite() -> void:
-	var path: String = TOTEM_PATHS.get(hero_data.id, TOTEM_PATHS.Buffalo)
-	var tex: Texture2D = load(path) if ResourceLoader.exists(path) else null
 	if sprite == null:
 		return
+	# Prefer the M3 in-world character portrait (eye-level, drawn straight-on).
+	# Falls back to the totem icon if the portrait hasn't been authored yet
+	# (e.g., Val pre-portrait, or any future hero before art lands).
+	var portrait_path: String = CHARACTER_PORTRAIT_PATHS.get(hero_data.id, "")
+	if portrait_path != "" and ResourceLoader.exists(portrait_path):
+		var portrait: Texture2D = load(portrait_path)
+		_apply_portrait(portrait)
+		_apply_variant_tint()
+		return
+	var fallback_path: String = TOTEM_PATHS.get(hero_data.id, TOTEM_PATHS.Buffalo)
+	var tex: Texture2D = load(fallback_path) if ResourceLoader.exists(fallback_path) else null
 	if tex != null:
 		sprite.texture = tex
 		sprite.scale = TOTEM_SCALE.get(hero_data.id, Vector2(0.35, 0.35))
 		sprite.position = Vector2.ZERO
+		# Totems are HUD-style icons — center them on the hero origin (no
+		# bottom-center anchor) so they read as a token, not a body.
+		sprite.offset = Vector2.ZERO
+		_resize_shadow_for_sprite()
 	else:
 		sprite.texture = null
 		queue_redraw()
 	_apply_variant_tint()
+
+func _apply_portrait(tex: Texture2D) -> void:
+	# Anchor the portrait bottom-center on the hero's world position. Scale
+	# is auto-fit so every portrait reads at TARGET_CHARACTER_HEIGHT_PX
+	# regardless of source resolution — the rigging sheets and portraits
+	# vary in canvas size and we don't want per-character scale magic.
+	sprite.texture = tex
+	var tex_h: float = float(tex.get_height())
+	var auto_scale: float = TARGET_CHARACTER_HEIGHT_PX / max(tex_h, 1.0)
+	sprite.scale = Vector2(auto_scale, auto_scale)
+	sprite.position = Vector2.ZERO
+	# offset is in pre-scale texture space. Shifting up by half-height lands
+	# the texture's bottom edge on the hero origin (the feet).
+	sprite.offset = Vector2(0, -tex_h * 0.5)
+	_resize_shadow_for_sprite()
+
+func _resize_shadow_for_sprite() -> void:
+	if shadow == null:
+		return
+	# Shadow ellipse sized off the sprite's effective on-screen footprint.
+	# Width ~55% of rendered sprite width reads natural at the feet; height
+	# is a flat ~5px disk so it stays grounded under the tilt-feel zoom.
+	if sprite != null and sprite.texture != null:
+		var rendered_w: float = float(sprite.texture.get_width()) * sprite.scale.x
+		var rx: float = max(rendered_w * 0.275, 8.0)
+		shadow.set("radius_x", rx)
+		shadow.set("radius_y", max(rx * 0.32, 4.0))
+	else:
+		shadow.set("radius_x", 16.0)
+		shadow.set("radius_y", 5.0)
+	shadow.queue_redraw()
 
 func _apply_variant_tint() -> void:
 	# BUF-129: variants ship as palette tints until the M3 portrait pipeline
