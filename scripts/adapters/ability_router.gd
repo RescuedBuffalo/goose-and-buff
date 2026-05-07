@@ -26,6 +26,7 @@ extends Node
 
 const Heroes := preload("res://data/heroes.gd")
 const AbilityResolverClass := preload("res://scripts/logic/ability_resolver.gd")
+const DayNightData := preload("res://data/day_night.gd")
 
 # Emitted on every peer when a signature effect's visual side runs
 # (caster movement + cosmetic flash). main.gd connects this to the
@@ -41,13 +42,18 @@ var _local_hero_provider: Callable = Callable()
 # reads the upgrade-modified value, not the base from heroes.gd. Held
 # as a Callable so respawns / run-resets don't pin a stale ref.
 var _effective_stats_provider: Callable = Callable()
+# Resolves the day/night cycle so the ability_cast telemetry can stamp
+# day_index + phase without the router holding a hard ref to a logic
+# module that resets between runs (BUF-156).
+var _day_night_provider: Callable = Callable()
 
-func attach(local_hero_provider: Callable, sector_node: Node, replication_node: Node, telemetry_node: Telemetry, effective_stats_provider: Callable = Callable()) -> void:
+func attach(local_hero_provider: Callable, sector_node: Node, replication_node: Node, telemetry_node: Telemetry, effective_stats_provider: Callable = Callable(), day_night_provider: Callable = Callable()) -> void:
 	_local_hero_provider = local_hero_provider
 	sector = sector_node
 	replication = replication_node
 	telemetry = telemetry_node
 	_effective_stats_provider = effective_stats_provider
+	_day_night_provider = day_night_provider
 
 # ── Signature abilities (Q) ────────────────────────────────────────────
 
@@ -102,8 +108,20 @@ func apply_signature_effects(caster_peer: int, ability_id: String, caster_pos: V
 		_apply_signature_visual(effect, caster_peer)
 		_apply_signature_damage(effect, caster_peer)
 	if telemetry != null:
+		# BUF-156 telemetry contract: hero_id + day_index + phase let
+		# analytics segment ability usage by who cast it and when in the
+		# survival cycle. caster_peer stays so multi-peer runs can still
+		# attribute casts to a specific player.
+		var caster_hero: Node2D = replication.hero_for_peer(caster_peer) if replication != null else null
+		var hero_id: String = ""
+		if caster_hero != null and is_instance_valid(caster_hero):
+			hero_id = String(caster_hero.get_meta("hero_id", ""))
+		var dn_state: Dictionary = _resolve_day_night_state()
 		telemetry.log("ability_cast", {
+			"hero_id": hero_id,
 			"ability_id": ability_id,
+			"day_index": int(dn_state.get("day_index", 0)),
+			"phase": String(dn_state.get("phase", "")),
 			"caster_peer": caster_peer,
 		})
 
@@ -274,6 +292,22 @@ func _resolve_effective_stats() -> Dictionary:
 	if typeof(ref) != TYPE_DICTIONARY:
 		return {}
 	return ref
+
+func _resolve_day_night_state() -> Dictionary:
+	# Return day_index + phase string for the telemetry payload. Falls back
+	# to {} when no provider is wired (e.g. unit-test paths) so the call
+	# site can substitute defaults.
+	if _day_night_provider.is_null():
+		return {}
+	var dn = _day_night_provider.call()
+	if dn == null:
+		return {}
+	# DayNightCycle exposes integer enum; map to the canonical string via
+	# DayNightData so telemetry stays consistent with other events.
+	return {
+		"day_index": int(dn.day_index),
+		"phase": DayNightData.phase_name(int(dn.phase)),
+	}
 
 func _gather_enemy_refs() -> Array:
 	var enemies: Array = []
