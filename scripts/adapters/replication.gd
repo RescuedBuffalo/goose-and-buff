@@ -360,22 +360,14 @@ func _rpc_request_signature(ability_id: String, caster_pos: Vector2, target_pos:
 		main_node.host_resolve_signature(sender, ability_id, caster_pos, target_pos)
 
 @rpc("authority", "reliable", "call_remote")
-func _rpc_signature_visual(_caster_peer: int, ability_id: String, caster_pos: Vector2, target_pos: Vector2) -> void:
-	# Visual flash only — actual damage is applied on the host and
-	# broadcast via _rpc_enemy_damaged. Re-resolve on the client to get
-	# the same swing arc / dash path the resolver produced for the host.
-	# Damage application is gated to the host inside main._apply_signature_effect.
+func _rpc_signature_visual(caster_peer: int, ability_id: String, caster_pos: Vector2, target_pos: Vector2) -> void:
+	# Visual flash + caster dash on every receiving peer (BUF-172).
+	# The host already applied damage and broadcast it via
+	# _rpc_enemy_damaged, so this path runs the resolver again and only
+	# replays the visual half — main forwards to ability_router's
+	# apply_signature_visuals_only.
 	if main_node != null and main_node.has_method("_apply_signature_effects"):
-		# v1: just play the host's broadcast effect locally — clients see
-		# damage via the separate _rpc_enemy_damaged path. Skipping this
-		# replay for now; the swing visual is implicit in the dash / hit
-		# flash. M5 wires a dedicated cast-flash visual.
-		pass
-	# Suppress lint about unused params — they are part of the interface
-	# we'll fill in M5 with a cast-flash polish pass.
-	var _silence_caster := caster_pos
-	var _silence_target := target_pos
-	var _silence_ability := ability_id
+		main_node._apply_signature_effects(caster_peer, ability_id, caster_pos, target_pos)
 
 func _apply_hero_revived(peer_id: int, hp_ratio: float) -> void:
 	var hero_ref: Node2D = hero_for_peer(peer_id)

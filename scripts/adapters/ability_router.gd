@@ -8,17 +8,30 @@ extends Node
 ##                                          stamp + RPC to host (or
 ##                                          local apply in solo / host).
 ##   host_resolve_signature(...)        — host-only resolution path
+##   apply_signature_visuals_only(...)  — remote-peer replay path
+##                                          (BUF-172). Re-runs the
+##                                          resolver and applies only
+##                                          the visual half so clients
+##                                          see the cone flash + caster
+##                                          dash without double-damage.
 ##   host_resolve_help_ability(...)     — host-only resolution path
 ##
 ## Read-only access to the local hero is via a Callable provider so
 ## hero respawns / puppet rebinds don't require re-attach.
 ##
-## Effect application uses replication.host_apply_enemy_damage when the
-## host is around so clients see the same hp drops; in solo it falls
-## back to a direct enemy.damage() call.
+## Effect application is split into _apply_signature_visual (caster
+## position + cosmetic flash signal) and _apply_signature_damage (hp
+## drops, host- or solo-gated). Host calls both; remote clients call
+## only the visual when receiving the host's broadcast.
 
 const Heroes := preload("res://data/heroes.gd")
 const AbilityResolverClass := preload("res://scripts/logic/ability_resolver.gd")
+
+# Emitted on every peer when a signature effect's visual side runs
+# (caster movement + cosmetic flash). main.gd connects this to the
+# combat_visuals layer so clients see the cone / capsule / sphere
+# flash for charges they didn't cast (BUF-172).
+signal signature_visual_played(effect: Dictionary, caster_peer: int)
 
 var sector: Node = null
 var replication: Node = null
@@ -82,14 +95,28 @@ func host_resolve_signature(caster_peer: int, ability_id: String, caster_pos: Ve
 	replication.rpc("_rpc_signature_visual", caster_peer, ability_id, caster_pos, target_pos)
 
 func apply_signature_effects(caster_peer: int, ability_id: String, caster_pos: Vector2, target_pos: Vector2) -> void:
+	# Host / solo path: visual + damage. Damage gating to host happens
+	# inside _apply_signature_damage so solo still works.
 	var effects: Array = AbilityResolverClass.resolve(ability_id, caster_pos, target_pos)
 	for effect in effects:
-		_apply_signature_effect(effect, caster_peer)
+		_apply_signature_visual(effect, caster_peer)
+		_apply_signature_damage(effect, caster_peer)
 	if telemetry != null:
 		telemetry.log("ability_cast", {
 			"ability_id": ability_id,
 			"caster_peer": caster_peer,
 		})
+
+func apply_signature_visuals_only(ability_id: String, caster_pos: Vector2, target_pos: Vector2, caster_peer: int) -> void:
+	# Remote-client replay path (BUF-172). Re-runs the resolver and
+	# applies only the visual half — the caster dash + the flash signal
+	# combat_visuals listens for. Damage is NOT applied here; the host
+	# already broadcast _rpc_enemy_damaged, so doing it again would
+	# double-count. Telemetry is also host-only — the host's
+	# apply_signature_effects logs once for the cast.
+	var effects: Array = AbilityResolverClass.resolve(ability_id, caster_pos, target_pos)
+	for effect in effects:
+		_apply_signature_visual(effect, caster_peer)
 
 # ── Help abilities (E) ─────────────────────────────────────────────────
 
@@ -124,7 +151,32 @@ func host_resolve_help_ability(caster_peer: int, target_peer: int) -> void:
 
 # ── Effect application ─────────────────────────────────────────────────
 
-func _apply_signature_effect(effect: Dictionary, caster_peer: int) -> void:
+func _apply_signature_visual(effect: Dictionary, caster_peer: int) -> void:
+	# Visual side — runs on every peer, caster + non-caster alike.
+	# Moves the caster (for capsule / dash effects) and emits the
+	# signature_visual_played signal main.gd routes to combat_visuals.
+	var kind: String = String(effect.get("kind", ""))
+	match kind:
+		"damage_in_capsule", "dash_and_strike":
+			var to: Vector2 = effect.to
+			var caster: Node2D = replication.hero_for_peer(caster_peer)
+			if caster != null and is_instance_valid(caster):
+				caster.position = to
+				if sector != null:
+					caster.current_tile = sector.world_to_tile(to)
+		"damage_in_cone":
+			# Cone abilities don't move the caster; the flash IS the
+			# visual.
+			pass
+		_:
+			pass
+	signature_visual_played.emit(effect, caster_peer)
+
+func _apply_signature_damage(effect: Dictionary, _caster_peer: int) -> void:
+	# Damage side — only ever called from the host / solo path
+	# (apply_signature_effects). Solo still applies via e.damage()
+	# directly; multiplayer routes through the host-broadcast path so
+	# every peer sees the hp drop.
 	var kind: String = String(effect.get("kind", ""))
 	var enemies: Array = _gather_enemy_refs()
 	match kind:
@@ -139,12 +191,6 @@ func _apply_signature_effect(effect: Dictionary, caster_peer: int) -> void:
 						replication.host_apply_enemy_damage(e, dmg)
 					else:
 						e.damage(dmg)
-			# Caster slides along the capsule path (Buffalo charge feel).
-			var caster: Node2D = replication.hero_for_peer(caster_peer)
-			if caster != null and is_instance_valid(caster):
-				caster.position = to
-				if sector != null:
-					caster.current_tile = sector.world_to_tile(to)
 		"damage_in_cone":
 			var from: Vector2 = effect.from
 			var dir: Vector2 = effect.direction
@@ -167,11 +213,6 @@ func _apply_signature_effect(effect: Dictionary, caster_peer: int) -> void:
 			var to: Vector2 = effect.to
 			var radius: float = float(effect.radius)
 			var dmg: float = float(effect.damage)
-			var caster: Node2D = replication.hero_for_peer(caster_peer)
-			if caster != null and is_instance_valid(caster):
-				caster.position = to
-				if sector != null:
-					caster.current_tile = sector.world_to_tile(to)
 			for e in enemies:
 				if (e.position - to).length() <= radius:
 					if MpIo.is_host():
