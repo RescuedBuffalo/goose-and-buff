@@ -60,6 +60,18 @@ func can_swing() -> bool:
 func cooldown_remaining() -> float:
 	return _cooldown_remaining
 
+func note_swing_cooldown(weapon_id: String) -> void:
+	# Stamps the cooldown as if a swing just landed (BUF-151 follow-up).
+	# Used by client-side swing prediction in multiplayer: the host runs
+	# the authoritative resolver, but the client still needs to gate its
+	# own click cadence so a non-host peer can't spam intent RPCs faster
+	# than their weapon allows. Mirrors the math in resolve_swing — both
+	# paths divide weapon.cooldown by the attack-speed multiplier so
+	# upgrades like buffalo_braced_shoulders apply identically on host
+	# and client.
+	var weapon: Dictionary = Weapons.get_weapon(weapon_id)
+	_cooldown_remaining = float(weapon.cooldown) / _attack_speed_mult
+
 func resolve_swing(origin: Vector2, facing: Vector2, weapon_id: String, enemies: Array, ammo_count: int = 0) -> Dictionary:
 	# Returns {ok: bool, hits: Array[{target, damage}], reason?: String,
 	# ranged: bool}. The adapter applies damage by reading the hits list

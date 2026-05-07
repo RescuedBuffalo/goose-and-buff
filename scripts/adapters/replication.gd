@@ -177,12 +177,19 @@ func tick_position_sync(delta: float) -> void:
 
 # ── Damage routing ──────────────────────────────────────────────────────
 
-func client_request_swing(weapon_id: String, origin: Vector2, facing: Vector2, ammo_count: int) -> void:
+func client_request_swing(weapon_id: String, origin: Vector2, facing: Vector2, ammo_count: int, attack_speed_mult: float = 1.0) -> void:
 	# Local hero swung. In solo, the local main.gd already resolved the
 	# swing — this helper is only meaningful in multiplayer client mode.
+	#
+	# attack_speed_mult is the client's local effective_stats.attack_speed
+	# at the moment of the swing. Without it the host's per-peer cooldown
+	# gate would use the base 1.0 modifier and reject legitimate swings
+	# from a client with attack-speed upgrades (PR #43 review). Trust is
+	# bounded — main.host_resolve_remote_swing caps the value before
+	# applying it.
 	if not MpIo.is_multiplayer() or MpIo.is_host():
 		return
-	rpc_id(1, "_rpc_request_swing", weapon_id, origin, facing, ammo_count)
+	rpc_id(1, "_rpc_request_swing", weapon_id, origin, facing, ammo_count, attack_speed_mult)
 
 func host_apply_enemy_damage(enemy_node: Node, amount: float) -> void:
 	# Host-only entry. Applies damage locally and broadcasts to clients.
@@ -277,12 +284,12 @@ func _rpc_enemy_positions(positions_by_id: Dictionary) -> void:
 			e.position = positions_by_id[nid_v]
 
 @rpc("any_peer", "reliable", "call_remote")
-func _rpc_request_swing(weapon_id: String, origin: Vector2, facing: Vector2, ammo_count: int) -> void:
+func _rpc_request_swing(weapon_id: String, origin: Vector2, facing: Vector2, ammo_count: int, attack_speed_mult: float = 1.0) -> void:
 	if not MpIo.is_host():
 		return
 	var sender: int = multiplayer.get_remote_sender_id()
 	if main_node != null and main_node.has_method("host_resolve_remote_swing"):
-		main_node.host_resolve_remote_swing(sender, weapon_id, origin, facing, ammo_count)
+		main_node.host_resolve_remote_swing(sender, weapon_id, origin, facing, ammo_count, attack_speed_mult)
 
 @rpc("authority", "reliable", "call_remote")
 func _rpc_enemy_damaged(nid: int, amount: float) -> void:
