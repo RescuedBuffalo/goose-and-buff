@@ -18,6 +18,23 @@ const MultiplayerDataClass := preload("res://data/multiplayer.gd")
 
 const PIXELS_PER_STUD := 12.0
 
+# BUF-181 build marker — bump per iteration so the editor console
+# confirms which version of the portrait/shadow code is actually live.
+# When you edit hero.gd or character_shadow.gd, bump this and the line
+# in _ready() will print [hero v<N>] at run-start.
+const _BUF_181_BUILD_MARKER := "BUF-181 v5 (alpha-bleed + verbose log)"
+# Toggle for verbose portrait/shadow logging. Leave on while M3 art
+# pipeline placeholder is in flux; flip to false once Phase 3 rigs land.
+const _DEBUG_PORTRAIT_LOG := true
+# When true, writes the masked portrait PNG to user:// so you can open
+# it in any image viewer and see exactly what the chroma-key produced.
+# Path: %APPDATA%\Godot\app_userdata\<project>\masked_<hero_id>.png on Windows.
+const _DEBUG_SAVE_MASKED_PNG := true
+# When true, the procedural shadow renders bright magenta instead of
+# soft black so it's unmistakably distinguishable from any halo or
+# baked-in shadow in the source PNG.
+const _DEBUG_SHADOW_TINT := false
+
 signal hero_downed()
 signal hero_fallen()
 signal tile_changed(new_tile: Vector2i)
@@ -104,6 +121,12 @@ func set_hero(hero_id: String) -> void:
 	hero_data = Heroes.ALL.get(hero_id, Heroes.Buffalo)
 
 func _ready() -> void:
+	if _DEBUG_PORTRAIT_LOG:
+		# Build marker prints exactly once per hero spawn. Bumping
+		# _BUF_181_BUILD_MARKER whenever this file or character_shadow.gd
+		# changes is the in-engine confirmation that the editor is running
+		# the latest code (vs. a cached / stale version).
+		print("[hero ", hero_data.id, "] ", _BUF_181_BUILD_MARKER)
 	hp_max = _stat_hp_max if _stat_hp_max > 0.0 else float(hero_data.baseHealth)
 	hp = hp_max
 	var move_speed: float = _stat_move_speed if _stat_move_speed > 0.0 else float(hero_data.moveSpeed)
@@ -404,6 +427,8 @@ func _apply_portrait(src: Texture2D) -> void:
 	# regardless of source resolution — the rigging sheets and portraits
 	# vary in canvas size and we don't want per-character scale magic.
 	var portrait_path: String = CHARACTER_PORTRAIT_PATHS.get(hero_data.id, "")
+	if _DEBUG_PORTRAIT_LOG:
+		print("[hero ", hero_data.id, "] portrait path=", portrait_path, " src=", src.get_width(), "x", src.get_height())
 	var masked: Texture2D = _get_masked_portrait(portrait_path, src)
 	sprite.texture = masked
 	var tex_h: float = float(masked.get_height())
@@ -418,39 +443,98 @@ func _apply_portrait(src: Texture2D) -> void:
 	sprite.material = null
 	_is_using_portrait = true
 	_resize_shadow_for_sprite()
+	if _DEBUG_PORTRAIT_LOG:
+		print("[hero ", hero_data.id, "] sprite scale=", sprite.scale, " offset=", sprite.offset)
 
 func _get_masked_portrait(path: String, src: Texture2D) -> Texture2D:
-	# Strip the cream parchment by writing alpha=0 into matching pixels of
-	# a copy of the source image. Doing this in CPU before the GPU sees the
-	# texture lets bilinear filtering operate on the alpha channel directly,
-	# which avoids the cream-halo artifact you get when chroma-keying in a
-	# fragment shader after the GPU has already blurred cream + body
-	# together at the silhouette edge.
+	# Strip the cream parchment in CPU before the GPU sees the texture.
+	# Two-stage process:
+	#
+	#   1. Tag every cream-matching pixel as transparent (alpha=0) on a
+	#      working copy. We read from the original image so the scan is
+	#      not self-modifying.
+	#
+	#   2. RGB alpha-bleed: every transparent pixel that has a non-cream
+	#      neighbor takes its neighbor's RGB (alpha stays 0). This kills
+	#      the cream halo: when bilinear filtering averages a transparent
+	#      edge pixel with an opaque body pixel, the result is a partial-
+	#      alpha BODY-colored pixel, not partial-alpha cream-colored or
+	#      black-RGB-bleeding-through. Without this step the silhouette
+	#      reads as a soft cream/grey ring against the green grass.
 	if path != "" and _masked_portrait_cache.has(path):
+		if _DEBUG_PORTRAIT_LOG:
+			print("[hero ", hero_data.id, "] mask cache HIT for ", path)
 		return _masked_portrait_cache[path]
 	if src == null:
 		return null
-	var img: Image = src.get_image()
-	if img == null:
+	var t0_us := Time.get_ticks_usec()
+	var src_img: Image = src.get_image()
+	if src_img == null:
 		return src
-	if img.is_compressed():
-		img.decompress()
-	img.convert(Image.FORMAT_RGBA8)
-	var w: int = img.get_width()
-	var h: int = img.get_height()
+	if src_img.is_compressed():
+		src_img.decompress()
+	src_img.convert(Image.FORMAT_RGBA8)
+	var w: int = src_img.get_width()
+	var h: int = src_img.get_height()
 	var threshold_sq: float = _PORTRAIT_KEY_THRESHOLD * _PORTRAIT_KEY_THRESHOLD
+	# Stage 1: build the alpha mask. We write into a fresh output image so
+	# stage 2's neighbor lookups read clean source classifications.
+	var out_img: Image = src_img.duplicate()
+	var keyed_count: int = 0
 	for y in h:
 		for x in w:
-			var c: Color = img.get_pixel(x, y)
+			var c: Color = src_img.get_pixel(x, y)
 			var dr: float = c.r - _PORTRAIT_CREAM_KEY.x
 			var dg: float = c.g - _PORTRAIT_CREAM_KEY.y
 			var db: float = c.b - _PORTRAIT_CREAM_KEY.z
 			if dr * dr + dg * dg + db * db < threshold_sq:
-				img.set_pixel(x, y, Color(0, 0, 0, 0))
-	var masked: ImageTexture = ImageTexture.create_from_image(img)
+				# Initially set RGB to neutral mid-grey + alpha 0; stage 2
+				# will overwrite with body RGB if a body neighbor exists.
+				out_img.set_pixel(x, y, Color(0.5, 0.5, 0.5, 0))
+				keyed_count += 1
+	# Stage 2: for each transparent pixel adjacent to an opaque pixel,
+	# inherit the opaque neighbor's RGB. One pass is enough for a 1-pixel
+	# halo guard, which is all bilinear filtering needs.
+	var bleed_count: int = 0
+	for y in h:
+		for x in w:
+			var oc: Color = out_img.get_pixel(x, y)
+			if oc.a > 0.01:
+				continue
+			var bleed: Color = _find_opaque_neighbor_rgb(out_img, x, y, w, h)
+			if bleed.a > 0.5:
+				out_img.set_pixel(x, y, Color(bleed.r, bleed.g, bleed.b, 0))
+				bleed_count += 1
+	var masked: ImageTexture = ImageTexture.create_from_image(out_img)
 	if path != "":
 		_masked_portrait_cache[path] = masked
+	var elapsed_ms := (Time.get_ticks_usec() - t0_us) / 1000.0
+	if _DEBUG_PORTRAIT_LOG:
+		var keyed_pct: float = 100.0 * float(keyed_count) / float(max(1, w * h))
+		print("[hero ", hero_data.id, "] mask built in %.0fms: %d/%d cream pixels keyed (%.1f%%), %d edge bleed" % [elapsed_ms, keyed_count, w * h, keyed_pct, bleed_count])
+	if _DEBUG_SAVE_MASKED_PNG:
+		var out_path: String = "user://masked_%s.png" % hero_data.id
+		var save_err: int = out_img.save_png(out_path)
+		var abs_path: String = ProjectSettings.globalize_path(out_path)
+		print("[hero ", hero_data.id, "] saved masked PNG -> ", abs_path, " (err=", save_err, ")")
 	return masked
+
+func _find_opaque_neighbor_rgb(img: Image, x: int, y: int, w: int, h: int) -> Color:
+	# Returns the RGB of the first 8-neighbor opaque pixel found, with
+	# alpha=1 to signal "found." Returns alpha=0 if no opaque neighbor
+	# exists. Nesting tight to keep this hot loop fast.
+	for dy in [-1, 0, 1]:
+		for dx in [-1, 0, 1]:
+			if dx == 0 and dy == 0:
+				continue
+			var nx: int = x + dx
+			var ny: int = y + dy
+			if nx < 0 or nx >= w or ny < 0 or ny >= h:
+				continue
+			var nc: Color = img.get_pixel(nx, ny)
+			if nc.a > 0.5:
+				return Color(nc.r, nc.g, nc.b, 1.0)
+	return Color(0, 0, 0, 0)
 
 func _resize_shadow_for_sprite() -> void:
 	if shadow == null:
@@ -462,18 +546,28 @@ func _resize_shadow_for_sprite() -> void:
 	# (TILE_PIXELS = 64x32) so it doesn't spill into neighbors. Vertical
 	# squash to ~30% gives a flat ground-disk read under the tilt-feel
 	# zoom rather than a floating circle.
+	var rx: float = 12.0
+	var ry: float = 4.0
 	if sprite != null and sprite.texture != null:
 		var rendered_w: float = float(sprite.texture.get_width()) * sprite.scale.x
-		var rx: float = clamp(rendered_w * 0.18, 6.0, 22.0)
-		shadow.set("radius_x", rx)
-		shadow.set("radius_y", max(rx * 0.30, 3.0))
-	else:
-		shadow.set("radius_x", 12.0)
-		shadow.set("radius_y", 4.0)
+		rx = clamp(rendered_w * 0.18, 6.0, 22.0)
+		ry = max(rx * 0.30, 3.0)
+	shadow.set("radius_x", rx)
+	shadow.set("radius_y", ry)
 	# Slightly softer alpha than the initial pass — 0.28 reads as ground
 	# contact without dominating against the iso terrain colors.
 	shadow.set("alpha", 0.28)
+	# Debug tint flips the procedural shadow to bright magenta so it can
+	# be visually distinguished from any baked-in shadow / chroma-key
+	# halo coming from the source PNG.
+	if _DEBUG_SHADOW_TINT:
+		shadow.set("color_rgb", Color(1, 0, 1))
+		shadow.set("alpha", 0.85)
+	else:
+		shadow.set("color_rgb", Color(0, 0, 0))
 	shadow.queue_redraw()
+	if _DEBUG_PORTRAIT_LOG:
+		print("[hero ", hero_data.id, "] shadow rx=%.1f ry=%.1f alpha=%.2f tint=%s" % [rx, ry, float(shadow.get("alpha")), str(shadow.get("color_rgb"))])
 
 func _apply_variant_tint() -> void:
 	# BUF-129: variants ship as palette tints until the M3 portrait pipeline
