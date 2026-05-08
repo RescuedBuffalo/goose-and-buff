@@ -22,7 +22,7 @@ const PIXELS_PER_STUD := 12.0
 # confirms which version of the portrait/shadow code is actually live.
 # When you edit hero.gd or character_shadow.gd, bump this and the line
 # in _ready() will print [hero v<N>] at run-start.
-const _BUF_181_BUILD_MARKER := "BUF-181 v5 (alpha-bleed + verbose log)"
+const _BUF_181_BUILD_MARKER := "BUF-181 v6 (regional threshold for baked drop-shadow)"
 # Toggle for verbose portrait/shadow logging. Leave on while M3 art
 # pipeline placeholder is in flux; flip to false once Phase 3 rigs land.
 const _DEBUG_PORTRAIT_LOG := true
@@ -408,11 +408,21 @@ func _load_sprite() -> void:
 # falls within ~10 RGB units of this. Used as the chroma-key key color
 # during the alpha-mask preprocess.
 const _PORTRAIT_CREAM_KEY := Vector3(0.988, 0.969, 0.910)
-# RGB Euclidean-distance threshold (in 0-1 unit space) under which a
-# pixel is considered background. 0.12 catches the parchment + the
-# anti-aliased near-cream pixels at silhouette edges without eating
-# Buffalo's lightest fur (which lands ~0.18+ away in RGB space).
+# RGB Euclidean-distance threshold under which a pixel counts as
+# background. 0.12 catches the parchment + the anti-aliased near-cream
+# halo pixels at silhouette edges without eating Buffalo's white-fur
+# jacket trim, horn tips, or any other lightly-tinted body detail
+# (those land ~0.13+ away from the parchment in RGB space).
 const _PORTRAIT_KEY_THRESHOLD := 0.12
+# The Scenario portraits ship with a soft baked drop-shadow under the
+# character's feet — RGB ~(227, 215, 192) at peak, fading to cream at
+# the edges. Distance from parchment is ~0.22, way past the body-safe
+# threshold. We catch it with a wider threshold applied ONLY in the
+# bottom band of the image, where the painted shadow lives. White-fur
+# accents on Buffalo's jacket/horns are well above this band so the
+# wider threshold doesn't reach them.
+const _PORTRAIT_SHADOW_BAND_FRACTION := 0.12  # bottom 12% of source rows
+const _PORTRAIT_SHADOW_KEY_THRESHOLD := 0.32  # catches painted-shadow tan
 
 # Cache so we don't re-scan the same portrait every time a hero is
 # instanced (run-start, respawn, remote puppet creation). Keyed by
@@ -476,12 +486,19 @@ func _get_masked_portrait(path: String, src: Texture2D) -> Texture2D:
 	src_img.convert(Image.FORMAT_RGBA8)
 	var w: int = src_img.get_width()
 	var h: int = src_img.get_height()
-	var threshold_sq: float = _PORTRAIT_KEY_THRESHOLD * _PORTRAIT_KEY_THRESHOLD
+	var body_threshold_sq: float = _PORTRAIT_KEY_THRESHOLD * _PORTRAIT_KEY_THRESHOLD
+	var shadow_threshold_sq: float = _PORTRAIT_SHADOW_KEY_THRESHOLD * _PORTRAIT_SHADOW_KEY_THRESHOLD
+	# y-coordinate at which the wider painted-shadow threshold takes over.
+	# Above this row we use the tight body-safe threshold; below, we use
+	# the wider one to eat the soft drop-shadow under the character's feet.
+	var shadow_band_y: int = int(h * (1.0 - _PORTRAIT_SHADOW_BAND_FRACTION))
 	# Stage 1: build the alpha mask. We write into a fresh output image so
 	# stage 2's neighbor lookups read clean source classifications.
 	var out_img: Image = src_img.duplicate()
 	var keyed_count: int = 0
+	var shadow_keyed_count: int = 0
 	for y in h:
+		var threshold_sq: float = shadow_threshold_sq if y >= shadow_band_y else body_threshold_sq
 		for x in w:
 			var c: Color = src_img.get_pixel(x, y)
 			var dr: float = c.r - _PORTRAIT_CREAM_KEY.x
@@ -492,6 +509,8 @@ func _get_masked_portrait(path: String, src: Texture2D) -> Texture2D:
 				# will overwrite with body RGB if a body neighbor exists.
 				out_img.set_pixel(x, y, Color(0.5, 0.5, 0.5, 0))
 				keyed_count += 1
+				if y >= shadow_band_y:
+					shadow_keyed_count += 1
 	# Stage 2: for each transparent pixel adjacent to an opaque pixel,
 	# inherit the opaque neighbor's RGB. One pass is enough for a 1-pixel
 	# halo guard, which is all bilinear filtering needs.
@@ -511,7 +530,7 @@ func _get_masked_portrait(path: String, src: Texture2D) -> Texture2D:
 	var elapsed_ms := (Time.get_ticks_usec() - t0_us) / 1000.0
 	if _DEBUG_PORTRAIT_LOG:
 		var keyed_pct: float = 100.0 * float(keyed_count) / float(max(1, w * h))
-		print("[hero ", hero_data.id, "] mask built in %.0fms: %d/%d cream pixels keyed (%.1f%%), %d edge bleed" % [elapsed_ms, keyed_count, w * h, keyed_pct, bleed_count])
+		print("[hero ", hero_data.id, "] mask built in %.0fms: %d/%d pixels keyed (%.1f%%, of which %d in painted-shadow band), %d edge bleed" % [elapsed_ms, keyed_count, w * h, keyed_pct, shadow_keyed_count, bleed_count])
 	if _DEBUG_SAVE_MASKED_PNG:
 		var out_path: String = "user://masked_%s.png" % hero_data.id
 		var save_err: int = out_img.save_png(out_path)
