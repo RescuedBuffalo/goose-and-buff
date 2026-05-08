@@ -22,7 +22,7 @@ const PIXELS_PER_STUD := 12.0
 # confirms which version of the portrait/shadow code is actually live.
 # When you edit hero.gd or character_shadow.gd, bump this and the line
 # in _ready() will print [hero v<N>] at run-start.
-const _BUF_181_BUILD_MARKER := "BUF-181 v11 (character height 72→50, realistic ratio against trees)"
+const _BUF_181_BUILD_MARKER := "BUF-181 v12 / BUF-183 Phase 3 (Buffalo Skeleton2D rig)"
 # Toggle for verbose portrait/shadow logging. Leave on while M3 art
 # pipeline placeholder is in flux; flip to false once Phase 3 rigs land.
 const _DEBUG_PORTRAIT_LOG := true
@@ -96,6 +96,18 @@ const CHARACTER_PORTRAIT_PATHS := {
 	"Fox": "res://design/assets/characters/fox_character.png",
 	"Val": "res://design/assets/characters/val_character.png",
 }
+
+# Skeleton2D rig scenes per character (BUF-183). Heroes with a rig
+# entry get a real bone-driven character; heroes without one fall back
+# to the chroma-keyed portrait sprite path. Phase 3 ships Buffalo's
+# rig; Phase 4 will add Goose / Fox / Val / Wolf / Bear / Owl.
+const RIG_SCENES := {
+	"Buffalo": preload("res://scenes/characters/buffalo.tscn"),
+}
+
+# Live rig instance once attached. Kept around so we can call into it
+# (set_direction, animation transitions) without re-querying the tree.
+var _rig: Node2D = null
 
 const TOTEM_PATHS := {
 	"Buffalo": "res://assets/totems/buffalo.png",
@@ -386,9 +398,19 @@ func _read_input_direction() -> Vector2:
 func _load_sprite() -> void:
 	if sprite == null:
 		return
-	# Prefer the M3 in-world character portrait (eye-level, drawn straight-on).
-	# Falls back to the totem icon if the portrait hasn't been authored yet
-	# (e.g., Val pre-portrait, or any future hero before art lands).
+	# Tear down any previous rig (e.g., on hero swap mid-run).
+	if _rig != null:
+		_rig.queue_free()
+		_rig = null
+	# Skeleton2D rig path (BUF-183). If a rig scene exists for this hero,
+	# attach it as a child and hide the placeholder portrait sprite.
+	var rig_scene: PackedScene = RIG_SCENES.get(hero_data.id)
+	if rig_scene != null:
+		_attach_rig(rig_scene)
+		_apply_variant_tint()
+		return
+	# Fallback to the chroma-keyed portrait path (legacy, used by heroes
+	# whose rig hasn't been built yet — Goose/Fox/Val until Phase 4).
 	var portrait_path: String = CHARACTER_PORTRAIT_PATHS.get(hero_data.id, "")
 	if portrait_path != "" and ResourceLoader.exists(portrait_path):
 		var portrait: Texture2D = load(portrait_path)
@@ -445,6 +467,23 @@ const _PORTRAIT_SHADOW_KEY_THRESHOLD := 0.32  # catches painted-shadow tan
 # which includes empty rows where the cream + painted shadow used to be).
 # Phase 3 rigs replace this whole pipeline.
 static var _portrait_cache: Dictionary = {}
+
+func _attach_rig(rig_scene: PackedScene) -> void:
+	# Hide the placeholder portrait Sprite2D — the rig replaces it. Sprite
+	# stays in the scene tree (the existing _draw / damage / variant code
+	# still references it), it just renders nothing.
+	sprite.texture = null
+	sprite.material = null
+	_is_using_portrait = true  # suppresses the cream facing-notch placeholder
+	_rig = rig_scene.instantiate()
+	add_child(_rig)
+	# Rig root anchors at Hero's origin (0,0). The Skeleton2D origin is
+	# at the character's feet per BUF-181 bottom-center convention, so
+	# adding the rig as a child of Hero (positioned at the hero's
+	# current_tile world position) lands the feet on the tile.
+	_resize_shadow_for_sprite()
+	if _DEBUG_PORTRAIT_LOG:
+		print("[hero ", hero_data.id, "] rig attached: ", rig_scene.resource_path)
 
 func _apply_portrait(src: Texture2D) -> void:
 	# Anchor the portrait so the BOTTOM OF CONTENT (lowest opaque row,

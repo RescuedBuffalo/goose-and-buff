@@ -1,0 +1,17 @@
+[gd_scene load_steps=3 format=3]
+
+; Buffalo character rig (BUF-183 Phase 3).
+;
+; Inherits the bipedal rig template (bone hierarchy + sprite slots +
+; AnimationPlayer + AnimationController) and replaces the root script
+; with buffalo.gd, which slices AtlasTextures from the buffalo rigging
+; sheet and registers them with the inherited CharacterRigController.
+;
+; Bone positions still come from the template's defaults — Phase 3 will
+; tune them per-character based on what looks right in-engine.
+
+[ext_resource type="PackedScene" path="res://scenes/characters/character_rig_bipedal.tscn" id="1_template"]
+[ext_resource type="Script" path="res://scripts/characters/buffalo.gd" id="2_buffalo"]
+
+[node name="Buffalo" instance=ExtResource("1_template")]
+script = ExtResource("2_buffalo")
