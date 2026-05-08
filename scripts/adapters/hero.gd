@@ -22,7 +22,7 @@ const PIXELS_PER_STUD := 12.0
 # confirms which version of the portrait/shadow code is actually live.
 # When you edit hero.gd or character_shadow.gd, bump this and the line
 # in _ready() will print [hero v<N>] at run-start.
-const _BUF_181_BUILD_MARKER := "BUF-181 v12 / BUF-183 Phase 3 (Buffalo Skeleton2D rig)"
+const _BUF_181_BUILD_MARKER := "BUF-181 v13 / BUF-183 Phase 3 (Buffalo bone-position overrides)"
 # Toggle for verbose portrait/shadow logging. Leave on while M3 art
 # pipeline placeholder is in flux; flip to false once Phase 3 rigs land.
 const _DEBUG_PORTRAIT_LOG := true

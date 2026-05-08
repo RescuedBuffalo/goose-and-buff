@@ -83,6 +83,7 @@ func _assign_atlases() -> void:
 	# FRONT-only for Phase 3. Each entry is a single-direction dict; the
 	# controller's set_direction() falls back to FRONT-with-flip for L/R
 	# and FRONT-with-warning for BACK.
+	print("[buffalo] applying ", _PART_SETUP.size(), " parts")
 	for part_name in _PART_SETUP.keys():
 		var setup: Dictionary = _PART_SETUP[part_name]
 		var atlas: AtlasTexture = _atlas(setup.rect)
@@ -93,9 +94,16 @@ func _assign_atlases() -> void:
 		# bone's pivot at the appropriate point on the texture.
 		var sprite: Sprite2D = part_sprites.get(part_name)
 		if sprite == null:
+			print("  [buffalo] no sprite slot for part: ", part_name)
 			continue
 		sprite.scale = Vector2(setup.scale, setup.scale)
 		sprite.offset = _anchor_offset(setup.anchor, setup.rect.size)
+		# Position log: where this sprite ends up rendering relative to
+		# the rig root (= hero feet). Helps diagnose "everything stacked
+		# at origin" vs "parts at correct anchor points" issues.
+		var sprite_global := sprite.get_global_position() - global_position
+		print("  [buffalo] %-14s sprite local=%s scale=%.2f offset=%s rect=%s" % [
+			part_name, str(sprite_global), setup.scale, str(sprite.offset), str(setup.rect)])
 
 func _anchor_offset(anchor: int, size: Vector2i) -> Vector2:
 	# offset is in PRE-scale texture pixels for centered=true sprites.

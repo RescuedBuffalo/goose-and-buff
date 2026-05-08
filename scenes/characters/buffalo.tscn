@@ -3,15 +3,122 @@
 ; Buffalo character rig (BUF-183 Phase 3).
 ;
 ; Inherits the bipedal rig template (bone hierarchy + sprite slots +
-; AnimationPlayer + AnimationController) and replaces the root script
-; with buffalo.gd, which slices AtlasTextures from the buffalo rigging
-; sheet and registers them with the inherited CharacterRigController.
+; AnimationPlayer + AnimationController) and overrides the bone positions
+; to match Buffalo's actual proportions when the atlas parts are scaled
+; by 0.10 (the per-sprite scale set in buffalo.gd).
 ;
-; Bone positions still come from the template's defaults — Phase 3 will
-; tune them per-character based on what looks right in-engine.
+; Vertical layout (skeleton-space, feet at y=0, up is -Y):
+;   y= 0    feet / ground (skeleton origin)
+;   y=-15   knees  (calf top)
+;   y=-29   pelvis (root, hip pivot, thigh top)
+;   y=-45   chest  (spine pivot, top of torso, shoulders)
+;   y=-48   neck   (head pivot — head extends up from here)
+;   y=-63   top of head + horns
+;
+; Atlas heights at scale 0.10 used to derive these:
+;   head        148 → 14.8
+;   torso (jacket) 160 → 16.0
+;   thigh       142 → 14.2
+;   calf+hoof   147 → 14.7
+;   upper_arm   128 → 12.8
+;   hand         86 →  8.6
+;   tail         95 →  9.5
+;
+; Limb chain (Buffalo is 2-segment so forearm is a zero-length pivot
+; positioned at the wrist where the hand attaches):
+;   shoulder (-9, 0 from spine) → upper_arm (0, 0) → forearm (0, 13)
+;     → hand (0, 0)
+;   hip (-4, 0 from root)       → thigh (0, 0)    → calf (0, 14)
+;     → foot (0, 0) — no sprite, baked into calf
 
 [ext_resource type="PackedScene" path="res://scenes/characters/character_rig_bipedal.tscn" id="1_template"]
 [ext_resource type="Script" path="res://scripts/characters/buffalo.gd" id="2_buffalo"]
 
 [node name="Buffalo" instance=ExtResource("1_template")]
 script = ExtResource("2_buffalo")
+
+; ─── Spine column ─────────────────────────────────────────────────────────
+[node name="root" parent="Skeleton2D" index="0"]
+position = Vector2(0, -29)
+rest = Transform2D(1, 0, 0, 1, 0, -29)
+
+[node name="spine" parent="Skeleton2D/root" index="0"]
+position = Vector2(0, -16)
+rest = Transform2D(1, 0, 0, 1, 0, -16)
+
+[node name="head" parent="Skeleton2D/root/spine" index="1"]
+position = Vector2(0, -3)
+rest = Transform2D(1, 0, 0, 1, 0, -3)
+
+; ─── Left arm chain (shoulder → upper_arm → forearm pivot → hand) ─────────
+[node name="shoulder_l" parent="Skeleton2D/root/spine" index="2"]
+position = Vector2(-9, 0)
+rest = Transform2D(1, 0, 0, 1, -9, 0)
+
+[node name="upper_arm_l" parent="Skeleton2D/root/spine/shoulder_l" index="0"]
+position = Vector2(0, 0)
+rest = Transform2D(1, 0, 0, 1, 0, 0)
+
+[node name="forearm_l" parent="Skeleton2D/root/spine/shoulder_l/upper_arm_l" index="0"]
+position = Vector2(0, 13)
+rest = Transform2D(1, 0, 0, 1, 0, 13)
+
+[node name="hand_l" parent="Skeleton2D/root/spine/shoulder_l/upper_arm_l/forearm_l" index="0"]
+position = Vector2(0, 0)
+rest = Transform2D(1, 0, 0, 1, 0, 0)
+
+; ─── Right arm chain (mirrored) ───────────────────────────────────────────
+[node name="shoulder_r" parent="Skeleton2D/root/spine" index="4"]
+position = Vector2(9, 0)
+rest = Transform2D(1, 0, 0, 1, 9, 0)
+
+[node name="upper_arm_r" parent="Skeleton2D/root/spine/shoulder_r" index="0"]
+position = Vector2(0, 0)
+rest = Transform2D(1, 0, 0, 1, 0, 0)
+
+[node name="forearm_r" parent="Skeleton2D/root/spine/shoulder_r/upper_arm_r" index="0"]
+position = Vector2(0, 13)
+rest = Transform2D(1, 0, 0, 1, 0, 13)
+
+[node name="hand_r" parent="Skeleton2D/root/spine/shoulder_r/upper_arm_r/forearm_r" index="0"]
+position = Vector2(0, 0)
+rest = Transform2D(1, 0, 0, 1, 0, 0)
+
+; ─── Left leg chain (hip → thigh → calf → foot pivot) ─────────────────────
+[node name="hip_l" parent="Skeleton2D/root" index="1"]
+position = Vector2(-4, 0)
+rest = Transform2D(1, 0, 0, 1, -4, 0)
+
+[node name="thigh_l" parent="Skeleton2D/root/hip_l" index="0"]
+position = Vector2(0, 0)
+rest = Transform2D(1, 0, 0, 1, 0, 0)
+
+[node name="calf_l" parent="Skeleton2D/root/hip_l/thigh_l" index="0"]
+position = Vector2(0, 14)
+rest = Transform2D(1, 0, 0, 1, 0, 14)
+
+[node name="foot_l" parent="Skeleton2D/root/hip_l/thigh_l/calf_l" index="0"]
+position = Vector2(0, 0)
+rest = Transform2D(1, 0, 0, 1, 0, 0)
+
+; ─── Right leg chain (mirrored) ───────────────────────────────────────────
+[node name="hip_r" parent="Skeleton2D/root" index="2"]
+position = Vector2(4, 0)
+rest = Transform2D(1, 0, 0, 1, 4, 0)
+
+[node name="thigh_r" parent="Skeleton2D/root/hip_r" index="0"]
+position = Vector2(0, 0)
+rest = Transform2D(1, 0, 0, 1, 0, 0)
+
+[node name="calf_r" parent="Skeleton2D/root/hip_r/thigh_r" index="0"]
+position = Vector2(0, 14)
+rest = Transform2D(1, 0, 0, 1, 0, 14)
+
+[node name="foot_r" parent="Skeleton2D/root/hip_r/thigh_r/calf_r" index="0"]
+position = Vector2(0, 0)
+rest = Transform2D(1, 0, 0, 1, 0, 0)
+
+; ─── Tail ─────────────────────────────────────────────────────────────────
+[node name="tail" parent="Skeleton2D/root" index="3"]
+position = Vector2(5, -3)
+rest = Transform2D(1, 0, 0, 1, 5, -3)
