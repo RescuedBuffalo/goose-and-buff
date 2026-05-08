@@ -1,34 +1,64 @@
-extends CharacterRigController
 class_name BuffaloRig
+extends Node2D
 ##
-## Buffalo character rig (BUF-183 Phase 3).
+## Buffalo character rig (BUF-183 Phase 3 — frame-based).
 ##
-## All texture assignments + scale + offset live directly in
-## scenes/characters/buffalo.tscn so the rig is fully editable in the
-## Godot editor: open buffalo.tscn, click any Bone2D, drag to reposition,
-## save. The parts follow the bones live.
+## Drives the AnimatedSprite2D with a 4-direction walk loop sourced from
+## buffalo_rigging_sheet.png (4 rows × 4 columns; each row is one
+## direction's 4-frame walk cycle).
 ##
-## This script's only Phase 3 job is to register each Sprite2D slot with
-## the inherited CharacterRigController so future direction-swap calls
-## (Phase 4 BACK/LEFT/RIGHT atlases) know which sprite holds which logical
-## part. set_part_atlases is NOT called here — the texture assigned in
-## the .tscn IS the FRONT-direction art, so set_direction(FRONT) is a
-## no-op.
+## API:
+##   set_movement(velocity: Vector2)
+##     Hero adapter calls this every frame with the current velocity.
+##     Direction is derived via CharacterDirection.from_velocity; if the
+##     velocity is below the deadzone, the character keeps its last facing
+##     and pauses on the first frame of that direction (idle pose).
+
+const _ANIM_NAMES := {
+	CharacterDirection.Direction.FRONT: "walk_front",
+	CharacterDirection.Direction.BACK:  "walk_back",
+	CharacterDirection.Direction.LEFT:  "walk_left",
+	CharacterDirection.Direction.RIGHT: "walk_right",
+}
+
+@onready var anim_sprite: AnimatedSprite2D = $AnimatedSprite2D
+
+var _facing: int = CharacterDirection.Direction.FRONT
+var _is_walking: bool = false
 
 func _ready() -> void:
-	super._ready()
-	_register_parts()
-	current_direction = Direction.FRONT
+	if anim_sprite == null:
+		push_warning("[buffalo] no AnimatedSprite2D child found")
+		return
+	_apply_animation_state()
 
-func _register_parts() -> void:
-	register_part("torso", get_node_or_null("Skeleton2D/root/spine/TorsoSprite") as Sprite2D)
-	register_part("head", get_node_or_null("Skeleton2D/root/spine/head/HeadSprite") as Sprite2D)
-	register_part("upper_arm_l", get_node_or_null("Skeleton2D/root/spine/shoulder_l/upper_arm_l/UpperArmLSprite") as Sprite2D)
-	register_part("upper_arm_r", get_node_or_null("Skeleton2D/root/spine/shoulder_r/upper_arm_r/UpperArmRSprite") as Sprite2D)
-	register_part("hand_l", get_node_or_null("Skeleton2D/root/spine/shoulder_l/upper_arm_l/forearm_l/hand_l/HandLSprite") as Sprite2D)
-	register_part("hand_r", get_node_or_null("Skeleton2D/root/spine/shoulder_r/upper_arm_r/forearm_r/hand_r/HandRSprite") as Sprite2D)
-	register_part("thigh_l", get_node_or_null("Skeleton2D/root/hip_l/thigh_l/ThighLSprite") as Sprite2D)
-	register_part("thigh_r", get_node_or_null("Skeleton2D/root/hip_r/thigh_r/ThighRSprite") as Sprite2D)
-	register_part("calf_l", get_node_or_null("Skeleton2D/root/hip_l/thigh_l/calf_l/CalfLSprite") as Sprite2D)
-	register_part("calf_r", get_node_or_null("Skeleton2D/root/hip_r/thigh_r/calf_r/CalfRSprite") as Sprite2D)
-	register_part("tail", get_node_or_null("Skeleton2D/root/tail/TailSprite") as Sprite2D)
+## Called by the hero adapter every frame with the player's velocity.
+## Updates facing direction (if velocity is non-trivial) and toggles
+## between walking (animated) and idle (paused on frame 0) playback.
+func set_movement(velocity: Vector2) -> void:
+	var new_dir: int = CharacterDirection.from_velocity(velocity)
+	var was_walking: bool = _is_walking
+	_is_walking = velocity.length() >= 1.0
+	if new_dir >= 0:
+		# Only update facing when there's actual movement input — keep
+		# the last facing if the player let go of keys mid-stride.
+		if new_dir != _facing:
+			_facing = new_dir
+			_apply_animation_state()
+			return
+	if _is_walking != was_walking:
+		_apply_animation_state()
+
+func _apply_animation_state() -> void:
+	if anim_sprite == null:
+		return
+	var anim_name: String = _ANIM_NAMES.get(_facing, "walk_front")
+	if anim_sprite.animation != StringName(anim_name):
+		anim_sprite.animation = StringName(anim_name)
+	if _is_walking:
+		anim_sprite.play()
+	else:
+		# Idle: snap to frame 0 (the standing pose for that direction)
+		# and stop the animation tick.
+		anim_sprite.stop()
+		anim_sprite.frame = 0
