@@ -22,7 +22,7 @@ const PIXELS_PER_STUD := 12.0
 # confirms which version of the portrait/shadow code is actually live.
 # When you edit hero.gd or character_shadow.gd, bump this and the line
 # in _ready() will print [hero v<N>] at run-start.
-const _BUF_181_BUILD_MARKER := "BUF-181 v8 (content-bbox anchor + content-height scale)"
+const _BUF_181_BUILD_MARKER := "BUF-181 v9 (ground tiles z=-1, shadows render above ground always)"
 # Toggle for verbose portrait/shadow logging. Leave on while M3 art
 # pipeline placeholder is in flux; flip to false once Phase 3 rigs land.
 const _DEBUG_PORTRAIT_LOG := true
