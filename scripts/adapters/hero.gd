@@ -22,7 +22,7 @@ const PIXELS_PER_STUD := 12.0
 # confirms which version of the portrait/shadow code is actually live.
 # When you edit hero.gd or character_shadow.gd, bump this and the line
 # in _ready() will print [hero v<N>] at run-start.
-const _BUF_181_BUILD_MARKER := "BUF-181 v9 (ground tiles z=-1, shadows render above ground always)"
+const _BUF_181_BUILD_MARKER := "BUF-181 v10 (RenderLayers source-of-truth, shadow pinned absolute z=-10)"
 # Toggle for verbose portrait/shadow logging. Leave on while M3 art
 # pipeline placeholder is in flux; flip to false once Phase 3 rigs land.
 const _DEBUG_PORTRAIT_LOG := true
@@ -136,6 +136,13 @@ func _ready() -> void:
 	y_sort_enabled = true
 	if sprite != null:
 		sprite.y_sort_enabled = true
+	# Pin the shadow to the absolute ground-shadow layer regardless of
+	# the hero's own z (which is WORLD_ENTITIES = 0 today, but if we
+	# ever bump a downed hero up a layer or apply a debug z to inspect
+	# a single hero, the shadow should NOT follow). See RenderLayers.
+	if shadow != null:
+		shadow.z_as_relative = false
+		shadow.z_index = RenderLayers.CHARACTER_SHADOW
 	_load_sprite()
 	if sector != null:
 		current_tile = Sectors.SPAWN_TILE

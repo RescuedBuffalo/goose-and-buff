@@ -64,16 +64,17 @@ func _ready() -> void:
 	_tile_layer = TileMapLayer.new()
 	_tile_layer.tile_set = _build_tile_set(hero_id)
 	_tile_layer.y_sort_enabled = true
-	# Ground layer sits below everything else (z=-1). Without this, the
-	# cascading y_sort_enabled chain (Main → Sector → TileMapLayer)
-	# treats tiles + characters + characters' shadows as one big Y-sort
-	# batch, so a tile south of the hero (higher world Y) draws AFTER
-	# Hero+Shadow and paints over the shadow's southern edge. Pushing
-	# the whole tile layer to z_index = -1 keeps tiles strictly under
-	# every default-z entity (characters, props, shadows) while letting
-	# props at z=0 continue Y-sorting among themselves (so a tree south
-	# of the hero still occludes him correctly).
-	_tile_layer.z_index = -1
+	# Ground floor is the bottom of the render stack — below shadows,
+	# below characters, below everything else. See RenderLayers for the
+	# full layering doc; the short version is that the cascading
+	# y_sort_enabled chain (Main → Sector → TileMapLayer) would otherwise
+	# treat tiles + characters + character-child shadows as one big
+	# Y-sort batch, and a south-adjacent tile would paint over the
+	# shadow's southern edge. z_index overrides Y-sort, so pushing the
+	# whole tile layer to GROUND_BASE keeps tiles strictly under every
+	# default-z entity, while props at WORLD_ENTITIES still Y-sort
+	# among themselves (a tree south of the hero still occludes him).
+	_tile_layer.z_index = RenderLayers.GROUND_BASE
 	add_child(_tile_layer)
 
 # ── Identity ──────────────────────────────────────────────────────────────
