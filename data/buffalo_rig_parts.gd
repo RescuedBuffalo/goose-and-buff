@@ -50,9 +50,10 @@ const HOOD_TRIM := Rect2i(815, 415, 162, 105)     # cream collar fluff layered o
 const HORN_L := Rect2i(1020, 428, 74, 81)
 const HORN_R := Rect2i(1157, 428, 73, 80)
 const CHEST_FUR := Rect2i(1090, 524, 128, 100)    # fluffy chest poof, layered above jacket center
-const TAIL := Rect2i(1036, 615, 153, 95)          # NOTE: bbox includes "CHEST FU" label artifact;
-                                                   # crop tighter (~80px wide from left) once we
-                                                   # have a clean source PNG without text labels.
+const TAIL := Rect2i(1036, 615, 72, 97)           # tightened to exclude the "CHEST FUR" label
+                                                   # that bled into the connected component during
+                                                   # auto-detection. Tail content is the left ~72px;
+                                                   # everything past x=1108 is the text label.
 
 # ── Arms (Buffalo's are 2-segment: sleeve + hand) ─────────────────────────
 const UPPER_ARM_L := Rect2i(64, 450, 87, 128)     # sleeve covering upper + forearm
