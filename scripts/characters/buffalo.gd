@@ -22,7 +22,7 @@ class_name BuffaloRig
 ## sheet is authored.
 
 const Parts := preload("res://data/buffalo_rig_parts.gd")
-const Direction = CharacterDirection.Direction
+# Direction is inherited from CharacterRigController — no need to redeclare.
 
 # Sprite anchor enum — where on the part texture the bone's pivot lands.
 # TOP   = bone pivot at top edge of texture (shoulders, hips: limbs hang from it)
