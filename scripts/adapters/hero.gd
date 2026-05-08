@@ -22,7 +22,7 @@ const PIXELS_PER_STUD := 12.0
 # confirms which version of the portrait/shadow code is actually live.
 # When you edit hero.gd or character_shadow.gd, bump this and the line
 # in _ready() will print [hero v<N>] at run-start.
-const _BUF_181_BUILD_MARKER := "BUF-181 v6 (regional threshold for baked drop-shadow)"
+const _BUF_181_BUILD_MARKER := "BUF-181 v7 (flood-fill from edges + transparent-source detect)"
 # Toggle for verbose portrait/shadow logging. Leave on while M3 art
 # pipeline placeholder is in flux; flip to false once Phase 3 rigs land.
 const _DEBUG_PORTRAIT_LOG := true
@@ -421,7 +421,7 @@ const _PORTRAIT_KEY_THRESHOLD := 0.12
 # bottom band of the image, where the painted shadow lives. White-fur
 # accents on Buffalo's jacket/horns are well above this band so the
 # wider threshold doesn't reach them.
-const _PORTRAIT_SHADOW_BAND_FRACTION := 0.12  # bottom 12% of source rows
+const _PORTRAIT_SHADOW_BAND_FRACTION := 0.20  # bottom 20% of source rows
 const _PORTRAIT_SHADOW_KEY_THRESHOLD := 0.32  # catches painted-shadow tan
 
 # Cache so we don't re-scan the same portrait every time a hero is
@@ -457,20 +457,28 @@ func _apply_portrait(src: Texture2D) -> void:
 		print("[hero ", hero_data.id, "] sprite scale=", sprite.scale, " offset=", sprite.offset)
 
 func _get_masked_portrait(path: String, src: Texture2D) -> Texture2D:
-	# Strip the cream parchment in CPU before the GPU sees the texture.
-	# Two-stage process:
+	# Three-stage CPU pipeline runs once per portrait, then cached:
 	#
-	#   1. Tag every cream-matching pixel as transparent (alpha=0) on a
-	#      working copy. We read from the original image so the scan is
-	#      not self-modifying.
+	#   0. SHORT CIRCUIT: if the source PNG already has alpha (corner
+	#      pixel transparent), skip everything below — the artist has
+	#      pre-cut the background and we can use the texture as-is.
 	#
-	#   2. RGB alpha-bleed: every transparent pixel that has a non-cream
-	#      neighbor takes its neighbor's RGB (alpha stays 0). This kills
-	#      the cream halo: when bilinear filtering averages a transparent
-	#      edge pixel with an opaque body pixel, the result is a partial-
-	#      alpha BODY-colored pixel, not partial-alpha cream-colored or
-	#      black-RGB-bleeding-through. Without this step the silhouette
-	#      reads as a soft cream/grey ring against the green grass.
+	#   1. CREAM CLASSIFICATION: per pixel, decide cream-vs-body using a
+	#      band-aware distance test. Top 80% uses a tight 0.12 threshold
+	#      (body-safe — won't eat horn-interior cream or jacket-fur trim).
+	#      Bottom 20% uses a wider 0.32 threshold to catch the soft baked
+	#      drop-shadow Scenario portraits ship with.
+	#
+	#   2. EDGE-REACHABLE FLOOD FILL: BFS from every cream pixel on the
+	#      image border, expanding through cream-classified neighbors.
+	#      Pixels marked = background. Horn-interior cream is surrounded
+	#      by brown outline so BFS never reaches it; it stays opaque.
+	#      The painted shadow is contiguous with the surrounding cream so
+	#      BFS reaches it; it gets masked.
+	#
+	#   3. RGB ALPHA-BLEED: every transparent pixel that has an opaque
+	#      neighbor takes its neighbor's RGB (alpha stays 0). Kills the
+	#      bilinear-filter cream/black halo at the silhouette edge.
 	if path != "" and _masked_portrait_cache.has(path):
 		if _DEBUG_PORTRAIT_LOG:
 			print("[hero ", hero_data.id, "] mask cache HIT for ", path)
@@ -486,54 +494,132 @@ func _get_masked_portrait(path: String, src: Texture2D) -> Texture2D:
 	src_img.convert(Image.FORMAT_RGBA8)
 	var w: int = src_img.get_width()
 	var h: int = src_img.get_height()
+
+	# Stage 0: transparent source detection. If the four image corners
+	# are already transparent the artist has done our work for us.
+	if (src_img.get_pixel(0, 0).a < 0.5
+			and src_img.get_pixel(w - 1, 0).a < 0.5
+			and src_img.get_pixel(0, h - 1).a < 0.5
+			and src_img.get_pixel(w - 1, h - 1).a < 0.5):
+		if _DEBUG_PORTRAIT_LOG:
+			print("[hero ", hero_data.id, "] source already transparent (", w, "x", h, ") — chroma-key bypassed")
+		if path != "":
+			_masked_portrait_cache[path] = src
+		return src
+
 	var body_threshold_sq: float = _PORTRAIT_KEY_THRESHOLD * _PORTRAIT_KEY_THRESHOLD
 	var shadow_threshold_sq: float = _PORTRAIT_SHADOW_KEY_THRESHOLD * _PORTRAIT_SHADOW_KEY_THRESHOLD
-	# y-coordinate at which the wider painted-shadow threshold takes over.
-	# Above this row we use the tight body-safe threshold; below, we use
-	# the wider one to eat the soft drop-shadow under the character's feet.
 	var shadow_band_y: int = int(h * (1.0 - _PORTRAIT_SHADOW_BAND_FRACTION))
-	# Stage 1: build the alpha mask. We write into a fresh output image so
-	# stage 2's neighbor lookups read clean source classifications.
-	var out_img: Image = src_img.duplicate()
-	var keyed_count: int = 0
-	var shadow_keyed_count: int = 0
+	var n: int = w * h
+
+	# Stage 1: classify every pixel as cream (1) or body (0). Stored in a
+	# flat byte array indexed by y*w+x for fast BFS access.
+	var is_cream := PackedByteArray()
+	is_cream.resize(n)
 	for y in h:
 		var threshold_sq: float = shadow_threshold_sq if y >= shadow_band_y else body_threshold_sq
+		var row_base: int = y * w
 		for x in w:
 			var c: Color = src_img.get_pixel(x, y)
 			var dr: float = c.r - _PORTRAIT_CREAM_KEY.x
 			var dg: float = c.g - _PORTRAIT_CREAM_KEY.y
 			var db: float = c.b - _PORTRAIT_CREAM_KEY.z
 			if dr * dr + dg * dg + db * db < threshold_sq:
-				# Initially set RGB to neutral mid-grey + alpha 0; stage 2
-				# will overwrite with body RGB if a body neighbor exists.
-				out_img.set_pixel(x, y, Color(0.5, 0.5, 0.5, 0))
+				is_cream[row_base + x] = 1
+
+	# Stage 2: BFS flood fill from border cream pixels. mask[i] = 1 means
+	# "edge-reachable cream → make transparent." Interior cream (horn fill,
+	# eyes, etc) stays 0 and remains opaque.
+	var mask := PackedByteArray()
+	mask.resize(n)
+	var queue := PackedInt32Array()
+	# Seed: top + bottom rows
+	for x in w:
+		var top_idx: int = x
+		if is_cream[top_idx] == 1 and mask[top_idx] == 0:
+			mask[top_idx] = 1
+			queue.append(top_idx)
+		var bot_idx: int = (h - 1) * w + x
+		if is_cream[bot_idx] == 1 and mask[bot_idx] == 0:
+			mask[bot_idx] = 1
+			queue.append(bot_idx)
+	# Seed: left + right columns
+	for y in h:
+		var left_idx: int = y * w
+		if is_cream[left_idx] == 1 and mask[left_idx] == 0:
+			mask[left_idx] = 1
+			queue.append(left_idx)
+		var right_idx: int = y * w + (w - 1)
+		if is_cream[right_idx] == 1 and mask[right_idx] == 0:
+			mask[right_idx] = 1
+			queue.append(right_idx)
+	# Manual FIFO with head pointer (avoids PackedInt32Array.pop which is slow).
+	var head: int = 0
+	while head < queue.size():
+		var idx: int = queue[head]
+		head += 1
+		var iy: int = idx / w
+		var ix: int = idx - iy * w
+		# 4-neighbors are sufficient for a connectivity flood fill.
+		if ix > 0:
+			var ni: int = idx - 1
+			if is_cream[ni] == 1 and mask[ni] == 0:
+				mask[ni] = 1
+				queue.append(ni)
+		if ix < w - 1:
+			var ni2: int = idx + 1
+			if is_cream[ni2] == 1 and mask[ni2] == 0:
+				mask[ni2] = 1
+				queue.append(ni2)
+		if iy > 0:
+			var ni3: int = idx - w
+			if is_cream[ni3] == 1 and mask[ni3] == 0:
+				mask[ni3] = 1
+				queue.append(ni3)
+		if iy < h - 1:
+			var ni4: int = idx + w
+			if is_cream[ni4] == 1 and mask[ni4] == 0:
+				mask[ni4] = 1
+				queue.append(ni4)
+
+	# Apply the mask: zero alpha (RGB temporary mid-grey for stage 3 to
+	# overwrite). We mutate src_img in place; it was decompressed/converted
+	# above and isn't shared.
+	var keyed_count: int = 0
+	var shadow_keyed_count: int = 0
+	for y in h:
+		var row_base2: int = y * w
+		for x in w:
+			if mask[row_base2 + x] == 1:
+				src_img.set_pixel(x, y, Color(0.5, 0.5, 0.5, 0))
 				keyed_count += 1
 				if y >= shadow_band_y:
 					shadow_keyed_count += 1
-	# Stage 2: for each transparent pixel adjacent to an opaque pixel,
-	# inherit the opaque neighbor's RGB. One pass is enough for a 1-pixel
-	# halo guard, which is all bilinear filtering needs.
+
+	# Stage 3: RGB alpha-bleed. For each transparent pixel with an opaque
+	# neighbor, copy the neighbor's RGB so bilinear filtering produces
+	# body-colored partial-alpha edges instead of black/cream halo.
 	var bleed_count: int = 0
 	for y in h:
 		for x in w:
-			var oc: Color = out_img.get_pixel(x, y)
+			var oc: Color = src_img.get_pixel(x, y)
 			if oc.a > 0.01:
 				continue
-			var bleed: Color = _find_opaque_neighbor_rgb(out_img, x, y, w, h)
+			var bleed: Color = _find_opaque_neighbor_rgb(src_img, x, y, w, h)
 			if bleed.a > 0.5:
-				out_img.set_pixel(x, y, Color(bleed.r, bleed.g, bleed.b, 0))
+				src_img.set_pixel(x, y, Color(bleed.r, bleed.g, bleed.b, 0))
 				bleed_count += 1
-	var masked: ImageTexture = ImageTexture.create_from_image(out_img)
+
+	var masked: ImageTexture = ImageTexture.create_from_image(src_img)
 	if path != "":
 		_masked_portrait_cache[path] = masked
 	var elapsed_ms := (Time.get_ticks_usec() - t0_us) / 1000.0
 	if _DEBUG_PORTRAIT_LOG:
-		var keyed_pct: float = 100.0 * float(keyed_count) / float(max(1, w * h))
-		print("[hero ", hero_data.id, "] mask built in %.0fms: %d/%d pixels keyed (%.1f%%, of which %d in painted-shadow band), %d edge bleed" % [elapsed_ms, keyed_count, w * h, keyed_pct, shadow_keyed_count, bleed_count])
+		var keyed_pct: float = 100.0 * float(keyed_count) / float(max(1, n))
+		print("[hero ", hero_data.id, "] mask built in %.0fms: %d/%d pixels keyed (%.1f%%, %d in shadow band), %d edge bleed, queue size %d" % [elapsed_ms, keyed_count, n, keyed_pct, shadow_keyed_count, bleed_count, queue.size()])
 	if _DEBUG_SAVE_MASKED_PNG:
 		var out_path: String = "user://masked_%s.png" % hero_data.id
-		var save_err: int = out_img.save_png(out_path)
+		var save_err: int = src_img.save_png(out_path)
 		var abs_path: String = ProjectSettings.globalize_path(out_path)
 		print("[hero ", hero_data.id, "] saved masked PNG -> ", abs_path, " (err=", save_err, ")")
 	return masked
