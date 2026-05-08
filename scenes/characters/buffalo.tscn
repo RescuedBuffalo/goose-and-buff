@@ -107,7 +107,7 @@ animations = [{
 ],
 "loop": true,
 "name": &"walk_front",
-"speed": 8.0
+"speed": 4.0
 }, {
 "frames": [
 {"duration": 1.0, "texture": SubResource("a_back_0")},
@@ -117,7 +117,7 @@ animations = [{
 ],
 "loop": true,
 "name": &"walk_back",
-"speed": 8.0
+"speed": 4.0
 }, {
 "frames": [
 {"duration": 1.0, "texture": SubResource("a_left_0")},
@@ -127,7 +127,7 @@ animations = [{
 ],
 "loop": true,
 "name": &"walk_left",
-"speed": 8.0
+"speed": 4.0
 }, {
 "frames": [
 {"duration": 1.0, "texture": SubResource("a_right_0")},
@@ -137,7 +137,7 @@ animations = [{
 ],
 "loop": true,
 "name": &"walk_right",
-"speed": 8.0
+"speed": 4.0
 }]
 
 ; ─── Scene root ──────────────────────────────────────────────────────────
@@ -153,6 +153,12 @@ script = ExtResource("2_buffalo")
 ; ratio target from BUF-181 v11.
 sprite_frames = SubResource("frames")
 animation = &"walk_front"
-frame = 0
+frame = 1
 scale = Vector2(0.3, 0.3)
-offset = Vector2(0, -107.5)
+; Frame is 215px tall but the buffalo's feet within frame 0 sit at
+; source-y=277 (frame-y=212 of 215) — there's ~3px of empty padding
+; below the silhouette. offset.y = -104.5 puts the feet (frame-y=212)
+; at the node's origin instead of the frame's bottom edge, so the
+; procedural ellipse shadow renders directly under the feet rather
+; than 3-4px below them.
+offset = Vector2(0, -104.5)

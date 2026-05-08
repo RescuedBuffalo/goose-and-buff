@@ -21,6 +21,12 @@ const _ANIM_NAMES := {
 	CharacterDirection.Direction.RIGHT: "walk_right",
 }
 
+# Index in each 4-frame walk loop to hold while idle. Frame 1 is the
+# planted-feet pose across all 4 directions in the current sheet; frame
+# 0 is mid-stride and reads as "frozen mid-walk." Bump if a future sheet
+# has its still pose at a different index.
+const _IDLE_FRAME := 1
+
 @onready var anim_sprite: AnimatedSprite2D = $AnimatedSprite2D
 
 var _facing: int = CharacterDirection.Direction.FRONT
@@ -58,7 +64,9 @@ func _apply_animation_state() -> void:
 	if _is_walking:
 		anim_sprite.play()
 	else:
-		# Idle: snap to frame 0 (the standing pose for that direction)
-		# and stop the animation tick.
+		# Idle: snap to the most-still pose in the cycle. Frame 0 is mid-
+		# stride (one foot forward); frame 1 is the closest to a planted
+		# stance across all 4 directions in the user's sheet. Stop the
+		# animation tick so we hold the still frame.
 		anim_sprite.stop()
-		anim_sprite.frame = 0
+		anim_sprite.frame = _IDLE_FRAME
