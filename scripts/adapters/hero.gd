@@ -22,7 +22,7 @@ const PIXELS_PER_STUD := 12.0
 # confirms which version of the portrait/shadow code is actually live.
 # When you edit hero.gd or character_shadow.gd, bump this and the line
 # in _ready() will print [hero v<N>] at run-start.
-const _BUF_181_BUILD_MARKER := "BUF-181 v7 (flood-fill from edges + transparent-source detect)"
+const _BUF_181_BUILD_MARKER := "BUF-181 v8 (content-bbox anchor + content-height scale)"
 # Toggle for verbose portrait/shadow logging. Leave on while M3 art
 # pipeline placeholder is in flux; flip to false once Phase 3 rigs land.
 const _DEBUG_PORTRAIT_LOG := true
@@ -426,37 +426,54 @@ const _PORTRAIT_SHADOW_KEY_THRESHOLD := 0.32  # catches painted-shadow tan
 
 # Cache so we don't re-scan the same portrait every time a hero is
 # instanced (run-start, respawn, remote puppet creation). Keyed by
-# portrait path; values are ImageTextures with the cream already alpha-
-# masked. The Phase 3 rig pipeline doesn't need this — once parts ship
-# with proper alpha, this whole path is dead code we can rip out.
-static var _masked_portrait_cache: Dictionary = {}
+# portrait path; values are dictionaries:
+#   { "texture": Texture2D, "bbox": Rect2i }
+# bbox is the content bounding box (alpha > 0) in source-texture pixel
+# coords, used by _apply_portrait to anchor the character's feet at the
+# hero origin and scale based on content height (not full texture height,
+# which includes empty rows where the cream + painted shadow used to be).
+# Phase 3 rigs replace this whole pipeline.
+static var _portrait_cache: Dictionary = {}
 
 func _apply_portrait(src: Texture2D) -> void:
-	# Anchor the portrait bottom-center on the hero's world position. Scale
-	# is auto-fit so every portrait reads at TARGET_CHARACTER_HEIGHT_PX
-	# regardless of source resolution — the rigging sheets and portraits
-	# vary in canvas size and we don't want per-character scale magic.
+	# Anchor the portrait so the BOTTOM OF CONTENT (lowest opaque row,
+	# i.e. the character's feet) lands at the hero origin, and scale so
+	# that the content occupies exactly TARGET_CHARACTER_HEIGHT_PX rendered
+	# pixels in height. Scaling by full texture height instead of content
+	# height would render the character undersized whenever the source PNG
+	# has empty padding rows (e.g. the cream/painted-shadow strip below
+	# the character that flood-fill just stripped) — causing the visible
+	# "floating" gap between the body and the procedural shadow.
 	var portrait_path: String = CHARACTER_PORTRAIT_PATHS.get(hero_data.id, "")
 	if _DEBUG_PORTRAIT_LOG:
 		print("[hero ", hero_data.id, "] portrait path=", portrait_path, " src=", src.get_width(), "x", src.get_height())
-	var masked: Texture2D = _get_masked_portrait(portrait_path, src)
-	sprite.texture = masked
-	var tex_h: float = float(masked.get_height())
-	var auto_scale: float = TARGET_CHARACTER_HEIGHT_PX / max(tex_h, 1.0)
+	var data: Dictionary = _get_portrait_data(portrait_path, src)
+	var tex: Texture2D = data.get("texture")
+	var bbox: Rect2i = data.get("bbox", Rect2i(0, 0, tex.get_width(), tex.get_height()))
+	sprite.texture = tex
+	var tex_w: float = float(tex.get_width())
+	var tex_h: float = float(tex.get_height())
+	var content_h: float = max(float(bbox.size.y), 1.0)
+	var auto_scale: float = TARGET_CHARACTER_HEIGHT_PX / content_h
 	sprite.scale = Vector2(auto_scale, auto_scale)
 	sprite.position = Vector2.ZERO
-	# offset is in pre-scale texture space. Shifting up by half-height lands
-	# the texture's bottom edge on the hero origin (the feet).
-	sprite.offset = Vector2(0, -tex_h * 0.5)
+	# Sprite2D centered=true draws texture pixel (px, py) at local position
+	# (px - tex_w/2 + offset.x, py - tex_h/2 + offset.y) (pre-scale). To put
+	# the bottom edge of the lowest opaque row (Rect2i exclusive end y) at
+	# local y=0, and the content's horizontal center at x=0, set:
+	var content_center_x: float = float(bbox.position.x) + float(bbox.size.x) * 0.5
+	var content_bottom_y: float = float(bbox.position.y + bbox.size.y)
+	sprite.offset = Vector2(tex_w * 0.5 - content_center_x, tex_h * 0.5 - content_bottom_y)
 	# Pre-processed alpha mask gives clean edges through GPU filtering;
 	# no shader material needed.
 	sprite.material = null
 	_is_using_portrait = true
 	_resize_shadow_for_sprite()
 	if _DEBUG_PORTRAIT_LOG:
+		print("[hero ", hero_data.id, "] bbox=", bbox, " content_h=%.0fpx" % content_h, " auto_scale=%.4f" % auto_scale)
 		print("[hero ", hero_data.id, "] sprite scale=", sprite.scale, " offset=", sprite.offset)
 
-func _get_masked_portrait(path: String, src: Texture2D) -> Texture2D:
+func _get_portrait_data(path: String, src: Texture2D) -> Dictionary:
 	# Three-stage CPU pipeline runs once per portrait, then cached:
 	#
 	#   0. SHORT CIRCUIT: if the source PNG already has alpha (corner
@@ -479,16 +496,16 @@ func _get_masked_portrait(path: String, src: Texture2D) -> Texture2D:
 	#   3. RGB ALPHA-BLEED: every transparent pixel that has an opaque
 	#      neighbor takes its neighbor's RGB (alpha stays 0). Kills the
 	#      bilinear-filter cream/black halo at the silhouette edge.
-	if path != "" and _masked_portrait_cache.has(path):
+	if path != "" and _portrait_cache.has(path):
 		if _DEBUG_PORTRAIT_LOG:
-			print("[hero ", hero_data.id, "] mask cache HIT for ", path)
-		return _masked_portrait_cache[path]
+			print("[hero ", hero_data.id, "] portrait cache HIT for ", path)
+		return _portrait_cache[path]
 	if src == null:
-		return null
+		return {"texture": null, "bbox": Rect2i()}
 	var t0_us := Time.get_ticks_usec()
 	var src_img: Image = src.get_image()
 	if src_img == null:
-		return src
+		return {"texture": src, "bbox": Rect2i(0, 0, src.get_width(), src.get_height())}
 	if src_img.is_compressed():
 		src_img.decompress()
 	src_img.convert(Image.FORMAT_RGBA8)
@@ -501,11 +518,13 @@ func _get_masked_portrait(path: String, src: Texture2D) -> Texture2D:
 			and src_img.get_pixel(w - 1, 0).a < 0.5
 			and src_img.get_pixel(0, h - 1).a < 0.5
 			and src_img.get_pixel(w - 1, h - 1).a < 0.5):
+		var pre_bbox: Rect2i = _content_bbox(src_img, w, h)
 		if _DEBUG_PORTRAIT_LOG:
-			print("[hero ", hero_data.id, "] source already transparent (", w, "x", h, ") — chroma-key bypassed")
+			print("[hero ", hero_data.id, "] source already transparent (", w, "x", h, ") bbox=", pre_bbox, " — chroma-key bypassed")
+		var pre_data: Dictionary = {"texture": src, "bbox": pre_bbox}
 		if path != "":
-			_masked_portrait_cache[path] = src
-		return src
+			_portrait_cache[path] = pre_data
+		return pre_data
 
 	var body_threshold_sq: float = _PORTRAIT_KEY_THRESHOLD * _PORTRAIT_KEY_THRESHOLD
 	var shadow_threshold_sq: float = _PORTRAIT_SHADOW_KEY_THRESHOLD * _PORTRAIT_SHADOW_KEY_THRESHOLD
@@ -611,18 +630,42 @@ func _get_masked_portrait(path: String, src: Texture2D) -> Texture2D:
 				bleed_count += 1
 
 	var masked: ImageTexture = ImageTexture.create_from_image(src_img)
+	var bbox: Rect2i = _content_bbox(src_img, w, h)
+	var data: Dictionary = {"texture": masked, "bbox": bbox}
 	if path != "":
-		_masked_portrait_cache[path] = masked
+		_portrait_cache[path] = data
 	var elapsed_ms := (Time.get_ticks_usec() - t0_us) / 1000.0
 	if _DEBUG_PORTRAIT_LOG:
 		var keyed_pct: float = 100.0 * float(keyed_count) / float(max(1, n))
-		print("[hero ", hero_data.id, "] mask built in %.0fms: %d/%d pixels keyed (%.1f%%, %d in shadow band), %d edge bleed, queue size %d" % [elapsed_ms, keyed_count, n, keyed_pct, shadow_keyed_count, bleed_count, queue.size()])
+		print("[hero ", hero_data.id, "] mask built in %.0fms: %d/%d pixels keyed (%.1f%%, %d in shadow band), %d edge bleed, queue size %d, bbox=" % [elapsed_ms, keyed_count, n, keyed_pct, shadow_keyed_count, bleed_count, queue.size()], bbox)
 	if _DEBUG_SAVE_MASKED_PNG:
 		var out_path: String = "user://masked_%s.png" % hero_data.id
 		var save_err: int = src_img.save_png(out_path)
 		var abs_path: String = ProjectSettings.globalize_path(out_path)
 		print("[hero ", hero_data.id, "] saved masked PNG -> ", abs_path, " (err=", save_err, ")")
-	return masked
+	return data
+
+func _content_bbox(img: Image, w: int, h: int) -> Rect2i:
+	# Tightest rectangle covering all opaque pixels (alpha > 0.5). Used for
+	# anchor + scale of the rendered sprite — we want to ground the
+	# character's actual feet at the hero origin and size them by their
+	# real silhouette, not by the source PNG canvas.
+	var min_x: int = w
+	var max_x: int = -1
+	var min_y: int = h
+	var max_y: int = -1
+	for y in h:
+		for x in w:
+			if img.get_pixel(x, y).a > 0.5:
+				if x < min_x: min_x = x
+				if x > max_x: max_x = x
+				if y < min_y: min_y = y
+				if y > max_y: max_y = y
+	if max_x < 0:
+		# Fully transparent image — fall back to full canvas to avoid
+		# zero-size rect downstream.
+		return Rect2i(0, 0, w, h)
+	return Rect2i(min_x, min_y, max_x - min_x + 1, max_y - min_y + 1)
 
 func _find_opaque_neighbor_rgb(img: Image, x: int, y: int, w: int, h: int) -> Color:
 	# Returns the RGB of the first 8-neighbor opaque pixel found, with
