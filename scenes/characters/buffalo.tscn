@@ -1,43 +1,68 @@
-[gd_scene load_steps=3 format=3]
+[gd_scene load_steps=15 format=3]
 
-; Buffalo character rig (BUF-183 Phase 3).
+; Buffalo character rig (BUF-183 Phase 3) — EDITOR-VISIBLE version.
 ;
-; Inherits the bipedal rig template (bone hierarchy + sprite slots +
-; AnimationPlayer + AnimationController) and overrides the bone positions
-; to match Buffalo's actual proportions when the atlas parts are scaled
-; by 0.10 (the per-sprite scale set in buffalo.gd).
+; All AtlasTextures are baked as SubResources directly in this scene,
+; assigned to each Sprite2D's `texture` property, with scale + offset set
+; on the Sprite2D nodes too. This means opening this scene in Godot's
+; 2D editor shows Buffalo composed of his actual parts at their actual
+; positions — you can drag bones around in the editor and see the parts
+; follow live.
 ;
-; Vertical layout (skeleton-space, feet at y=0, up is -Y):
-;   y= 0    feet / ground (skeleton origin)
-;   y=-15   knees  (calf top)
-;   y=-29   pelvis (root, hip pivot, thigh top)
-;   y=-45   chest  (spine pivot, top of torso, shoulders)
-;   y=-48   neck   (head pivot — head extends up from here)
-;   y=-63   top of head + horns
+; Editing workflow:
+;   1. Open this scene in Godot.
+;   2. Click any Bone2D in the Skeleton2D tree to select it.
+;   3. Drag the bone's pivot (the diamond in the 2D viewport) to move
+;      it. The attached Sprite2D + descendant bones follow.
+;   4. Use the inspector to set bone position numerically if you prefer.
+;   5. Save the scene — the new bone positions persist.
 ;
-; Atlas heights at scale 0.10 used to derive these:
-;   head        148 → 14.8
-;   torso (jacket) 160 → 16.0
-;   thigh       142 → 14.2
-;   calf+hoof   147 → 14.7
-;   upper_arm   128 → 12.8
-;   hand         86 →  8.6
-;   tail         95 →  9.5
-;
-; Limb chain (Buffalo is 2-segment so forearm is a zero-length pivot
-; positioned at the wrist where the hand attaches):
-;   shoulder (-9, 0 from spine) → upper_arm (0, 0) → forearm (0, 13)
-;     → hand (0, 0)
-;   hip (-4, 0 from root)       → thigh (0, 0)    → calf (0, 14)
-;     → foot (0, 0) — no sprite, baked into calf
+; To change an atlas region (e.g. swap to a different head expression),
+; click the Sprite2D, then in the inspector under Texture > AtlasTexture,
+; edit the Region rect.
 
 [ext_resource type="PackedScene" path="res://scenes/characters/character_rig_bipedal.tscn" id="1_template"]
 [ext_resource type="Script" path="res://scripts/characters/buffalo.gd" id="2_buffalo"]
+[ext_resource type="Texture2D" path="res://design/assets/characters/buffalo_rigging_sheet.png" id="3_sheet"]
 
+; ─── AtlasTexture sub-resources (one per visible part) ────────────────────
+[sub_resource type="AtlasTexture" id="atlas_head"]
+atlas = ExtResource("3_sheet")
+region = Rect2(349, 55, 166, 148)
+
+[sub_resource type="AtlasTexture" id="atlas_torso"]
+atlas = ExtResource("3_sheet")
+region = Rect2(582, 392, 210, 160)
+
+[sub_resource type="AtlasTexture" id="atlas_upper_arm_l"]
+atlas = ExtResource("3_sheet")
+region = Rect2(64, 450, 87, 128)
+
+[sub_resource type="AtlasTexture" id="atlas_upper_arm_r"]
+atlas = ExtResource("3_sheet")
+region = Rect2(210, 450, 84, 128)
+
+[sub_resource type="AtlasTexture" id="atlas_hand"]
+atlas = ExtResource("3_sheet")
+region = Rect2(59, 717, 55, 86)
+
+[sub_resource type="AtlasTexture" id="atlas_thigh"]
+atlas = ExtResource("3_sheet")
+region = Rect2(656, 587, 106, 142)
+
+[sub_resource type="AtlasTexture" id="atlas_calf"]
+atlas = ExtResource("3_sheet")
+region = Rect2(806, 573, 87, 147)
+
+[sub_resource type="AtlasTexture" id="atlas_tail"]
+atlas = ExtResource("3_sheet")
+region = Rect2(1036, 615, 72, 97)
+
+; ─── Root + script override ───────────────────────────────────────────────
 [node name="Buffalo" instance=ExtResource("1_template")]
 script = ExtResource("2_buffalo")
 
-; ─── Spine column ─────────────────────────────────────────────────────────
+; ─── Spine column bone overrides ──────────────────────────────────────────
 [node name="root" parent="Skeleton2D" index="0"]
 position = Vector2(0, -29)
 rest = Transform2D(1, 0, 0, 1, 0, -29)
@@ -46,11 +71,21 @@ rest = Transform2D(1, 0, 0, 1, 0, -29)
 position = Vector2(0, -16)
 rest = Transform2D(1, 0, 0, 1, 0, -16)
 
+[node name="TorsoSprite" parent="Skeleton2D/root/spine" index="0"]
+texture = SubResource("atlas_torso")
+scale = Vector2(0.1, 0.1)
+offset = Vector2(0, 80)
+
 [node name="head" parent="Skeleton2D/root/spine" index="1"]
 position = Vector2(0, -3)
 rest = Transform2D(1, 0, 0, 1, 0, -3)
 
-; ─── Left arm chain (shoulder → upper_arm → forearm pivot → hand) ─────────
+[node name="HeadSprite" parent="Skeleton2D/root/spine/head" index="0"]
+texture = SubResource("atlas_head")
+scale = Vector2(0.1, 0.1)
+offset = Vector2(0, -74)
+
+; ─── Left arm chain ───────────────────────────────────────────────────────
 [node name="shoulder_l" parent="Skeleton2D/root/spine" index="2"]
 position = Vector2(-9, 0)
 rest = Transform2D(1, 0, 0, 1, -9, 0)
@@ -59,7 +94,12 @@ rest = Transform2D(1, 0, 0, 1, -9, 0)
 position = Vector2(0, 0)
 rest = Transform2D(1, 0, 0, 1, 0, 0)
 
-[node name="forearm_l" parent="Skeleton2D/root/spine/shoulder_l/upper_arm_l" index="0"]
+[node name="UpperArmLSprite" parent="Skeleton2D/root/spine/shoulder_l/upper_arm_l" index="0"]
+texture = SubResource("atlas_upper_arm_l")
+scale = Vector2(0.1, 0.1)
+offset = Vector2(0, 64)
+
+[node name="forearm_l" parent="Skeleton2D/root/spine/shoulder_l/upper_arm_l" index="1"]
 position = Vector2(0, 13)
 rest = Transform2D(1, 0, 0, 1, 0, 13)
 
@@ -67,7 +107,12 @@ rest = Transform2D(1, 0, 0, 1, 0, 13)
 position = Vector2(0, 0)
 rest = Transform2D(1, 0, 0, 1, 0, 0)
 
-; ─── Right arm chain (mirrored) ───────────────────────────────────────────
+[node name="HandLSprite" parent="Skeleton2D/root/spine/shoulder_l/upper_arm_l/forearm_l/hand_l" index="0"]
+texture = SubResource("atlas_hand")
+scale = Vector2(0.1, 0.1)
+offset = Vector2(0, 43)
+
+; ─── Right arm chain ──────────────────────────────────────────────────────
 [node name="shoulder_r" parent="Skeleton2D/root/spine" index="4"]
 position = Vector2(9, 0)
 rest = Transform2D(1, 0, 0, 1, 9, 0)
@@ -76,7 +121,12 @@ rest = Transform2D(1, 0, 0, 1, 9, 0)
 position = Vector2(0, 0)
 rest = Transform2D(1, 0, 0, 1, 0, 0)
 
-[node name="forearm_r" parent="Skeleton2D/root/spine/shoulder_r/upper_arm_r" index="0"]
+[node name="UpperArmRSprite" parent="Skeleton2D/root/spine/shoulder_r/upper_arm_r" index="0"]
+texture = SubResource("atlas_upper_arm_r")
+scale = Vector2(0.1, 0.1)
+offset = Vector2(0, 64)
+
+[node name="forearm_r" parent="Skeleton2D/root/spine/shoulder_r/upper_arm_r" index="1"]
 position = Vector2(0, 13)
 rest = Transform2D(1, 0, 0, 1, 0, 13)
 
@@ -84,7 +134,12 @@ rest = Transform2D(1, 0, 0, 1, 0, 13)
 position = Vector2(0, 0)
 rest = Transform2D(1, 0, 0, 1, 0, 0)
 
-; ─── Left leg chain (hip → thigh → calf → foot pivot) ─────────────────────
+[node name="HandRSprite" parent="Skeleton2D/root/spine/shoulder_r/upper_arm_r/forearm_r/hand_r" index="0"]
+texture = SubResource("atlas_hand")
+scale = Vector2(0.1, 0.1)
+offset = Vector2(0, 43)
+
+; ─── Left leg chain ───────────────────────────────────────────────────────
 [node name="hip_l" parent="Skeleton2D/root" index="1"]
 position = Vector2(-4, 0)
 rest = Transform2D(1, 0, 0, 1, -4, 0)
@@ -93,15 +148,25 @@ rest = Transform2D(1, 0, 0, 1, -4, 0)
 position = Vector2(0, 0)
 rest = Transform2D(1, 0, 0, 1, 0, 0)
 
-[node name="calf_l" parent="Skeleton2D/root/hip_l/thigh_l" index="0"]
+[node name="ThighLSprite" parent="Skeleton2D/root/hip_l/thigh_l" index="0"]
+texture = SubResource("atlas_thigh")
+scale = Vector2(0.1, 0.1)
+offset = Vector2(0, 71)
+
+[node name="calf_l" parent="Skeleton2D/root/hip_l/thigh_l" index="1"]
 position = Vector2(0, 14)
 rest = Transform2D(1, 0, 0, 1, 0, 14)
 
-[node name="foot_l" parent="Skeleton2D/root/hip_l/thigh_l/calf_l" index="0"]
+[node name="CalfLSprite" parent="Skeleton2D/root/hip_l/thigh_l/calf_l" index="0"]
+texture = SubResource("atlas_calf")
+scale = Vector2(0.1, 0.1)
+offset = Vector2(0, 73.5)
+
+[node name="foot_l" parent="Skeleton2D/root/hip_l/thigh_l/calf_l" index="1"]
 position = Vector2(0, 0)
 rest = Transform2D(1, 0, 0, 1, 0, 0)
 
-; ─── Right leg chain (mirrored) ───────────────────────────────────────────
+; ─── Right leg chain ──────────────────────────────────────────────────────
 [node name="hip_r" parent="Skeleton2D/root" index="2"]
 position = Vector2(4, 0)
 rest = Transform2D(1, 0, 0, 1, 4, 0)
@@ -110,11 +175,21 @@ rest = Transform2D(1, 0, 0, 1, 4, 0)
 position = Vector2(0, 0)
 rest = Transform2D(1, 0, 0, 1, 0, 0)
 
-[node name="calf_r" parent="Skeleton2D/root/hip_r/thigh_r" index="0"]
+[node name="ThighRSprite" parent="Skeleton2D/root/hip_r/thigh_r" index="0"]
+texture = SubResource("atlas_thigh")
+scale = Vector2(0.1, 0.1)
+offset = Vector2(0, 71)
+
+[node name="calf_r" parent="Skeleton2D/root/hip_r/thigh_r" index="1"]
 position = Vector2(0, 14)
 rest = Transform2D(1, 0, 0, 1, 0, 14)
 
-[node name="foot_r" parent="Skeleton2D/root/hip_r/thigh_r/calf_r" index="0"]
+[node name="CalfRSprite" parent="Skeleton2D/root/hip_r/thigh_r/calf_r" index="0"]
+texture = SubResource("atlas_calf")
+scale = Vector2(0.1, 0.1)
+offset = Vector2(0, 73.5)
+
+[node name="foot_r" parent="Skeleton2D/root/hip_r/thigh_r/calf_r" index="1"]
 position = Vector2(0, 0)
 rest = Transform2D(1, 0, 0, 1, 0, 0)
 
@@ -122,3 +197,8 @@ rest = Transform2D(1, 0, 0, 1, 0, 0)
 [node name="tail" parent="Skeleton2D/root" index="3"]
 position = Vector2(5, -3)
 rest = Transform2D(1, 0, 0, 1, 5, -3)
+
+[node name="TailSprite" parent="Skeleton2D/root/tail" index="0"]
+texture = SubResource("atlas_tail")
+scale = Vector2(0.1, 0.1)
+offset = Vector2(0, 0)
