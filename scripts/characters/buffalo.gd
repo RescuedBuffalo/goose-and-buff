@@ -33,7 +33,7 @@ const _IDLE_FRAME := 1
 # in Buffalo-local px (pre the AnimatedSprite2D's own scale, which is
 # applied on the child, so this is screen px). Frequency is rad/s tuned
 # so the body bounces ~twice per 4-frame cycle at 6 FPS.
-const _BOB_AMPLITUDE := 2.5
+const _BOB_AMPLITUDE := 1.25
 const _BOB_FREQUENCY := 19.0
 
 @onready var anim_sprite: AnimatedSprite2D = $AnimatedSprite2D

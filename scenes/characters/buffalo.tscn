@@ -20,6 +20,7 @@
 
 [ext_resource type="Texture2D" path="res://design/assets/characters/buffalo_rigging_sheet.png" id="1_sheet"]
 [ext_resource type="Script" path="res://scripts/characters/buffalo.gd" id="2_buffalo"]
+[ext_resource type="Script" path="res://scripts/camera/character_shadow.gd" id="3_shadow"]
 
 ; ─── 16 AtlasTexture sub-resources, one per frame ─────────────────────────
 ; Naming: atlas_<dir>_<frame>. Coords from connected-component centroids,
@@ -141,15 +142,30 @@ animations = [{
 }]
 
 ; ─── Scene root ──────────────────────────────────────────────────────────
+; NO y_sort_enabled here. The rig is a single sprite (+ its own ground
+; shadow) — there's nothing to depth-sort *within* it, and a nested
+; y-sort context inside Hero's y-sort caused the shadow's z-layer to
+; flicker against the sprite as the character moved/bobbed. The whole
+; rig is treated as one unit in Hero's y-sort (so trees etc still
+; occlude it correctly). Internal draw order = tree order: Shadow
+; first (behind), AnimatedSprite2D second (in front). Always correct,
+; no z_index tricks needed.
 [node name="Buffalo" type="Node2D"]
-y_sort_enabled = true
 script = ExtResource("2_buffalo")
 
+[node name="Shadow" type="Node2D" parent="."]
+script = ExtResource("3_shadow")
+; The buffalo walk frames carry no baked shadow (asset canon is
+; transparent-isolated), so the ground contact is drawn here. Sized +
+; positioned by buffalo.gd to sit flat under the feet. Drawn before
+; AnimatedSprite2D so it's always behind the body.
+radius_x = 15.0
+radius_y = 4.5
+alpha = 0.26
+
 [node name="AnimatedSprite2D" type="AnimatedSprite2D" parent="."]
-; Centered=true (default). offset.y = -107.5 anchors the frame's bottom
-; at the node's origin so the buffalo's feet sit on the hero position
-; (per BUF-181 bottom-center convention). Scale 0.30 brings the ~200px
-; buffalo silhouette down to ~60px on-screen — matches the human-vs-tree
+; Centered=true (default). Scale 0.30 brings the ~200px buffalo
+; silhouette down to ~60px on-screen — matches the human-vs-tree
 ; ratio target from BUF-181 v11.
 sprite_frames = SubResource("frames")
 animation = &"walk_front"
@@ -158,7 +174,6 @@ scale = Vector2(0.3, 0.3)
 ; Frame is 215px tall but the buffalo's feet within frame 0 sit at
 ; source-y=277 (frame-y=212 of 215) — there's ~3px of empty padding
 ; below the silhouette. offset.y = -104.5 puts the feet (frame-y=212)
-; at the node's origin instead of the frame's bottom edge, so the
-; procedural ellipse shadow renders directly under the feet rather
-; than 3-4px below them.
+; at the node's origin so the in-rig ground shadow (at origin) sits
+; directly under the feet.
 offset = Vector2(0, -104.5)
