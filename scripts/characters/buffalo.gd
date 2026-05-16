@@ -50,11 +50,20 @@ const _IDLE_FRAME := 1
 # stride length.
 const _RENDER_HEIGHT_PX := 60.0
 
-# Full-gait travel as a fraction of character height. THIS is the dial
-# for walk feel: 0.8–1.0 is a natural stride; bump toward 1.4+ for a
-# slower, longer-striding "glide"; drop toward 0.6 for a quick shuffle.
-# Pure visual tuning — does not affect movement speed (that's hero.gd).
-const _STRIDE_RATIO := 1.1
+# Full-gait travel as a fraction of character height, PER DIRECTION.
+# THIS is the dial for walk feel. It's per-direction because the
+# side-profile (LEFT/RIGHT) frames show a much larger visible foot
+# swing than the head-on FRONT/BACK frames — the same ground stride
+# reads as "sliding" in profile while looking fine head-on. A shorter
+# stride for L/R cycles the legs faster per unit distance so the
+# planted foot keeps up. Lower = quicker cadence (less forward skate);
+# higher = longer glide. Pure visual tuning — move speed is hero.gd.
+const _STRIDE_RATIO := {
+	CharacterDirection.Direction.FRONT: 1.1,
+	CharacterDirection.Direction.BACK:  1.1,
+	CharacterDirection.Direction.LEFT:  0.8,
+	CharacterDirection.Direction.RIGHT: 0.8,
+}
 
 # Walk bob. Synced to the stride so the body lifts on each footfall
 # rather than on an unrelated clock. Amplitude in screen px.
@@ -68,10 +77,10 @@ var _velocity_px: Vector2 = Vector2.ZERO
 var _distance_travelled: float = 0.0
 var _sprite_base_y: float = 0.0
 
-# Ground px the character must travel to advance one frame, and to
-# complete one full gait cycle. Computed once from the constants above.
-var _stride_px: float = _RENDER_HEIGHT_PX * _STRIDE_RATIO
-var _distance_per_frame: float = (_RENDER_HEIGHT_PX * _STRIDE_RATIO) / float(_FRAMES_PER_CYCLE)
+# Ground px to travel for one full gait cycle / one frame advance.
+# Recomputed whenever facing changes (per-direction stride ratio).
+var _stride_px: float = _RENDER_HEIGHT_PX
+var _distance_per_frame: float = _RENDER_HEIGHT_PX / float(_FRAMES_PER_CYCLE)
 
 func _ready() -> void:
 	if anim_sprite == null:
@@ -99,6 +108,11 @@ func _apply_direction_animation() -> void:
 	var anim_name: String = _ANIM_NAMES.get(_facing, "walk_front")
 	if anim_sprite.animation != StringName(anim_name):
 		anim_sprite.animation = StringName(anim_name)
+	# Recompute the stride for this direction so L/R cycle faster than
+	# F/B (their bigger visible foot-swing slides at the F/B ratio).
+	var ratio: float = _STRIDE_RATIO.get(_facing, 1.0)
+	_stride_px = _RENDER_HEIGHT_PX * ratio
+	_distance_per_frame = _stride_px / float(_FRAMES_PER_CYCLE)
 
 func _process(delta: float) -> void:
 	if anim_sprite == null:
