@@ -22,7 +22,7 @@ const PIXELS_PER_STUD := 12.0
 # confirms which version of the portrait/shadow code is actually live.
 # When you edit hero.gd or character_shadow.gd, bump this and the line
 # in _ready() will print [hero v<N>] at run-start.
-const _BUF_181_BUILD_MARKER := "BUF-181 v19 / BUF-183 Phase 3 (in-rig shadow, no y-sort flicker, half bob)"
+const _BUF_181_BUILD_MARKER := "BUF-181 v20 / BUF-183 Phase 3 (distance-driven gait, no foot slide)"
 # Toggle for verbose portrait/shadow logging. Leave on while M3 art
 # pipeline placeholder is in flux; flip to false once Phase 3 rigs land.
 const _DEBUG_PORTRAIT_LOG := true
@@ -243,11 +243,12 @@ func _physics_process(delta: float) -> void:
 		if new_tile != current_tile:
 			current_tile = new_tile
 			tile_changed.emit(current_tile)
-	# Drive the rig's animation off the input direction (zero vector → idle,
-	# non-zero → walk in that cardinal direction). The rig itself handles
-	# direction quantization via CharacterDirection.from_velocity.
+	# Drive the rig's animation off the ACTUAL world velocity (px/s), not
+	# just the normalized direction. The rig advances its walk cycle by
+	# distance travelled so the feet track the ground at any speed — it
+	# needs the real magnitude, not a unit vector. Zero → idle.
 	if _rig != null and _rig.has_method("set_movement"):
-		_rig.set_movement(input_dir)
+		_rig.set_movement(input_dir * move_pixels_per_second)
 	# Face toward cursor every frame so the swing arc reads honestly.
 	# Falling back to last facing if the cursor is somehow on top of us.
 	var mouse_world: Vector2 = get_global_mouse_position()
