@@ -27,16 +27,41 @@ const _ANIM_NAMES := {
 # has its still pose at a different index.
 const _IDLE_FRAME := 1
 
+# Walk bob — the FRONT/BACK frames have inherently subtle leg swing
+# (you don't see much stride from straight-on), so a vertical body
+# bounce sells "walking" the way Stardew/Don't Starve do. Amplitude is
+# in Buffalo-local px (pre the AnimatedSprite2D's own scale, which is
+# applied on the child, so this is screen px). Frequency is rad/s tuned
+# so the body bounces ~twice per 4-frame cycle at 6 FPS.
+const _BOB_AMPLITUDE := 2.5
+const _BOB_FREQUENCY := 19.0
+
 @onready var anim_sprite: AnimatedSprite2D = $AnimatedSprite2D
 
 var _facing: int = CharacterDirection.Direction.FRONT
 var _is_walking: bool = false
+var _bob_time: float = 0.0
+var _sprite_base_y: float = 0.0
 
 func _ready() -> void:
 	if anim_sprite == null:
 		push_warning("[buffalo] no AnimatedSprite2D child found")
 		return
+	_sprite_base_y = anim_sprite.position.y
 	_apply_animation_state()
+
+func _process(delta: float) -> void:
+	if anim_sprite == null:
+		return
+	if _is_walking:
+		_bob_time += delta
+		# abs(sin) → the body lifts UP (negative y) and returns to the
+		# base each half-cycle; feet visually stay planted at the bottom.
+		var lift: float = absf(sin(_bob_time * _BOB_FREQUENCY)) * _BOB_AMPLITUDE
+		anim_sprite.position.y = _sprite_base_y - lift
+	elif anim_sprite.position.y != _sprite_base_y:
+		_bob_time = 0.0
+		anim_sprite.position.y = _sprite_base_y
 
 ## Called by the hero adapter every frame with the player's velocity.
 ## Updates facing direction (if velocity is non-trivial) and toggles

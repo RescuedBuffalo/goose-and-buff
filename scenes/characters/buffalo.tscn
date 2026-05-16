@@ -107,7 +107,7 @@ animations = [{
 ],
 "loop": true,
 "name": &"walk_front",
-"speed": 4.0
+"speed": 6.0
 }, {
 "frames": [
 {"duration": 1.0, "texture": SubResource("a_back_0")},
@@ -117,7 +117,7 @@ animations = [{
 ],
 "loop": true,
 "name": &"walk_back",
-"speed": 4.0
+"speed": 6.0
 }, {
 "frames": [
 {"duration": 1.0, "texture": SubResource("a_left_0")},
@@ -127,7 +127,7 @@ animations = [{
 ],
 "loop": true,
 "name": &"walk_left",
-"speed": 4.0
+"speed": 6.0
 }, {
 "frames": [
 {"duration": 1.0, "texture": SubResource("a_right_0")},
@@ -137,7 +137,7 @@ animations = [{
 ],
 "loop": true,
 "name": &"walk_right",
-"speed": 4.0
+"speed": 6.0
 }]
 
 ; ─── Scene root ──────────────────────────────────────────────────────────
