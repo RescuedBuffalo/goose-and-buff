@@ -65,9 +65,20 @@ const _STRIDE_RATIO := {
 	CharacterDirection.Direction.RIGHT: 0.8,
 }
 
-# Walk bob. Synced to the stride so the body lifts on each footfall
-# rather than on an unrelated clock. Amplitude in screen px.
-const _BOB_AMPLITUDE := 1.25
+# Walk bob, PER DIRECTION. Synced to the stride (lifts on each
+# footfall). The generated RIGHT row has ~30% less frame-to-frame
+# pose variation than FRONT (measured: avg pixel delta 7.7 vs 10.9),
+# and LEFT is weak too — so the side views lean harder on a bigger
+# vertical bounce to read as "walking" when the legs barely move in
+# the art. FRONT/BACK have enough leg variation to stay subtle.
+# (Proper fix is regenerating the side rows with more leg swing;
+# this is the make-it-readable-now compensation.)
+const _BOB_AMPLITUDE := {
+	CharacterDirection.Direction.FRONT: 1.25,
+	CharacterDirection.Direction.BACK:  1.25,
+	CharacterDirection.Direction.LEFT:  3.0,
+	CharacterDirection.Direction.RIGHT: 3.5,
+}
 
 @onready var anim_sprite: AnimatedSprite2D = $AnimatedSprite2D
 
@@ -124,7 +135,8 @@ func _process(delta: float) -> void:
 		# Bob phase tracks the gait: two lifts per cycle (one per
 		# footfall). cycle_phase 0→1 over one full stride.
 		var cycle_phase: float = fmod(_distance_travelled / _stride_px, 1.0)
-		var lift: float = absf(sin(cycle_phase * TAU)) * _BOB_AMPLITUDE
+		var bob_amp: float = _BOB_AMPLITUDE.get(_facing, 1.25)
+		var lift: float = absf(sin(cycle_phase * TAU)) * bob_amp
 		anim_sprite.position.y = _sprite_base_y - lift
 	else:
 		# Idle: reset gait accumulator so the next walk starts from a
