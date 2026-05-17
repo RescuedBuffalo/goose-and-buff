@@ -22,7 +22,7 @@ const PIXELS_PER_STUD := 12.0
 # confirms which version of the portrait/shadow code is actually live.
 # When you edit hero.gd or character_shadow.gd, bump this and the line
 # in _ready() will print [hero v<N>] at run-start.
-const _BUF_181_BUILD_MARKER := "BUF-181 v23 / BUF-183 Phase 3 (rig fallback-suppress + variant tint)"
+const _BUF_181_BUILD_MARKER := "BUF-181 v24 / BUF-183 Phase 3 (rig animates remote puppets too)"
 # Verbose portrait/shadow logging. Off now that the frame-based rig is
 # the accepted placeholder — flip back on if the portrait-fallback path
 # (used when a hero has no rig) needs debugging.
@@ -259,6 +259,10 @@ func _physics_process(delta: float) -> void:
 			facing = new_facing
 			facing_changed.emit(facing)
 
+var _remote_pose_seen: bool = false
+var _remote_prev_pos: Vector2 = Vector2.ZERO
+var _remote_prev_us: int = 0
+
 func apply_remote_pose(new_pos: Vector2, new_facing: Vector2) -> void:
 	# Replication adapter calls this with the host-rebroadcast position
 	# for remote heroes. Direct write — at 10Hz over a 1080p viewport the
@@ -274,6 +278,23 @@ func apply_remote_pose(new_pos: Vector2, new_facing: Vector2) -> void:
 		if new_tile != current_tile:
 			current_tile = new_tile
 			tile_changed.emit(current_tile)
+	# Drive the rig from replicated motion. _physics_process returns
+	# early for is_remote_puppet / is_ai_placeholder, so the local-path
+	# _rig.set_movement() never runs for puppets — without this the
+	# teammate/host-side Buffalo stays frozen on its idle frame while
+	# the node teleports around. Derive a px/s velocity from the pose
+	# delta over the wall-clock interval between replication ticks (the
+	# rig's distance-driven gait holds that velocity until the next
+	# update, ~0.1s at 10Hz, which animates smoothly).
+	if _rig != null and _rig.has_method("set_movement"):
+		var now_us: int = Time.get_ticks_usec()
+		if _remote_pose_seen:
+			var dt: float = float(now_us - _remote_prev_us) / 1_000_000.0
+			if dt > 0.0001:
+				_rig.set_movement((new_pos - _remote_prev_pos) / dt)
+		_remote_pose_seen = true
+		_remote_prev_pos = new_pos
+		_remote_prev_us = now_us
 
 func set_remote_puppet(remote: bool) -> void:
 	is_remote_puppet = remote
