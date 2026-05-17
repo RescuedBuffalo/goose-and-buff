@@ -1,0 +1,179 @@
+[gd_scene load_steps=20 format=3]
+
+; Buffalo character rig (BUF-183 Phase 3 — frame-based pivot).
+;
+; The user replaced the parts-rigging sheet with a 4-row x 4-column walk
+; sprite sheet:
+;   row 0: FRONT walk (4 frames)
+;   row 1: BACK walk  (4 frames)
+;   row 2: LEFT walk  (4 frames)
+;   row 3: RIGHT walk (4 frames)
+;
+; Each row is a 4-frame loop. Frame 0 is the "stand still" pose for that
+; direction (used when the hero is idle). Walking plays all 4 frames at
+; 8 FPS for the typical pace.
+;
+; Frame regions are 215x215 pixels centered on each buffalo's connected-
+; component centroid (computed via scripts/tests/find_rig_parts.py against
+; the new sheet — buffalos aren't perfectly grid-aligned so each frame's
+; rect has individual offsets).
+
+[ext_resource type="Texture2D" path="res://design/assets/characters/buffalo_rigging_sheet.png" id="1_sheet"]
+[ext_resource type="Script" path="res://scripts/characters/buffalo.gd" id="2_buffalo"]
+[ext_resource type="Script" path="res://scripts/camera/character_shadow.gd" id="3_shadow"]
+
+; ─── 16 AtlasTexture sub-resources, one per frame ─────────────────────────
+; Naming: atlas_<dir>_<frame>. Coords from connected-component centroids,
+; cells 215x215 centered on each.
+
+; FRONT (row 0)
+[sub_resource type="AtlasTexture" id="a_front_0"]
+atlas = ExtResource("1_sheet")
+region = Rect2(108, 65, 215, 215)
+
+[sub_resource type="AtlasTexture" id="a_front_1"]
+atlas = ExtResource("1_sheet")
+region = Rect2(324, 65, 215, 215)
+
+[sub_resource type="AtlasTexture" id="a_front_2"]
+atlas = ExtResource("1_sheet")
+region = Rect2(543, 65, 215, 215)
+
+[sub_resource type="AtlasTexture" id="a_front_3"]
+atlas = ExtResource("1_sheet")
+region = Rect2(763, 65, 215, 215)
+
+; BACK (row 1)
+[sub_resource type="AtlasTexture" id="a_back_0"]
+atlas = ExtResource("1_sheet")
+region = Rect2(103, 296, 215, 215)
+
+[sub_resource type="AtlasTexture" id="a_back_1"]
+atlas = ExtResource("1_sheet")
+region = Rect2(320, 295, 215, 215)
+
+[sub_resource type="AtlasTexture" id="a_back_2"]
+atlas = ExtResource("1_sheet")
+region = Rect2(541, 297, 215, 215)
+
+[sub_resource type="AtlasTexture" id="a_back_3"]
+atlas = ExtResource("1_sheet")
+region = Rect2(761, 295, 215, 215)
+
+; LEFT (row 2)
+[sub_resource type="AtlasTexture" id="a_left_0"]
+atlas = ExtResource("1_sheet")
+region = Rect2(95, 518, 215, 215)
+
+[sub_resource type="AtlasTexture" id="a_left_1"]
+atlas = ExtResource("1_sheet")
+region = Rect2(309, 518, 215, 215)
+
+[sub_resource type="AtlasTexture" id="a_left_2"]
+atlas = ExtResource("1_sheet")
+region = Rect2(528, 518, 215, 215)
+
+[sub_resource type="AtlasTexture" id="a_left_3"]
+atlas = ExtResource("1_sheet")
+region = Rect2(747, 518, 215, 215)
+
+; RIGHT (row 3)
+[sub_resource type="AtlasTexture" id="a_right_0"]
+atlas = ExtResource("1_sheet")
+region = Rect2(106, 739, 215, 215)
+
+[sub_resource type="AtlasTexture" id="a_right_1"]
+atlas = ExtResource("1_sheet")
+region = Rect2(331, 739, 215, 215)
+
+[sub_resource type="AtlasTexture" id="a_right_2"]
+atlas = ExtResource("1_sheet")
+region = Rect2(551, 739, 215, 215)
+
+[sub_resource type="AtlasTexture" id="a_right_3"]
+atlas = ExtResource("1_sheet")
+region = Rect2(775, 739, 215, 215)
+
+; ─── SpriteFrames container ──────────────────────────────────────────────
+; 4 walk animations, all looping at 8 FPS. The first frame of each is the
+; stand-still pose; idle state plays only frame 0 (no animation tick).
+
+[sub_resource type="SpriteFrames" id="frames"]
+animations = [{
+"frames": [
+{"duration": 1.0, "texture": SubResource("a_front_0")},
+{"duration": 1.0, "texture": SubResource("a_front_1")},
+{"duration": 1.0, "texture": SubResource("a_front_2")},
+{"duration": 1.0, "texture": SubResource("a_front_3")}
+],
+"loop": true,
+"name": &"walk_front",
+"speed": 6.0
+}, {
+"frames": [
+{"duration": 1.0, "texture": SubResource("a_back_0")},
+{"duration": 1.0, "texture": SubResource("a_back_1")},
+{"duration": 1.0, "texture": SubResource("a_back_2")},
+{"duration": 1.0, "texture": SubResource("a_back_3")}
+],
+"loop": true,
+"name": &"walk_back",
+"speed": 6.0
+}, {
+"frames": [
+{"duration": 1.0, "texture": SubResource("a_left_0")},
+{"duration": 1.0, "texture": SubResource("a_left_1")},
+{"duration": 1.0, "texture": SubResource("a_left_2")},
+{"duration": 1.0, "texture": SubResource("a_left_3")}
+],
+"loop": true,
+"name": &"walk_left",
+"speed": 6.0
+}, {
+"frames": [
+{"duration": 1.0, "texture": SubResource("a_right_0")},
+{"duration": 1.0, "texture": SubResource("a_right_1")},
+{"duration": 1.0, "texture": SubResource("a_right_2")},
+{"duration": 1.0, "texture": SubResource("a_right_3")}
+],
+"loop": true,
+"name": &"walk_right",
+"speed": 6.0
+}]
+
+; ─── Scene root ──────────────────────────────────────────────────────────
+; NO y_sort_enabled here. The rig is a single sprite (+ its own ground
+; shadow) — there's nothing to depth-sort *within* it, and a nested
+; y-sort context inside Hero's y-sort caused the shadow's z-layer to
+; flicker against the sprite as the character moved/bobbed. The whole
+; rig is treated as one unit in Hero's y-sort (so trees etc still
+; occlude it correctly). Internal draw order = tree order: Shadow
+; first (behind), AnimatedSprite2D second (in front). Always correct,
+; no z_index tricks needed.
+[node name="Buffalo" type="Node2D"]
+script = ExtResource("2_buffalo")
+
+[node name="Shadow" type="Node2D" parent="."]
+script = ExtResource("3_shadow")
+; The buffalo walk frames carry no baked shadow (asset canon is
+; transparent-isolated), so the ground contact is drawn here. Sized +
+; positioned by buffalo.gd to sit flat under the feet. Drawn before
+; AnimatedSprite2D so it's always behind the body.
+radius_x = 15.0
+radius_y = 4.5
+alpha = 0.26
+
+[node name="AnimatedSprite2D" type="AnimatedSprite2D" parent="."]
+; Centered=true (default). Scale 0.30 brings the ~200px buffalo
+; silhouette down to ~60px on-screen — matches the human-vs-tree
+; ratio target from BUF-181 v11.
+sprite_frames = SubResource("frames")
+animation = &"walk_front"
+frame = 1
+scale = Vector2(0.3, 0.3)
+; Frame is 215px tall but the buffalo's feet within frame 0 sit at
+; source-y=277 (frame-y=212 of 215) — there's ~3px of empty padding
+; below the silhouette. offset.y = -104.5 puts the feet (frame-y=212)
+; at the node's origin so the in-rig ground shadow (at origin) sits
+; directly under the feet.
+offset = Vector2(0, -104.5)

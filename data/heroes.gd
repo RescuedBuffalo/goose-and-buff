@@ -18,7 +18,12 @@ const Buffalo := {
 	"helpAbilityId": "BuffaloStampede",
 	"helpAbilityFlavor": "Charge across the world. Land beside the friend who called.",
 	"baseHealth": 160,
-	"moveSpeed": 12,
+	# BUF-183: dropped 12→8 — at 12 (144 px/s vs 64px tiles) Buffalo
+	# crossed a tile in 0.44s, too frantic for the survival register and
+	# made the walk read as skating. 8 (96 px/s) is a deliberate heavy
+	# stroll that fits the "Sentinel anchor / patient" identity; he stays
+	# the slowest hero (Goose 18, Fox 22).
+	"moveSpeed": 8,
 }
 
 const Goose := {

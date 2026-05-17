@@ -1,0 +1,160 @@
+[gd_scene load_steps=3 format=3]
+
+; Quadruped character rig template (BUF-183).
+;
+; For Frost Wolf and Winterborn Bear. Body is horizontal — spine extends
+; along X from head (front, -X) to tail (back, +X) in the rig's local space.
+; Skeleton2D origin is at ground level, between the 4 paws.
+;
+; Bone positions are placeholder values for a side-profile pose; per-
+; character scenes (Wolf, Bear) tweak proportions during rig assembly.
+; Wolf is sleeker (longer spine, thinner legs); Bear is heavier (shorter
+; legs, broader chest) — both share this structure.
+;
+; Animation set per the M3 plan:
+;   Wolf: idle, walk, lunge, hit_react, frost_shatter_death, aggro_tell
+;   Bear: same, with heavier timing
+; Per-character scenes call set_animation_name() on their AnimationController
+; to remap State.ATTACK -> "lunge" and State.DEATH -> "frost_shatter_death".
+;
+; Bone editor visualization: spine + head bones point in -X (toward the
+; front of the body), legs point in +Y (down toward paws), tail points
+; in +X (toward the back). These are visualization hints — they don't
+; affect transforms or animation.
+
+[ext_resource type="Script" path="res://scripts/character_rig_controller.gd" id="1_rig"]
+[ext_resource type="Script" path="res://scripts/character_animation_controller.gd" id="2_anim"]
+
+[node name="CharacterRigQuadruped" type="Node2D"]
+script = ExtResource("1_rig")
+
+[node name="Skeleton2D" type="Skeleton2D" parent="."]
+
+[node name="root" type="Bone2D" parent="Skeleton2D"]
+position = Vector2(0, -10)
+rest = Transform2D(1, 0, 0, 1, 0, -10)
+length = 4.0
+bone_angle = 3.14159
+
+[node name="spine" type="Bone2D" parent="Skeleton2D/root"]
+position = Vector2(0, 0)
+rest = Transform2D(1, 0, 0, 1, 0, 0)
+length = 14.0
+bone_angle = 3.14159
+
+[node name="TorsoSprite" type="Sprite2D" parent="Skeleton2D/root/spine"]
+
+[node name="neck" type="Bone2D" parent="Skeleton2D/root/spine"]
+position = Vector2(-12, -3)
+rest = Transform2D(1, 0, 0, 1, -12, -3)
+length = 5.0
+bone_angle = 3.14159
+
+[node name="head" type="Bone2D" parent="Skeleton2D/root/spine/neck"]
+position = Vector2(-5, -2)
+rest = Transform2D(1, 0, 0, 1, -5, -2)
+length = 8.0
+bone_angle = 3.14159
+
+[node name="HeadSprite" type="Sprite2D" parent="Skeleton2D/root/spine/neck/head"]
+
+[node name="front_shoulder_l" type="Bone2D" parent="Skeleton2D/root/spine"]
+position = Vector2(-10, 1)
+rest = Transform2D(1, 0, 0, 1, -10, 1)
+length = 3.0
+bone_angle = 1.5708
+
+[node name="front_leg_l" type="Bone2D" parent="Skeleton2D/root/spine/front_shoulder_l"]
+position = Vector2(0, 5)
+rest = Transform2D(1, 0, 0, 1, 0, 5)
+length = 5.0
+bone_angle = 1.5708
+
+[node name="FrontLegLSprite" type="Sprite2D" parent="Skeleton2D/root/spine/front_shoulder_l/front_leg_l"]
+
+[node name="front_paw_l" type="Bone2D" parent="Skeleton2D/root/spine/front_shoulder_l/front_leg_l"]
+position = Vector2(0, 5)
+rest = Transform2D(1, 0, 0, 1, 0, 5)
+length = 4.0
+bone_angle = 1.5708
+
+[node name="FrontPawLSprite" type="Sprite2D" parent="Skeleton2D/root/spine/front_shoulder_l/front_leg_l/front_paw_l"]
+
+[node name="front_shoulder_r" type="Bone2D" parent="Skeleton2D/root/spine"]
+position = Vector2(-10, -1)
+rest = Transform2D(1, 0, 0, 1, -10, -1)
+length = 3.0
+bone_angle = 1.5708
+
+[node name="front_leg_r" type="Bone2D" parent="Skeleton2D/root/spine/front_shoulder_r"]
+position = Vector2(0, 5)
+rest = Transform2D(1, 0, 0, 1, 0, 5)
+length = 5.0
+bone_angle = 1.5708
+
+[node name="FrontLegRSprite" type="Sprite2D" parent="Skeleton2D/root/spine/front_shoulder_r/front_leg_r"]
+
+[node name="front_paw_r" type="Bone2D" parent="Skeleton2D/root/spine/front_shoulder_r/front_leg_r"]
+position = Vector2(0, 5)
+rest = Transform2D(1, 0, 0, 1, 0, 5)
+length = 4.0
+bone_angle = 1.5708
+
+[node name="FrontPawRSprite" type="Sprite2D" parent="Skeleton2D/root/spine/front_shoulder_r/front_leg_r/front_paw_r"]
+
+[node name="hip_l" type="Bone2D" parent="Skeleton2D/root"]
+position = Vector2(10, 1)
+rest = Transform2D(1, 0, 0, 1, 10, 1)
+length = 3.0
+bone_angle = 1.5708
+
+[node name="back_leg_l" type="Bone2D" parent="Skeleton2D/root/hip_l"]
+position = Vector2(0, 5)
+rest = Transform2D(1, 0, 0, 1, 0, 5)
+length = 5.0
+bone_angle = 1.5708
+
+[node name="BackLegLSprite" type="Sprite2D" parent="Skeleton2D/root/hip_l/back_leg_l"]
+
+[node name="back_paw_l" type="Bone2D" parent="Skeleton2D/root/hip_l/back_leg_l"]
+position = Vector2(0, 5)
+rest = Transform2D(1, 0, 0, 1, 0, 5)
+length = 4.0
+bone_angle = 1.5708
+
+[node name="BackPawLSprite" type="Sprite2D" parent="Skeleton2D/root/hip_l/back_leg_l/back_paw_l"]
+
+[node name="hip_r" type="Bone2D" parent="Skeleton2D/root"]
+position = Vector2(10, -1)
+rest = Transform2D(1, 0, 0, 1, 10, -1)
+length = 3.0
+bone_angle = 1.5708
+
+[node name="back_leg_r" type="Bone2D" parent="Skeleton2D/root/hip_r"]
+position = Vector2(0, 5)
+rest = Transform2D(1, 0, 0, 1, 0, 5)
+length = 5.0
+bone_angle = 1.5708
+
+[node name="BackLegRSprite" type="Sprite2D" parent="Skeleton2D/root/hip_r/back_leg_r"]
+
+[node name="back_paw_r" type="Bone2D" parent="Skeleton2D/root/hip_r/back_leg_r"]
+position = Vector2(0, 5)
+rest = Transform2D(1, 0, 0, 1, 0, 5)
+length = 4.0
+bone_angle = 1.5708
+
+[node name="BackPawRSprite" type="Sprite2D" parent="Skeleton2D/root/hip_r/back_leg_r/back_paw_r"]
+
+[node name="tail" type="Bone2D" parent="Skeleton2D/root"]
+position = Vector2(12, -3)
+rest = Transform2D(1, 0, 0, 1, 12, -3)
+length = 8.0
+bone_angle = -0.3
+
+[node name="TailSprite" type="Sprite2D" parent="Skeleton2D/root/tail"]
+
+[node name="AnimationPlayer" type="AnimationPlayer" parent="."]
+
+[node name="AnimationController" type="Node" parent="."]
+script = ExtResource("2_anim")

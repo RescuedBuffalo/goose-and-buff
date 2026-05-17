@@ -1,0 +1,189 @@
+[gd_scene load_steps=3 format=3]
+
+; Bipedal character rig template (BUF-183).
+;
+; Skeleton2D origin is at the character's feet (bottom-center anchor convention
+; from BUF-181). Bone positions are placeholder values for an ~50px-tall
+; standing pose; per-character scenes (Buffalo, Fox, Val, Goose, Owl) tweak
+; bone positions/lengths in their own derivative scenes during rig assembly.
+;
+; Sprite2D slots are placed at every "fleshy" bone (head, torso, upper_arm,
+; forearm, hand, thigh, calf, foot, tail). They start textureless — the
+; per-character scene calls CharacterRigController.set_part_atlases() to
+; populate AtlasTextures from the rigging sheet.
+;
+; Goose / Owl note: this template uses arm-chain bone names (shoulder,
+; upper_arm, forearm, hand). For wing-based characters the rigger can either
+; (a) re-use these bones with wing-shaped AtlasTextures (cheap), or
+; (b) instantiate this template and rename the chain to wing/upper_wing/
+; lower_wing/wingtip in the derivative scene. The CharacterRigController
+; doesn't care about bone names — it operates on logical part names.
+;
+; Bone editor visualization: bone_angle is the direction the bone "points"
+; (-PI/2 = up, PI/2 = down, 0 = right, PI = left) and length is its visual
+; size. These values are purely for editor readability — they don't affect
+; transforms or animation. The values below render the rig as a humanoid
+; silhouette: head/torso pointing up, limbs pointing down from joints.
+
+[ext_resource type="Script" path="res://scripts/character_rig_controller.gd" id="1_rig"]
+[ext_resource type="Script" path="res://scripts/character_animation_controller.gd" id="2_anim"]
+
+[node name="CharacterRigBipedal" type="Node2D"]
+script = ExtResource("1_rig")
+
+[node name="Skeleton2D" type="Skeleton2D" parent="."]
+
+[node name="root" type="Bone2D" parent="Skeleton2D"]
+position = Vector2(0, -22)
+rest = Transform2D(1, 0, 0, 1, 0, -22)
+length = 4.0
+bone_angle = -1.5708
+
+[node name="spine" type="Bone2D" parent="Skeleton2D/root"]
+position = Vector2(0, -10)
+rest = Transform2D(1, 0, 0, 1, 0, -10)
+length = 10.0
+bone_angle = -1.5708
+
+[node name="TorsoSprite" type="Sprite2D" parent="Skeleton2D/root/spine"]
+
+[node name="head" type="Bone2D" parent="Skeleton2D/root/spine"]
+position = Vector2(0, -10)
+rest = Transform2D(1, 0, 0, 1, 0, -10)
+length = 12.0
+bone_angle = -1.5708
+
+[node name="HeadSprite" type="Sprite2D" parent="Skeleton2D/root/spine/head"]
+
+[node name="shoulder_l" type="Bone2D" parent="Skeleton2D/root/spine"]
+position = Vector2(-7, -8)
+rest = Transform2D(1, 0, 0, 1, -7, -8)
+length = 3.0
+bone_angle = 3.14159
+
+[node name="upper_arm_l" type="Bone2D" parent="Skeleton2D/root/spine/shoulder_l"]
+position = Vector2(0, 6)
+rest = Transform2D(1, 0, 0, 1, 0, 6)
+length = 7.0
+bone_angle = 1.5708
+
+[node name="UpperArmLSprite" type="Sprite2D" parent="Skeleton2D/root/spine/shoulder_l/upper_arm_l"]
+
+[node name="forearm_l" type="Bone2D" parent="Skeleton2D/root/spine/shoulder_l/upper_arm_l"]
+position = Vector2(0, 7)
+rest = Transform2D(1, 0, 0, 1, 0, 7)
+length = 6.0
+bone_angle = 1.5708
+
+[node name="ForearmLSprite" type="Sprite2D" parent="Skeleton2D/root/spine/shoulder_l/upper_arm_l/forearm_l"]
+
+[node name="hand_l" type="Bone2D" parent="Skeleton2D/root/spine/shoulder_l/upper_arm_l/forearm_l"]
+position = Vector2(0, 5)
+rest = Transform2D(1, 0, 0, 1, 0, 5)
+length = 4.0
+bone_angle = 1.5708
+
+[node name="HandLSprite" type="Sprite2D" parent="Skeleton2D/root/spine/shoulder_l/upper_arm_l/forearm_l/hand_l"]
+
+[node name="shoulder_r" type="Bone2D" parent="Skeleton2D/root/spine"]
+position = Vector2(7, -8)
+rest = Transform2D(1, 0, 0, 1, 7, -8)
+length = 3.0
+bone_angle = 0.0
+
+[node name="upper_arm_r" type="Bone2D" parent="Skeleton2D/root/spine/shoulder_r"]
+position = Vector2(0, 6)
+rest = Transform2D(1, 0, 0, 1, 0, 6)
+length = 7.0
+bone_angle = 1.5708
+
+[node name="UpperArmRSprite" type="Sprite2D" parent="Skeleton2D/root/spine/shoulder_r/upper_arm_r"]
+
+[node name="forearm_r" type="Bone2D" parent="Skeleton2D/root/spine/shoulder_r/upper_arm_r"]
+position = Vector2(0, 7)
+rest = Transform2D(1, 0, 0, 1, 0, 7)
+length = 6.0
+bone_angle = 1.5708
+
+[node name="ForearmRSprite" type="Sprite2D" parent="Skeleton2D/root/spine/shoulder_r/upper_arm_r/forearm_r"]
+
+[node name="hand_r" type="Bone2D" parent="Skeleton2D/root/spine/shoulder_r/upper_arm_r/forearm_r"]
+position = Vector2(0, 5)
+rest = Transform2D(1, 0, 0, 1, 0, 5)
+length = 4.0
+bone_angle = 1.5708
+
+[node name="HandRSprite" type="Sprite2D" parent="Skeleton2D/root/spine/shoulder_r/upper_arm_r/forearm_r/hand_r"]
+
+[node name="hip_l" type="Bone2D" parent="Skeleton2D/root"]
+position = Vector2(-4, 0)
+rest = Transform2D(1, 0, 0, 1, -4, 0)
+length = 3.0
+bone_angle = 1.5708
+
+[node name="thigh_l" type="Bone2D" parent="Skeleton2D/root/hip_l"]
+position = Vector2(0, 6)
+rest = Transform2D(1, 0, 0, 1, 0, 6)
+length = 6.0
+bone_angle = 1.5708
+
+[node name="ThighLSprite" type="Sprite2D" parent="Skeleton2D/root/hip_l/thigh_l"]
+
+[node name="calf_l" type="Bone2D" parent="Skeleton2D/root/hip_l/thigh_l"]
+position = Vector2(0, 7)
+rest = Transform2D(1, 0, 0, 1, 0, 7)
+length = 7.0
+bone_angle = 1.5708
+
+[node name="CalfLSprite" type="Sprite2D" parent="Skeleton2D/root/hip_l/thigh_l/calf_l"]
+
+[node name="foot_l" type="Bone2D" parent="Skeleton2D/root/hip_l/thigh_l/calf_l"]
+position = Vector2(0, 5)
+rest = Transform2D(1, 0, 0, 1, 0, 5)
+length = 5.0
+bone_angle = 1.5708
+
+[node name="FootLSprite" type="Sprite2D" parent="Skeleton2D/root/hip_l/thigh_l/calf_l/foot_l"]
+
+[node name="hip_r" type="Bone2D" parent="Skeleton2D/root"]
+position = Vector2(4, 0)
+rest = Transform2D(1, 0, 0, 1, 4, 0)
+length = 3.0
+bone_angle = 1.5708
+
+[node name="thigh_r" type="Bone2D" parent="Skeleton2D/root/hip_r"]
+position = Vector2(0, 6)
+rest = Transform2D(1, 0, 0, 1, 0, 6)
+length = 6.0
+bone_angle = 1.5708
+
+[node name="ThighRSprite" type="Sprite2D" parent="Skeleton2D/root/hip_r/thigh_r"]
+
+[node name="calf_r" type="Bone2D" parent="Skeleton2D/root/hip_r/thigh_r"]
+position = Vector2(0, 7)
+rest = Transform2D(1, 0, 0, 1, 0, 7)
+length = 7.0
+bone_angle = 1.5708
+
+[node name="CalfRSprite" type="Sprite2D" parent="Skeleton2D/root/hip_r/thigh_r/calf_r"]
+
+[node name="foot_r" type="Bone2D" parent="Skeleton2D/root/hip_r/thigh_r/calf_r"]
+position = Vector2(0, 5)
+rest = Transform2D(1, 0, 0, 1, 0, 5)
+length = 5.0
+bone_angle = 1.5708
+
+[node name="FootRSprite" type="Sprite2D" parent="Skeleton2D/root/hip_r/thigh_r/calf_r/foot_r"]
+
+[node name="tail" type="Bone2D" parent="Skeleton2D/root"]
+position = Vector2(0, 1)
+rest = Transform2D(1, 0, 0, 1, 0, 1)
+length = 6.0
+bone_angle = 1.8849
+
+[node name="TailSprite" type="Sprite2D" parent="Skeleton2D/root/tail"]
+
+[node name="AnimationPlayer" type="AnimationPlayer" parent="."]
+
+[node name="AnimationController" type="Node" parent="."]
+script = ExtResource("2_anim")
