@@ -22,7 +22,7 @@ const PIXELS_PER_STUD := 12.0
 # confirms which version of the portrait/shadow code is actually live.
 # When you edit hero.gd or character_shadow.gd, bump this and the line
 # in _ready() will print [hero v<N>] at run-start.
-const _BUF_181_BUILD_MARKER := "BUF-181 v25 / BUF-183 Phase 3 (rig gait from accepted delta, no wall-skate)"
+const _BUF_181_BUILD_MARKER := "BUF-181 v26 / BUF-183 Phase 3 (rig idles when movement gated)"
 # Verbose portrait/shadow logging. Off now that the frame-based rig is
 # the accepted placeholder — flip back on if the portrait-fallback path
 # (used when a hero has no rig) needs debugging.
@@ -204,6 +204,7 @@ func _physics_process(delta: float) -> void:
 	# already gates the cycle/wave/combat ticks on this; mirror it here
 	# so the hero doesn't drift behind the end-screen scrim.
 	if GameState.phase == GameState.Phase.RUN_ENDED or GameState.phase == GameState.Phase.RUN_COMPLETE:
+		_rig_idle()
 		return
 	# Downed-timer countdown ticks regardless of authority — it's the
 	# same on every peer because the host broadcasts the down/revive
@@ -213,10 +214,14 @@ func _physics_process(delta: float) -> void:
 	if is_downed and not is_fallen:
 		downed_seconds_remaining = max(0.0, downed_seconds_remaining - delta)
 	if is_downed:
+		# Downed/fallen: hero is immobilized. Without this the rig keeps
+		# its last nonzero velocity and walks in place in BuffaloRig's
+		# _process while the hero is frozen.
+		_rig_idle()
 		return
 	# Remote puppets and AI placeholders don't read local input. Their
-	# pose is overwritten by replication RPCs (apply_remote_pose) on the
-	# configured cadence; they still y-sort + draw normally.
+	# rig is driven from apply_remote_pose (replicated pose delta), so
+	# DON'T idle it here — that would override the replicated motion.
 	if is_remote_puppet or is_ai_placeholder:
 		return
 	# WASD → direct screen-cardinal movement. The Hades / Stardew
@@ -261,6 +266,15 @@ func _physics_process(delta: float) -> void:
 		if new_facing != facing:
 			facing = new_facing
 			facing_changed.emit(facing)
+
+## Tell the rig to stop walking (zero velocity → idle pose). Called at
+## every movement-gated early-return in _physics_process (run-end,
+## downed/fallen) so the rig doesn't keep advancing its distance-driven
+## walk cycle on stale velocity while the hero is immobilized. Safe
+## before the rig exists (_rig null-guarded).
+func _rig_idle() -> void:
+	if _rig != null and _rig.has_method("set_movement"):
+		_rig.set_movement(Vector2.ZERO)
 
 var _remote_pose_seen: bool = false
 var _remote_prev_pos: Vector2 = Vector2.ZERO
