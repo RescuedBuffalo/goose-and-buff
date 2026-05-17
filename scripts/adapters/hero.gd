@@ -22,7 +22,7 @@ const PIXELS_PER_STUD := 12.0
 # confirms which version of the portrait/shadow code is actually live.
 # When you edit hero.gd or character_shadow.gd, bump this and the line
 # in _ready() will print [hero v<N>] at run-start.
-const _BUF_181_BUILD_MARKER := "BUF-181 v27 / BUF-183 Phase 3 (downed/fallen tint reaches rig)"
+const _BUF_181_BUILD_MARKER := "BUF-181 v28 / BUF-183 Phase 3 (rig stops on peer drop → AI mode)"
 # Verbose portrait/shadow logging. Off now that the frame-based rig is
 # the accepted placeholder — flip back on if the portrait-fallback path
 # (used when a hero has no rig) needs debugging.
@@ -339,6 +339,16 @@ func set_ai_placeholder(active: bool) -> void:
 	is_ai_placeholder = active
 	if camera != null:
 		camera.enabled = not is_remote_puppet and not is_ai_placeholder
+	if active:
+		# A dropped peer's last replicated pose may have latched a
+		# nonzero velocity in the rig. Once AI placeholder mode is on,
+		# _physics_process returns at the puppet/AI gate and no further
+		# apply_remote_pose() arrives to zero it — without this the rig
+		# walks in place forever under the AI badge. Also reset the
+		# remote-pose baseline so a later reconnect doesn't compute a
+		# huge teleport velocity from the stale prev position.
+		_rig_idle()
+		_remote_pose_seen = false
 	queue_redraw()
 
 func apply_revive(hp_ratio: float) -> void:
