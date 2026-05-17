@@ -22,7 +22,7 @@ const PIXELS_PER_STUD := 12.0
 # confirms which version of the portrait/shadow code is actually live.
 # When you edit hero.gd or character_shadow.gd, bump this and the line
 # in _ready() will print [hero v<N>] at run-start.
-const _BUF_181_BUILD_MARKER := "BUF-181 v24 / BUF-183 Phase 3 (rig animates remote puppets too)"
+const _BUF_181_BUILD_MARKER := "BUF-181 v25 / BUF-183 Phase 3 (rig gait from accepted delta, no wall-skate)"
 # Verbose portrait/shadow logging. Off now that the frame-based rig is
 # the accepted placeholder — flip back on if the portrait-fallback path
 # (used when a hero has no rig) needs debugging.
@@ -224,6 +224,7 @@ func _physics_process(delta: float) -> void:
 	# screen, regardless of how the iso tile axes are oriented. Tile
 	# coords update as a side-effect when the hero crosses boundaries.
 	var input_dir: Vector2 = _read_input_direction()
+	var pos_before: Vector2 = position
 	if input_dir != Vector2.ZERO:
 		var step: Vector2 = input_dir * move_pixels_per_second * delta
 		var proposed: Vector2 = position + step
@@ -243,12 +244,14 @@ func _physics_process(delta: float) -> void:
 		if new_tile != current_tile:
 			current_tile = new_tile
 			tile_changed.emit(current_tile)
-	# Drive the rig's animation off the ACTUAL world velocity (px/s), not
-	# just the normalized direction. The rig advances its walk cycle by
-	# distance travelled so the feet track the ground at any speed — it
-	# needs the real magnitude, not a unit vector. Zero → idle.
+	# Drive the rig from the ACCEPTED position delta this tick, not the
+	# intended input. When blocked by an unwalkable tile the delta is
+	# zero (→ idle, no skating in place) or one-axis-only (→ slower gait
+	# + correct facing), because the rig's distance-driven walk cycle
+	# advances by real ground travel.
 	if _rig != null and _rig.has_method("set_movement"):
-		_rig.set_movement(input_dir * move_pixels_per_second)
+		var accepted_velocity: Vector2 = (position - pos_before) / maxf(delta, 0.0001)
+		_rig.set_movement(accepted_velocity)
 	# Face toward cursor every frame so the swing arc reads honestly.
 	# Falling back to last facing if the cursor is somehow on top of us.
 	var mouse_world: Vector2 = get_global_mouse_position()
