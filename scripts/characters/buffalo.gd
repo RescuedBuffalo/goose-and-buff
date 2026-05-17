@@ -113,6 +113,14 @@ func set_movement(velocity_px_per_sec: Vector2) -> void:
 		_facing = new_dir
 		_apply_direction_animation()
 
+## BUF-129 variant tint. Applied to the AnimatedSprite2D only — NOT the
+## whole rig — so the in-rig ground shadow stays neutral black instead of
+## picking up the variant palette. Called by hero.gd._apply_variant_tint
+## whenever a run's variant is (re)resolved.
+func set_variant_tint(color: Color) -> void:
+	if anim_sprite != null:
+		anim_sprite.modulate = color
+
 func _apply_direction_animation() -> void:
 	if anim_sprite == null:
 		return

@@ -22,7 +22,7 @@ const PIXELS_PER_STUD := 12.0
 # confirms which version of the portrait/shadow code is actually live.
 # When you edit hero.gd or character_shadow.gd, bump this and the line
 # in _ready() will print [hero v<N>] at run-start.
-const _BUF_181_BUILD_MARKER := "BUF-181 v22 / BUF-183 Phase 3 (per-dir bob compensates weak side art)"
+const _BUF_181_BUILD_MARKER := "BUF-181 v23 / BUF-183 Phase 3 (rig fallback-suppress + variant tint)"
 # Verbose portrait/shadow logging. Off now that the frame-based rig is
 # the accepted placeholder — flip back on if the portrait-fallback path
 # (used when a hero has no rig) needs debugging.
@@ -489,6 +489,10 @@ func _attach_rig(rig_scene: PackedScene) -> void:
 	# up. The portrait-fallback path still uses $Shadow (see _load_sprite).
 	if shadow != null:
 		shadow.visible = false
+	# Re-apply the BUF-129 variant tint now that the rig exists — earlier
+	# _apply_variant_tint() calls (reset_hp / _ready) only reached the
+	# now-hidden placeholder sprite.
+	_apply_variant_tint()
 	if _DEBUG_PORTRAIT_LOG:
 		print("[hero ", hero_data.id, "] rig attached: ", rig_scene.resource_path)
 
@@ -780,13 +784,17 @@ func _apply_variant_tint() -> void:
 	# save_state.current_variants[hero_id]; we read it here and modulate
 	# the sprite. Empty variant_id (assets-not-authored, save-from-pre-M2,
 	# Val) → no-op, sprite stays canonical.
+	var variant_id: String = SaveIo.current_variant(hero_data.id)
+	var tint: Color = Color(1, 1, 1, 1) if variant_id.is_empty() else HeroVariants.tint_for(variant_id)
+	# Rig path: the placeholder $Sprite is hidden/empty and the visible
+	# pixels live under _rig. Route the tint to the rig (it modulates
+	# just its AnimatedSprite2D, leaving its ground shadow neutral).
+	if _rig != null and _rig.has_method("set_variant_tint"):
+		_rig.set_variant_tint(tint)
+		return
 	if sprite == null:
 		return
-	var variant_id: String = SaveIo.current_variant(hero_data.id)
-	if variant_id.is_empty():
-		sprite.modulate = Color(1, 1, 1, 1)
-		return
-	sprite.modulate = HeroVariants.tint_for(variant_id)
+	sprite.modulate = tint
 
 func _draw() -> void:
 	# Downed/fallen heroes get the kneel marker even with a sprite — it's
@@ -795,8 +803,13 @@ func _draw() -> void:
 	if is_downed:
 		_draw_downed_overlay()
 		return
-	if sprite != null and sprite.texture != null:
-		# Portrait body + cursor already show facing/swing direction —
+	# A "real" character visual exists if either the placeholder portrait
+	# sprite has a texture OR a rig is attached (the rig replaces the
+	# sprite and clears sprite.texture). Either way, skip the
+	# draw_circle() totem-marker fallback so it doesn't render on top of
+	# the rig.
+	if (sprite != null and sprite.texture != null) or _rig != null:
+		# Portrait/rig body + cursor already show facing/swing direction —
 		# the notch is only useful for the totem-icon fallback.
 		if not _is_using_portrait:
 			_draw_facing_notch()
