@@ -22,7 +22,7 @@ const PIXELS_PER_STUD := 12.0
 # confirms which version of the portrait/shadow code is actually live.
 # When you edit hero.gd or character_shadow.gd, bump this and the line
 # in _ready() will print [hero v<N>] at run-start.
-const _BUF_181_BUILD_MARKER := "BUF-181 v26 / BUF-183 Phase 3 (rig idles when movement gated)"
+const _BUF_181_BUILD_MARKER := "BUF-181 v27 / BUF-183 Phase 3 (downed/fallen tint reaches rig)"
 # Verbose portrait/shadow logging. Off now that the frame-based rig is
 # the accepted placeholder — flip back on if the portrait-fallback path
 # (used when a hero has no rig) needs debugging.
@@ -276,6 +276,19 @@ func _rig_idle() -> void:
 	if _rig != null and _rig.has_method("set_movement"):
 		_rig.set_movement(Vector2.ZERO)
 
+## Single point for body colouring — variant tint AND downed/fallen
+## state overlays. Routes to the rig's AnimatedSprite2D when a rig is
+## attached (the placeholder $Sprite is hidden/empty in that path);
+## otherwise modulates $Sprite directly. Without this, the rig path
+## stays full-colour standing while only the invisible $Sprite gets
+## the red/faded downed treatment.
+func _set_body_modulate(color: Color) -> void:
+	if _rig != null and _rig.has_method("set_body_modulate"):
+		_rig.set_body_modulate(color)
+		return
+	if sprite != null:
+		sprite.modulate = color
+
 var _remote_pose_seen: bool = false
 var _remote_prev_pos: Vector2 = Vector2.ZERO
 var _remote_prev_us: int = 0
@@ -357,8 +370,7 @@ func apply_fallen() -> void:
 	is_fallen = true
 	is_downed = true
 	revive_progress_seconds = 0.0
-	if sprite != null:
-		sprite.modulate = Color(0.4, 0.2, 0.2, 0.5)
+	_set_body_modulate(Color(0.4, 0.2, 0.2, 0.5))
 	hero_fallen.emit()
 	queue_redraw()
 
@@ -412,8 +424,7 @@ func damage(amount: float) -> void:
 		is_downed = true
 		downed_seconds_remaining = MultiplayerDataClass.DOWNED_TIMER_SECONDS
 		revive_progress_seconds = 0.0
-		if sprite != null:
-			sprite.modulate = Color(1.0, 0.3, 0.3, 0.65)
+		_set_body_modulate(Color(1.0, 0.3, 0.3, 0.65))
 		hero_downed.emit()
 	queue_redraw()
 
@@ -824,15 +835,10 @@ func _apply_variant_tint() -> void:
 	# Val) → no-op, sprite stays canonical.
 	var variant_id: String = SaveIo.current_variant(hero_data.id)
 	var tint: Color = Color(1, 1, 1, 1) if variant_id.is_empty() else HeroVariants.tint_for(variant_id)
-	# Rig path: the placeholder $Sprite is hidden/empty and the visible
-	# pixels live under _rig. Route the tint to the rig (it modulates
-	# just its AnimatedSprite2D, leaving its ground shadow neutral).
-	if _rig != null and _rig.has_method("set_variant_tint"):
-		_rig.set_variant_tint(tint)
-		return
-	if sprite == null:
-		return
-	sprite.modulate = tint
+	# _set_body_modulate routes to the rig's AnimatedSprite2D (or $Sprite
+	# fallback). Same path the downed/fallen overlays use — revive/reset
+	# call this to restore the variant tint over the red/faded state.
+	_set_body_modulate(tint)
 
 func _draw() -> void:
 	# Downed/fallen heroes get the kneel marker even with a sprite — it's

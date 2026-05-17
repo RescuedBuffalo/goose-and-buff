@@ -113,11 +113,13 @@ func set_movement(velocity_px_per_sec: Vector2) -> void:
 		_facing = new_dir
 		_apply_direction_animation()
 
-## BUF-129 variant tint. Applied to the AnimatedSprite2D only — NOT the
-## whole rig — so the in-rig ground shadow stays neutral black instead of
-## picking up the variant palette. Called by hero.gd._apply_variant_tint
-## whenever a run's variant is (re)resolved.
-func set_variant_tint(color: Color) -> void:
+## Body modulate — applied to the AnimatedSprite2D only, NOT the whole
+## rig, so the in-rig ground shadow stays neutral black instead of
+## picking up the colour. Used for BOTH the BUF-129 variant tint and the
+## transient downed (red) / fallen (faded) state overlays; hero.gd owns
+## which colour is active (they're mutually exclusive in time — revive
+## restores the variant tint).
+func set_body_modulate(color: Color) -> void:
 	if anim_sprite != null:
 		anim_sprite.modulate = color
 
