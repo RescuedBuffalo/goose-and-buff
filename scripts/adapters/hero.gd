@@ -23,13 +23,13 @@ const PIXELS_PER_STUD := 12.0
 # When you edit hero.gd or character_shadow.gd, bump this and the line
 # in _ready() will print [hero v<N>] at run-start.
 const _BUF_181_BUILD_MARKER := "BUF-181 v22 / BUF-183 Phase 3 (per-dir bob compensates weak side art)"
-# Toggle for verbose portrait/shadow logging. Leave on while M3 art
-# pipeline placeholder is in flux; flip to false once Phase 3 rigs land.
-const _DEBUG_PORTRAIT_LOG := true
-# When true, writes the masked portrait PNG to user:// so you can open
-# it in any image viewer and see exactly what the chroma-key produced.
-# Path: %APPDATA%\Godot\app_userdata\<project>\masked_<hero_id>.png on Windows.
-const _DEBUG_SAVE_MASKED_PNG := true
+# Verbose portrait/shadow logging. Off now that the frame-based rig is
+# the accepted placeholder — flip back on if the portrait-fallback path
+# (used when a hero has no rig) needs debugging.
+const _DEBUG_PORTRAIT_LOG := false
+# Writes the masked portrait PNG to user:// for chroma-key inspection.
+# Off — only relevant to the legacy portrait-fallback path.
+const _DEBUG_SAVE_MASKED_PNG := false
 # When true, the procedural shadow renders bright magenta instead of
 # soft black so it's unmistakably distinguishable from any halo or
 # baked-in shadow in the source PNG.
